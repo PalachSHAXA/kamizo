@@ -11,8 +11,9 @@ import type { Env } from './types';
 import { matchRoute } from './router';
 import { setCorsOrigin, getCurrentCorsOrigin, resolveCorsOrigin, initCors } from './middleware/cors';
 import { getUser } from './middleware/auth';
+import { enforceDemoSessionPolicy } from './middleware/demoSession';
 import { setTenantForRequest, getTenantSlug, setCurrentTenant } from './middleware/tenant';
-import { checkRateLimit, getClientIdentifier, RATE_LIMITS } from './middleware/rateLimit';
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from './middleware/rateLimit';
 import { error, sanitizeErrorMessage, bilingualError } from './utils/helpers';
 import { createRequestLogger } from './utils/logger';
 import { reportError } from './utils/sentry';
@@ -175,18 +176,6 @@ async function runMigrations(env: Env) {
       }
     } catch (e) {
       console.error('Migration error (users login unique):', e);
-    }
-
-    // Migration: Add password_plain column to users table (encrypted passwords for admin visibility)
-    try {
-      const usersInfo = await env.DB.prepare(`PRAGMA table_info(users)`).all();
-      const usersCols = (usersInfo.results || []).map((col: any) => col.name);
-      if (!usersCols.includes('password_plain')) {
-        await env.DB.prepare(`ALTER TABLE users ADD COLUMN password_plain TEXT`).run();
-        console.log('Migration: Added password_plain column to users');
-      }
-    } catch (e) {
-      // Column might already exist
     }
 
     // Migration 2: Add pause-related columns to requests table
@@ -579,16 +568,30 @@ export default {
         try {
           return applyCors(await withMonitoring(request, async () => {
             try {
-              // Apply rate limiting to non-auth endpoints (auth handles it internally)
-              if (!url.pathname.startsWith('/api/auth/login') && !url.pathname.startsWith('/api/health')) {
+              // Auth login handles its own policy and rate limit. Health remains
+              // rate-limit exempt, but demo sessions must still pass read policy.
+              if (!url.pathname.startsWith('/api/auth/login')) {
                 const user = await getUser(request, env);
-                const identifier = getClientIdentifier(request, user);
                 // Sprint 74 P0/F2: key by route template (e.g.
                 // `/api/agenda/:agendaItemId/comments`) instead of the
                 // resolved pathname. Was giving a fresh 100/min bucket
                 // per :id, which neutered every entry in RATE_LIMITS
                 // for routes with path params.
                 const endpoint = `${request.method}:${matched.path}`;
+                const demoDenied = enforceDemoSessionPolicy(request, user, matched.path);
+                if (demoDenied) return demoDenied;
+                if (url.pathname.startsWith('/api/health')) {
+                  const directResponse = await matched.handler(request, env, matched.params);
+                  const drHeaders = new Headers(directResponse.headers);
+                  drHeaders.set('X-Request-Id', log.requestId);
+                  log.info('request_end', { status: directResponse.status, durationMs: Date.now() - requestStart });
+                  return new Response(directResponse.body, {
+                    status: directResponse.status,
+                    statusText: directResponse.statusText,
+                    headers: drHeaders,
+                  });
+                }
+                const identifier = getRateLimitIdentifier(request, user, endpoint);
                 const rateLimit = await checkRateLimit(env, identifier, endpoint);
 
                 if (!rateLimit.allowed) {
@@ -603,7 +606,8 @@ export default {
                       'X-RateLimit-Limit': (RATE_LIMITS[endpoint] || RATE_LIMITS['default']).maxRequests.toString(),
                       'X-RateLimit-Remaining': '0',
                       'X-RateLimit-Reset': rateLimit.resetAt.toString(),
-                      'Retry-After': resetIn.toString()
+                      'Retry-After': resetIn.toString(),
+                      'Cache-Control': 'no-store',
                     }
                   });
                 }

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '../components/common';
 import { uploadApi, branchesApi, buildingsApi } from '../services/api';
+import type { BuildingApiResponse } from '../services/api/buildings';
 import type {
   MeetingFormat, AgendaItemType,
   MeetingOrganizerType, DecisionThreshold
@@ -51,7 +52,7 @@ export function CreateMeetingWizard({
 
   // Cascading: branches -> buildings
   const [branchesList, setBranchesList] = useState<{ id: string; code: string; name: string }[]>([]);
-  const [buildingsForBranch, setBuildingsForBranch] = useState<{ id: string; name: string; address: string; branch_code: string }[]>([]);
+  const [buildingsForBranch, setBuildingsForBranch] = useState<{ id: string; name: string; address: string }[]>([]);
   const [selectedBranchCode, setSelectedBranchCode] = useState('');
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
@@ -85,9 +86,10 @@ export function CreateMeetingWizard({
       try {
         const resp = await branchesApi.getAll();
         if (!cancelled && resp.branches) {
-          setBranchesList(resp.branches);
-          if (resp.branches.length > 0) {
-            setSelectedBranchCode(resp.branches[0].code);
+          const branches = resp.branches.map(({ id, code, name }) => ({ id, code, name }));
+          setBranchesList(branches);
+          if (branches[0]) {
+            setSelectedBranchCode(branches[0].code);
           }
         }
       } catch (e) {
@@ -106,9 +108,11 @@ export function CreateMeetingWizard({
     setLoadingBuildings(true);
     (async () => {
       try {
-        const resp = await buildingsApi.getAll();
+        const resp = await buildingsApi.getAll<BuildingApiResponse>();
         if (!cancelled && resp.buildings) {
-          const filtered = resp.buildings.filter((b: Record<string, unknown>) => b.branch_code === selectedBranchCode);
+          const filtered = resp.buildings
+            .filter((building) => building.branch_code === selectedBranchCode)
+            .map(({ id, name, address }) => ({ id, name, address }));
           setBuildingsForBranch(filtered);
           // Reset building selection
           setFormData(prev => ({ ...prev, buildingId: '', buildingAddress: '' }));

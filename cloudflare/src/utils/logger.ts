@@ -3,6 +3,8 @@
 //        log.info('Processing request', { userId: '123' });
 // TODO: Migrate route files from console.log/error to use this logger
 
+import { getRequestUser } from '../middleware/auth';
+
 type LogLevel = 'info' | 'warn' | 'error';
 
 interface LogEntry {
@@ -39,6 +41,14 @@ export function createRequestLogger(request: Request): RequestLogger {
   const path = url.pathname;
 
   function log(level: LogLevel, message: string, data?: Record<string, unknown>, err?: unknown): void {
+    const user = getRequestUser(request);
+    const impersonationContext = user?.isImpersonated === true && typeof user.impersonatedBy === 'string'
+      ? {
+          actorId: user.impersonatedBy,
+          impersonatedSessionUserId: user.id,
+          isImpersonated: true,
+        }
+      : undefined;
     const entry: LogEntry = {
       requestId,
       level,
@@ -46,7 +56,9 @@ export function createRequestLogger(request: Request): RequestLogger {
       method,
       path,
       timestamp: new Date().toISOString(),
-      data: data || undefined,
+      data: data || impersonationContext
+        ? { ...data, ...impersonationContext }
+        : undefined,
     };
 
     if (err instanceof Error) {

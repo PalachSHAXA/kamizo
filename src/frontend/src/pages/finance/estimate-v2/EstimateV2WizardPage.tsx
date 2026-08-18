@@ -16,12 +16,18 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBuildingStore } from '../../../stores/buildingStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
+import { useTenantStore } from '../../../stores/tenantStore';
+import { useAuthStore } from '../../../stores/authStore';
+import { FinanceDemoReadOnlyBanner } from '../FinanceDemoReadOnlyBanner';
+import { generateEstimateV2Excel } from './generateEstimateV2Excel';
+import { NumericInput } from './NumericInput';
 import {
   estimateV2Api,
+  branchesApi,
   type EstimateModelV2,
   type StaffPositionV2,
   type ExpenseLineV2,
@@ -38,20 +44,16 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ');
 }
 
-// Парсинг ввода в число: игнорирует пробелы/буквы, возвращает 0 для пустого.
-function parseNum(s: string): number {
-  const cleaned = s.replace(/[^\d.,-]/g, '').replace(',', '.');
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
-
-// ── 16 обязательных услуг (мирроринг legal-constants.ts backend'а) ─
-const MANDATORY_SERVICES: Array<{ code: string; label_ru: string; label_uz: string }> = [
+// ── Обязательные услуги (мирроринг legal-constants.ts backend'а) ─
+// conditional — показывать только если у дома есть лифт/насосы.
+// optional — не обязательна (гидроизоляция), рендерится галочкой.
+const MANDATORY_SERVICES: Array<{ code: string; label_ru: string; label_uz: string; conditional?: 'has_elevator' | 'has_pumps'; optional?: boolean }> = [
   { code: 'electricity_common', label_ru: 'Электроснабжение МОП', label_uz: 'Umumiy joylar elektri' },
-  { code: 'elevator_if_present', label_ru: 'Обслуживание лифта', label_uz: 'Lift xizmati' },
-  { code: 'facades_entrances', label_ru: 'Фасады и подъезды', label_uz: 'Fasadlar va podyezdlar' },
-  { code: 'pumps_if_present', label_ru: 'Насосное оборудование', label_uz: 'Nasos uskunasi' },
-  { code: 'roof_waterproofing', label_ru: 'Гидроизоляция кровли', label_uz: 'Tom gidroizolyatsiyasi' },
+  { code: 'elevator_if_present', label_ru: 'Обслуживание лифта', label_uz: 'Lift xizmati', conditional: 'has_elevator' },
+  { code: 'facades', label_ru: 'Фасады', label_uz: 'Fasadlar' },
+  { code: 'entrances', label_ru: 'Подъезды', label_uz: 'Podyezdlar' },
+  { code: 'pumps_if_present', label_ru: 'Насосное оборудование', label_uz: 'Nasos uskunasi', conditional: 'has_pumps' },
+  { code: 'roof_waterproofing', label_ru: 'Гидроизоляция кровли', label_uz: 'Tom gidroizolyatsiyasi', optional: true },
   { code: 'basement_shaft_networks', label_ru: 'Сети подвала/шахты', label_uz: 'Yerto\'la/shaxta tarmoqlari' },
   { code: 'gutters', label_ru: 'Водостоки', label_uz: 'Suv oqizgichlar' },
   { code: 'stairwell_lift_cleaning_weekly', label_ru: 'Уборка подъездов (≥1/нед)', label_uz: 'Podyezd tozalash' },
@@ -76,6 +78,8 @@ export function EstimateV2WizardPage() {
   const addToast = useToastStore((s) => s.addToast);
   const buildings = useBuildingStore((s) => s.buildings);
   const fetchBuildings = useBuildingStore((s) => s.fetchBuildings);
+  const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
 
   const isRu = language === 'ru';
   const steps = isRu ? STEPS_RU : STEPS_UZ;
@@ -107,15 +111,88 @@ export function EstimateV2WizardPage() {
   // ── Step 4: доходы ────────────────────────────────────────────
   const [incomes, setIncomes] = useState<IncomeStreamV2[]>([]);
 
+  // Периодические расходы применяются в этом году (иначе исключаются из тарифа).
+  const [periodicEnabled, setPeriodicEnabled] = useState(true);
+  // НДС: УК — плательщик НДС (ставка РУз 12%).
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatRate, setVatRate] = useState(0.12);
+
+  // Режим сметы: на один дом ('building') или на ЖК/объект ('complex').
+  const [scopeMode, setScopeMode] = useState<'building' | 'complex'>('building');
+  const [branchCode, setBranchCode] = useState('');           // выбранный ЖК
+  const [complexBuildingIds, setComplexBuildingIds] = useState<string[]>([]); // дома ЖК в смете
+  const [complexResult, setComplexResult] = useState<import('../../../services/api/finance-v2').ComplexResultV2 | null>(null);
+  // Язык выгрузки (по умолчанию — язык интерфейса).
+  const [exportLang, setExportLang] = useState<'ru' | 'uz'>(language as 'ru' | 'uz');
+  // Показывать прибыль УК жителям (перенесено из легаси-формы).
+  const [showProfit, setShowProfit] = useState(false);
+
   useEffect(() => {
     fetchBuildings();
   }, [fetchBuildings]);
 
-  // Live-подсчёты для preview
-  const fotGross = useMemo(
+  // Список ЖК (для режима complex).
+  const [branches, setBranches] = useState<Array<{ code: string; name: string }>>([]);
+  useEffect(() => {
+    branchesApi.getAll().then((r) => {
+      setBranches((r.branches || []).map((b: any) => ({ code: String(b.code), name: String(b.name || b.code) })));
+    }).catch(() => {});
+  }, []);
+  // Дома выбранного ЖК (из стора, по branchCode).
+  const branchBuildings = useMemo(
+    () => buildings.filter((b: any) => String(b.branchCode || '') === branchCode),
+    [buildings, branchCode],
+  );
+
+  // Режим редактирования: ?edit=<id> → загрузить черновик и заполнить шаги.
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  // Пока черновик грузится — блокируем «Далее», иначе быстрый клик создаст
+  // новую пустую смету (estimateId ещё null) и затрёт штат.
+  const [editLoading, setEditLoading] = useState(!!searchParams.get('edit'));
+  useEffect(() => {
+    if (!editId) return;
+    setEditLoading(true);
+    (async () => {
+      try {
+        const full = await estimateV2Api.getFull(editId);
+        const est = full.estimate as any;
+        const inp = full.input as any;
+        setEstimateId(editId);
+        setBuildingId(String(est.building_id || ''));
+        if (est.period) setPeriod(String(est.period));
+        if (est.title) setTitle(String(est.title));
+        setModel((inp?.model || est.model || 'TARIFF_CALCULATED') as EstimateModelV2);
+        setProfitPercent(Number(est.uk_profit_percent ?? (inp?.object?.profit_rate ?? 0) * 100) || 0);
+        setPayrollTaxRate(Number(inp?.object?.payroll_tax_rate ?? est.payroll_tax_rate ?? 0.24));
+        setTariffApproved(inp?.tariff_manual ?? (est.tariff_approved || ''));
+        setStaff((inp?.staff || []) as StaffPositionV2[]);
+        setExpenses((inp?.expenses || []) as ExpenseLineV2[]);
+        setIncomes((inp?.incomes || []) as IncomeStreamV2[]);
+        setPeriodicEnabled(inp?.object?.periodic_enabled !== false);
+        setVatEnabled(!!inp?.object?.vat_enabled);
+        setVatRate(Number(inp?.object?.vat_rate ?? 0.12));
+        setShowProfit(est.show_profit_to_residents === 1 || est.show_profit_to_residents === true);
+      } catch {
+        addToast('error', isRu ? 'Не удалось загрузить смету' : 'Smetani yuklab bo\'lmadi');
+      } finally {
+        setEditLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
+
+  // Live-подсчёты для preview (совпадают с движком compute.ts):
+  // ФОТ брутто = оклады + резерв отпускных (units*salary*дней/252).
+  const fotBase = useMemo(
     () => staff.reduce((s, p) => s + (p.units || 0) * (p.salary || 0), 0),
     [staff]
   );
+  const fotVacation = useMemo(
+    () => staff.reduce((s, p) => s + ((p.units || 0) * (p.salary || 0) * (p.vacation_days ?? 0)) / (21 * 12), 0),
+    [staff]
+  );
+  const fotGross = fotBase + fotVacation;
   const fotTax = Math.round(fotGross * payrollTaxRate);
   const fotTotal = fotGross + fotTax;
   const expensesTotal = useMemo(
@@ -135,10 +212,16 @@ export function EstimateV2WizardPage() {
   // ── Действия ──────────────────────────────────────────────────
 
   const handleAddMandatory = () => {
-    // Добавить недостающие 16 услуг с monthly = 0
+    // Добавить недостающие обязательные услуги (monthly=0). Пропускаем:
+    //  - conditional (лифт/насосы), если у дома их нет;
+    //  - optional (гидроизоляция) — они добавляются отдельными галочками.
     const existingCodes = new Set(expenses.map((e) => e.legal_code).filter(Boolean));
+    const hasElevator = !!(selectedBuilding as any)?.hasElevator;
+    const hasPumps = !!(selectedBuilding as any)?.hasPumps;
     const toAdd: ExpenseLineV2[] = MANDATORY_SERVICES
-      .filter((s) => !existingCodes.has(s.code))
+      .filter((s) => !s.optional && !existingCodes.has(s.code))
+      .filter((s) => !(s.conditional === 'has_elevator' && !hasElevator))
+      .filter((s) => !(s.conditional === 'has_pumps' && !hasPumps))
       .map((s) => ({
         name: isRu ? s.label_ru : s.label_uz,
         monthly: 0,
@@ -147,11 +230,26 @@ export function EstimateV2WizardPage() {
         legal_code: s.code,
       }));
     if (toAdd.length === 0) {
-      addToast('info', isRu ? 'Все 16 услуг уже добавлены' : 'Barcha 16 xizmat qo\'shilgan');
+      addToast('info', isRu ? 'Все обязательные услуги добавлены' : 'Barcha majburiy xizmatlar qo\'shilgan');
       return;
     }
     setExpenses([...expenses, ...toAdd]);
     addToast('success', isRu ? `Добавлено ${toAdd.length} статей` : `${toAdd.length} modda qo'shildi`);
+  };
+
+  // Опциональная услуга (гидроизоляция): галочка добавляет/убирает строку.
+  const toggleOptionalService = (code: string, checked: boolean) => {
+    const svc = MANDATORY_SERVICES.find((s) => s.code === code);
+    if (!svc) return;
+    if (checked) {
+      if (expenses.some((e) => e.legal_code === code)) return;
+      setExpenses([...expenses, {
+        name: isRu ? svc.label_ru : svc.label_uz,
+        monthly: 0, section: 'production', unit: 'flat', legal_code: code,
+      }]);
+    } else {
+      setExpenses(expenses.filter((e) => e.legal_code !== code));
+    }
   };
 
   const handleAddLinkedToStaff = () => {
@@ -175,16 +273,22 @@ export function EstimateV2WizardPage() {
   // Сохранить + пересчитать. На каждом шаге: если estimateId нет — POST create;
   // затем PUT соответствующего массива; на последнем шаге дёрнуть /compute + /validate.
   const persistCurrentStep = async (): Promise<boolean> => {
+    if (isDemoSession) return false;
     setSaving(true);
     try {
       let id = estimateId;
       if (!id) {
-        if (!buildingId) {
+        const isComplex = scopeMode === 'complex';
+        if (isComplex && complexBuildingIds.length === 0) {
+          addToast('warning', isRu ? 'Выберите ЖК и дома' : 'JK va uylarni tanlang');
+          return false;
+        }
+        if (!isComplex && !buildingId) {
           addToast('warning', isRu ? 'Выберите дом' : 'Uyni tanlang');
           return false;
         }
         const created = await estimateV2Api.create({
-          building_id: buildingId,
+          building_id: isComplex ? undefined : buildingId,
           period,
           title: title || undefined,
           model,
@@ -193,6 +297,11 @@ export function EstimateV2WizardPage() {
           tariff_approved: model === 'TARIFF_MANUAL' && typeof tariffApproved === 'number'
             ? tariffApproved
             : undefined,
+          ...(isComplex ? {
+            scope_level: 'complex' as const,
+            branch_code: branchCode,
+            buildings: complexBuildingIds.map((bid) => ({ building_id: bid })),
+          } : {}),
         });
         id = created.id;
         setEstimateId(id);
@@ -202,12 +311,20 @@ export function EstimateV2WizardPage() {
       if (step === 2) await estimateV2Api.putExpenses(id, expenses);
       if (step === 3) {
         await estimateV2Api.putIncomes(id, incomes);
+        // Сохранить флаги сметы (периодика, НДС) до пересчёта.
+        await estimateV2Api.putSettings(id, {
+          periodic_enabled: periodicEnabled,
+          vat_enabled: vatEnabled,
+          vat_rate: vatRate,
+          show_profit_to_residents: showProfit,
+        });
         // финальный пересчёт + валидация
         const [computeRes, validateRes] = await Promise.all([
           estimateV2Api.compute(id),
           estimateV2Api.validate(id),
         ]);
         setResult(computeRes.result);
+        setComplexResult(computeRes.complexResult || null);
         setWarnings(validateRes.warnings);
       }
       return true;
@@ -230,7 +347,7 @@ export function EstimateV2WizardPage() {
   };
 
   const handleFinishAndActivate = async () => {
-    if (!estimateId) return;
+    if (isDemoSession || !estimateId) return;
     setSaving(true);
     try {
       // Активация — существующий legacy endpoint POST /api/finance/estimates/:id/activate
@@ -245,6 +362,62 @@ export function EstimateV2WizardPage() {
     }
   };
 
+  // Скачать Excel из текущего состояния мастера. Доступно только после
+  // «Пересчитать» (есть result) — берём готовые цифры тарифа из него.
+  const handleDownloadExcel = async () => {
+    if (!result) return;
+    try {
+      const b = selectedBuilding as any; // стор отдаёт camelCase (totalArea/livingArea/…)
+      await generateEstimateV2Excel({
+        period,
+        title: title || undefined,
+        status: 'draft',
+        model,
+        profitPercent,
+        payrollTaxRate,
+        building: {
+          name: b?.name || '',
+          address: b?.address || undefined,
+          // Стор отдаёт площадь как totalArea/livingArea (camelCase). Раньше читали
+          // total_area → undefined → 0, из-за чего колонка «Тариф 1 м²» была пустой.
+          totalArea: b?.totalArea || 0,
+          livingArea: b?.livingArea || 0,
+          floors: b?.floors,
+          entrances: b?.entrances,
+          apartments: b?.totalApartments,
+          hasElevator: b?.hasElevator,
+        },
+        staff: result.staff_lines,
+        vacationReserve: result.fot_vacation,
+        payrollTax: result.payroll_tax,
+        expenses,
+        incomes,
+        result,
+        complexBuildings: complexResult?.buildings.map((cb) => ({
+          building_id: cb.building_id,
+          name: String((buildings as any[]).find((x) => String(x.id) === cb.building_id)?.name || cb.building_id),
+          residential_area: cb.residential_area,
+          share: cb.share,
+          self_expense: cb.self_expense,
+          self_cost_resident: cb.self_cost_resident,
+          base_per_m2: cb.base_per_m2,
+          with_profit_per_m2: cb.with_profit_per_m2,
+          telecom_comp_per_m2: cb.telecom_comp_per_m2,
+          tariff_resident: cb.tariff_resident,
+          tariff_effective: cb.tariff_effective,
+          vat_per_m2: cb.vat_per_m2,
+          tariff_with_vat: cb.tariff_with_vat,
+        })),
+        complexFotTotal: complexResult?.fot_total,
+        branchName: branchCode ? String(branches.find((br) => br.code === branchCode)?.name || branchCode) : undefined,
+        language: exportLang,
+        tenantName,
+      });
+    } catch (e: any) {
+      addToast('error', e?.message || (isRu ? 'Ошибка выгрузки Excel' : 'Excel xatosi'));
+    }
+  };
+
   // ── Рендер ────────────────────────────────────────────────────
 
   return (
@@ -253,7 +426,7 @@ export function EstimateV2WizardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isRu ? 'Новая смета' : 'Yangi smeta'}
+            {editId ? (isRu ? 'Редактирование сметы' : 'Smetani tahrirlash') : (isRu ? 'Новая смета' : 'Yangi smeta')}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {isRu
@@ -268,6 +441,8 @@ export function EstimateV2WizardPage() {
           {isRu ? '← К списку' : '← Ro\'yxatga'}
         </button>
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Stepper */}
       <div className="flex items-center gap-2">
@@ -295,7 +470,78 @@ export function EstimateV2WizardPage() {
       {/* Step body */}
       <div className="glass-card p-4 sm:p-6">
         {step === 0 && (
+          <div className="space-y-4">
+            {/* Режим сметы: на дом / на ЖК */}
+            <div>
+              <div className="text-xs font-medium text-gray-600 mb-1">{isRu ? 'Тип сметы' : 'Smeta turi'}</div>
+              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                {(['building', 'complex'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={!!editId}
+                    onClick={() => setScopeMode(m)}
+                    className={`px-4 py-2 font-medium ${scopeMode === m ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-50`}
+                  >
+                    {m === 'building' ? (isRu ? 'На один дом' : 'Bitta uy') : (isRu ? 'На ЖК (объект)' : 'JK (obyekt)')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Выбор ЖК и его домов (complex) */}
+            {scopeMode === 'complex' && (
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{isRu ? 'ЖК (объект)' : 'JK (obyekt)'}</label>
+                  <select
+                    value={branchCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      setBranchCode(code);
+                      const ids = buildings.filter((b: any) => String(b.branchCode || '') === code).map((b: any) => String(b.id));
+                      setComplexBuildingIds(ids);
+                    }}
+                    className="w-full sm:w-96 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">{isRu ? '— выберите ЖК —' : '— JK tanlang —'}</option>
+                    {branches.map((br) => (
+                      <option key={br.code} value={br.code}>{br.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {branchCode && (
+                  <div>
+                    <div className="text-xs font-medium text-gray-600 mb-1">{isRu ? 'Дома в смете' : 'Smetadagi uylar'}</div>
+                    {branchBuildings.length === 0 ? (
+                      <div className="text-sm text-gray-400">{isRu ? 'В этом ЖК нет домов' : 'Bu JKda uylar yo\'q'}</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        {branchBuildings.map((b: any) => {
+                          const id = String(b.id);
+                          const checked = complexBuildingIds.includes(id);
+                          return (
+                            <label key={id} className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(ev) => setComplexBuildingIds((prev) =>
+                                  ev.target.checked ? [...prev, id] : prev.filter((x) => x !== id))}
+                                className="rounded border-gray-300 text-primary-500"
+                              />
+                              {String(b.name)}{b.livingArea ? ` · ${Math.round(b.livingArea)} м²` : ''}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
           <Step1Basics
+            scopeMode={scopeMode}
             buildings={buildings as any}
             buildingId={buildingId}
             setBuildingId={setBuildingId}
@@ -311,8 +557,15 @@ export function EstimateV2WizardPage() {
             setPayrollTaxRate={setPayrollTaxRate}
             tariffApproved={tariffApproved}
             setTariffApproved={setTariffApproved}
+            vatEnabled={vatEnabled}
+            setVatEnabled={setVatEnabled}
+            vatRate={vatRate}
+            setVatRate={setVatRate}
+            showProfit={showProfit}
+            setShowProfit={setShowProfit}
             isRu={isRu}
           />
+          </div>
         )}
 
         {step === 1 && (
@@ -320,6 +573,7 @@ export function EstimateV2WizardPage() {
             staff={staff}
             setStaff={setStaff}
             fotGross={fotGross}
+            fotVacation={fotVacation}
             fotTax={fotTax}
             fotTotal={fotTotal}
             payrollTaxRate={payrollTaxRate}
@@ -334,6 +588,10 @@ export function EstimateV2WizardPage() {
             fotTotal={fotTotal}
             onAddMandatory={handleAddMandatory}
             onAddLinkedToStaff={handleAddLinkedToStaff}
+            periodicEnabled={periodicEnabled}
+            setPeriodicEnabled={setPeriodicEnabled}
+            toggleOptionalService={toggleOptionalService}
+            scopeBuildings={scopeMode === 'complex' ? complexBuildingIds.map((id) => ({ id, name: String((buildings as any[]).find((b) => String(b.id) === id)?.name || id) })) : []}
             isRu={isRu}
           />
         )}
@@ -344,9 +602,12 @@ export function EstimateV2WizardPage() {
             setIncomes={setIncomes}
             expensesTotal={expensesTotal}
             incomeTotal={incomeTotal}
-            residentialArea={selectedBuilding?.total_area || 0}
+            residentialArea={selectedBuilding?.totalArea || 0}
             profitPercent={profitPercent}
             result={result}
+            complexResult={complexResult}
+            buildingNameMap={Object.fromEntries((buildings as any[]).map((b) => [String(b.id), String(b.name)]))}
+            scopeBuildings={scopeMode === 'complex' ? complexBuildingIds.map((id) => ({ id, name: String((buildings as any[]).find((b) => String(b.id) === id)?.name || id) })) : []}
             warnings={warnings}
             isRu={isRu}
           />
@@ -364,7 +625,29 @@ export function EstimateV2WizardPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {step === steps.length - 1 && result && (
+          {!isDemoSession && step === steps.length - 1 && result && (
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              {(['ru', 'uz'] as const).map((lng) => (
+                <button
+                  key={lng}
+                  onClick={() => setExportLang(lng)}
+                  className={`px-2.5 py-2 font-semibold ${exportLang === lng ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {lng.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+          {!isDemoSession && step === steps.length - 1 && result && (
+            <button
+              onClick={handleDownloadExcel}
+              disabled={saving}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold disabled:opacity-50"
+            >
+              {isRu ? '⬇ Скачать Excel' : '⬇ Excel yuklash'}
+            </button>
+          )}
+          {!isDemoSession && step === steps.length - 1 && result && (
             <button
               onClick={handleFinishAndActivate}
               disabled={saving}
@@ -373,13 +656,13 @@ export function EstimateV2WizardPage() {
               {saving ? '...' : isRu ? 'Активировать смету' : 'Smetani faollashtirish'}
             </button>
           )}
-          <button
+          {!isDemoSession && <button
             onClick={handleNext}
-            disabled={saving}
+            disabled={saving || editLoading}
             className="px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-semibold disabled:opacity-50"
           >
-            {saving ? '...' : step === steps.length - 1 ? (isRu ? 'Пересчитать' : 'Qayta hisoblash') : (isRu ? 'Далее →' : 'Keyingi →')}
-          </button>
+            {editLoading ? (isRu ? 'Загрузка…' : 'Yuklanmoqda…') : saving ? '...' : step === steps.length - 1 ? (isRu ? 'Пересчитать' : 'Qayta hisoblash') : (isRu ? 'Далее →' : 'Keyingi →')}
+          </button>}
         </div>
       </div>
     </div>
@@ -399,12 +682,17 @@ function Step1Basics(props: {
   profitPercent: number; setProfitPercent: (v: number) => void;
   payrollTaxRate: number; setPayrollTaxRate: (v: number) => void;
   tariffApproved: number | ''; setTariffApproved: (v: number | '') => void;
+  vatEnabled: boolean; setVatEnabled: (v: boolean) => void;
+  vatRate: number; setVatRate: (v: number) => void;
+  showProfit: boolean; setShowProfit: (v: boolean) => void;
+  scopeMode: 'building' | 'complex';
   isRu: boolean;
 }) {
   const { buildings, isRu } = props;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {props.scopeMode !== 'complex' && (
         <Field label={isRu ? 'Дом (объект)' : 'Uy'} required>
           <select
             value={props.buildingId}
@@ -417,6 +705,7 @@ function Step1Basics(props: {
             ))}
           </select>
         </Field>
+        )}
 
         <Field label={isRu ? 'Период (месяц)' : 'Davr (oy)'} required>
           <input
@@ -450,10 +739,11 @@ function Step1Basics(props: {
         </Field>
 
         <Field label={isRu ? 'Прибыль УК, %' : 'UK foyda, %'}>
-          <input
-            type="number" min="0" max="30" step="0.1"
+          <NumericInput
+            decimal
             value={props.profitPercent}
-            onChange={(e) => props.setProfitPercent(parseNum(e.target.value))}
+            onChange={(n) => props.setProfitPercent(n)}
+            placeholder={isRu ? 'напр. 9' : 'masalan 9'}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
           />
         </Field>
@@ -471,17 +761,55 @@ function Step1Basics(props: {
 
         {props.model === 'TARIFF_MANUAL' && (
           <Field label={isRu ? 'Утверждённый тариф, сум/м²' : 'Tasdiqlangan tarif, so\'m/m²'}>
-            <input
-              type="number" min="0" step="1"
-              value={props.tariffApproved}
-              onChange={(e) => {
-                const v = e.target.value;
-                props.setTariffApproved(v === '' ? '' : parseNum(v));
-              }}
+            <NumericInput
+              value={typeof props.tariffApproved === 'number' ? props.tariffApproved : 0}
+              onChange={(n) => props.setTariffApproved(n === 0 ? '' : n)}
+              placeholder={isRu ? 'напр. 2 700' : 'masalan 2 700'}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
             />
           </Field>
         )}
+      </div>
+
+      {/* НДС */}
+      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={props.vatEnabled}
+            onChange={(e) => props.setVatEnabled(e.target.checked)}
+            className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+          />
+          <span className="font-medium">{isRu ? 'УК — плательщик НДС' : 'BT — QQS to\'lovchisi'}</span>
+        </label>
+        {props.vatEnabled && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">{isRu ? 'Ставка НДС, %' : 'QQS stavkasi, %'}</span>
+            <NumericInput
+              decimal
+              value={Math.round(props.vatRate * 100 * 10) / 10}
+              onChange={(n) => props.setVatRate((n || 0) / 100)}
+              placeholder="12"
+              className="w-20 px-2 py-1 rounded-lg border border-gray-200 bg-white text-sm text-right focus:ring-2 focus:ring-primary-500 outline-none"
+            />
+          </div>
+        )}
+        {props.vatEnabled && (
+          <div className="w-full text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
+            {isRu
+              ? '⚠️ Расходы вводите БЕЗ НДС (входящий НДС УК зачитывает). НДС 12% начисляется сверху на тариф — иначе НДС задвоится.'
+              : '⚠️ Xarajatlarni QQSsiz kiriting. QQS 12% tarifga ustidan qo\'shiladi.'}
+          </div>
+        )}
+        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={props.showProfit}
+            onChange={(e) => props.setShowProfit(e.target.checked)}
+            className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+          />
+          <span className="font-medium">{isRu ? 'Показывать прибыль УК жителям' : 'Foydani aholiga ko\'rsatish'}</span>
+        </label>
       </div>
     </div>
   );
@@ -493,10 +821,10 @@ function Step1Basics(props: {
 
 function Step2Staff(props: {
   staff: StaffPositionV2[]; setStaff: (v: StaffPositionV2[]) => void;
-  fotGross: number; fotTax: number; fotTotal: number; payrollTaxRate: number;
+  fotGross: number; fotVacation: number; fotTax: number; fotTotal: number; payrollTaxRate: number;
   isRu: boolean;
 }) {
-  const { staff, setStaff, fotGross, fotTax, fotTotal, payrollTaxRate, isRu } = props;
+  const { staff, setStaff, fotGross, fotVacation, fotTax, fotTotal, payrollTaxRate, isRu } = props;
 
   const update = (i: number, patch: Partial<StaffPositionV2>) => {
     const next = [...staff];
@@ -504,7 +832,8 @@ function Step2Staff(props: {
     setStaff(next);
   };
   const remove = (i: number) => setStaff(staff.filter((_, k) => k !== i));
-  const add = () => setStaff([...staff, { title: '', units: 1, salary: 0 }]);
+  // Новая позиция: 21 день отпуска по умолчанию (минимум ТК РУз).
+  const add = () => setStaff([...staff, { title: '', units: 1, salary: 0, vacation_days: 21 }]);
 
   return (
     <div className="space-y-4">
@@ -527,6 +856,7 @@ function Step2Staff(props: {
                 <th className="text-left py-2 pr-2 font-medium">{isRu ? 'Должность' : 'Lavozim'}</th>
                 <th className="text-right py-2 px-2 font-medium w-24">{isRu ? 'Ед.' : 'Birlik'}</th>
                 <th className="text-right py-2 px-2 font-medium w-36">{isRu ? 'Оклад, сум' : 'Maosh, so\'m'}</th>
+                <th className="text-right py-2 px-2 font-medium w-24">{isRu ? 'Отпуск, дн.' : 'Ta\'til, kun'}</th>
                 <th className="text-right py-2 px-2 font-medium w-36">{isRu ? 'Итого/мес' : 'Jami/oy'}</th>
                 <th className="w-10"></th>
               </tr>
@@ -544,18 +874,27 @@ function Step2Staff(props: {
                     />
                   </td>
                   <td className="py-1.5 px-2">
-                    <input
-                      type="number" min="0" step="0.5"
+                    <NumericInput
+                      decimal
                       value={s.units}
-                      onChange={(e) => update(i, { units: parseNum(e.target.value) })}
+                      onChange={(n) => update(i, { units: n })}
+                      placeholder="1"
                       className="w-full px-2 py-1 rounded border border-gray-200 bg-white text-sm text-right focus:ring-1 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </td>
                   <td className="py-1.5 px-2">
-                    <input
-                      type="number" min="0" step="1000"
+                    <NumericInput
                       value={s.salary}
-                      onChange={(e) => update(i, { salary: parseNum(e.target.value) })}
+                      onChange={(n) => update(i, { salary: n })}
+                      placeholder={isRu ? 'оклад' : 'oylik'}
+                      className="w-full px-2 py-1 rounded border border-gray-200 bg-white text-sm text-right focus:ring-1 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                  </td>
+                  <td className="py-1.5 px-2">
+                    <NumericInput
+                      value={s.vacation_days ?? 21}
+                      onChange={(n) => update(i, { vacation_days: n })}
+                      placeholder="21"
                       className="w-full px-2 py-1 rounded border border-gray-200 bg-white text-sm text-right focus:ring-1 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </td>
@@ -575,9 +914,15 @@ function Step2Staff(props: {
       {/* Итог ФОТ */}
       <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 space-y-1 text-sm">
         <div className="flex justify-between">
-          <span>{isRu ? 'ФОТ (брутто)' : 'FOT (brutto)'}:</span>
+          <span>{isRu ? 'ФОТ (брутто, с отпускными)' : 'FOT (brutto)'}:</span>
           <span className="tabular-nums font-medium">{fmt(fotGross)} сум</span>
         </div>
+        {fotVacation > 0 && (
+          <div className="flex justify-between text-gray-500 text-xs">
+            <span>{isRu ? '↳ в т.ч. резерв отпускных' : '↳ shu jumladan ta\'til rezervi'}:</span>
+            <span className="tabular-nums">{fmt(fotVacation)} сум</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>{isRu ? `Налог на ФОТ (${(payrollTaxRate * 100).toFixed(0)}%)` : `FOT solig'i (${(payrollTaxRate * 100).toFixed(0)}%)`}:</span>
           <span className="tabular-nums font-medium">{fmt(fotTax)} сум</span>
@@ -599,9 +944,15 @@ function Step3Expenses(props: {
   expenses: ExpenseLineV2[]; setExpenses: (v: ExpenseLineV2[]) => void;
   fotTotal: number;
   onAddMandatory: () => void; onAddLinkedToStaff: () => void;
+  periodicEnabled: boolean; setPeriodicEnabled: (v: boolean) => void;
+  toggleOptionalService: (code: string, checked: boolean) => void;
+  scopeBuildings: Array<{ id: string; name: string }>;
   isRu: boolean;
 }) {
-  const { expenses, setExpenses, fotTotal, onAddMandatory, onAddLinkedToStaff, isRu } = props;
+  const {
+    expenses, setExpenses, fotTotal, onAddMandatory, onAddLinkedToStaff,
+    periodicEnabled, setPeriodicEnabled, toggleOptionalService, scopeBuildings, isRu,
+  } = props;
 
   const update = (i: number, patch: Partial<ExpenseLineV2>) => {
     const next = [...expenses];
@@ -612,13 +963,16 @@ function Step3Expenses(props: {
   const addBlank = () =>
     setExpenses([...expenses, { name: '', monthly: 0, section: 'production', unit: 'flat' }]);
 
+  const optionalServices = MANDATORY_SERVICES.filter((s) => s.optional);
+
   const productionTotal = expenses
     .filter((e) => e.section === 'production')
     .reduce((s, e) => s + (e.linked_to_staff ? fotTotal : e.monthly || 0), 0);
   const periodicTotal = expenses
     .filter((e) => e.section === 'periodic')
     .reduce((s, e) => s + (e.linked_to_staff ? fotTotal : e.monthly || 0), 0);
-  const grandTotal = productionTotal + periodicTotal;
+  // Если периодика выключена — она не входит в итог (как на бэкенде).
+  const grandTotal = productionTotal + (periodicEnabled ? periodicTotal : 0);
 
   return (
     <div className="space-y-4">
@@ -636,6 +990,42 @@ function Step3Expenses(props: {
           </button>
         </div>
       </div>
+
+      {/* Опциональные услуги (галочки) — например гидроизоляция кровли */}
+      {optionalServices.length > 0 && (
+        <div className="flex flex-wrap gap-3 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
+          <span className="text-xs font-medium text-amber-800 self-center">
+            {isRu ? 'Опциональные услуги:' : 'Ixtiyoriy xizmatlar:'}
+          </span>
+          {optionalServices.map((s) => {
+            const checked = expenses.some((e) => e.legal_code === s.code);
+            return (
+              <label key={s.code} className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(ev) => toggleOptionalService(s.code, ev.target.checked)}
+                  className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                />
+                {isRu ? s.label_ru : s.label_uz}
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Тумблер: применяются ли периодические расходы в этом году */}
+      <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+        <input
+          type="checkbox"
+          checked={periodicEnabled}
+          onChange={(ev) => setPeriodicEnabled(ev.target.checked)}
+          className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+        />
+        <span className="font-medium">
+          {isRu ? 'Периодические расходы применяются в этом году' : 'Davriy xarajatlar shu yili qo\'llaniladi'}
+        </span>
+      </label>
 
       {expenses.length === 0 ? (
         <div className="text-center text-gray-400 py-8 text-sm">
@@ -686,13 +1076,27 @@ function Step3Expenses(props: {
                         <option value="production">{isRu ? 'Производ.' : 'Ishlab ch.'}</option>
                         <option value="periodic">{isRu ? 'Периодич.' : 'Davriy'}</option>
                       </select>
+                      {scopeBuildings.length > 0 && (
+                        <select
+                          value={e.building_id || ''}
+                          onChange={(ev) => update(i, { building_id: ev.target.value || undefined })}
+                          className="mt-1 w-full px-2 py-1 rounded border border-gray-200 bg-white text-xs focus:ring-1 focus:ring-primary-500 outline-none"
+                          title={isRu ? 'На какие дома' : 'Qaysi uylarga'}
+                        >
+                          <option value="">{isRu ? 'Все дома' : 'Barcha uylar'}</option>
+                          {scopeBuildings.map((b) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td className="py-1.5 px-2">
-                      <input
-                        type="number" min="0" step="1000"
+                      <NumericInput
                         value={e.linked_to_staff ? fotTotal : (e.monthly || 0)}
                         disabled={!!e.linked_to_staff}
-                        onChange={(ev) => update(i, { monthly: parseNum(ev.target.value) })}
+                        blankZero={!e.linked_to_staff}
+                        onChange={(n) => update(i, { monthly: n })}
+                        placeholder={isRu ? 'сумма/мес' : 'summa/oy'}
                         className="w-full px-2 py-1 rounded border border-gray-200 bg-white text-sm text-right focus:ring-1 focus:ring-primary-500 outline-none disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </td>
@@ -715,8 +1119,8 @@ function Step3Expenses(props: {
           <span>{isRu ? 'Производственные' : 'Ishlab chiqarish'}:</span>
           <span className="tabular-nums font-medium">{fmt(productionTotal)} сум/мес</span>
         </div>
-        <div className="flex justify-between">
-          <span>{isRu ? 'Периодические' : 'Davriy'}:</span>
+        <div className={`flex justify-between ${periodicEnabled ? '' : 'opacity-40 line-through'}`}>
+          <span>{isRu ? 'Периодические' : 'Davriy'}{periodicEnabled ? '' : (isRu ? ' (выкл)' : ' (o\'chiq)')}:</span>
           <span className="tabular-nums font-medium">{fmt(periodicTotal)} сум/мес</span>
         </div>
         <div className="flex justify-between pt-2 border-t border-primary-200 font-bold">
@@ -735,10 +1139,14 @@ function Step3Expenses(props: {
 function Step4IncomesAndResult(props: {
   incomes: IncomeStreamV2[]; setIncomes: (v: IncomeStreamV2[]) => void;
   expensesTotal: number; incomeTotal: number; residentialArea: number; profitPercent: number;
-  result: EstimateResultV2 | null; warnings: EstimateWarning[];
+  result: EstimateResultV2 | null;
+  complexResult?: import('../../../services/api/finance-v2').ComplexResultV2 | null;
+  buildingNameMap?: Record<string, string>;
+  scopeBuildings?: Array<{ id: string; name: string }>;
+  warnings: EstimateWarning[];
   isRu: boolean;
 }) {
-  const { incomes, setIncomes, result, warnings, isRu } = props;
+  const { incomes, setIncomes, result, complexResult, buildingNameMap = {}, scopeBuildings = [], warnings, isRu } = props;
 
   const update = (i: number, patch: Partial<IncomeStreamV2>) => {
     const next = [...incomes];
@@ -759,12 +1167,13 @@ function Step4IncomesAndResult(props: {
             <button onClick={() => add('basement')} className="btn-secondary text-xs">+ {isRu ? 'Подвал' : 'Yerto\'la'}</button>
             <button onClick={() => add('parking')} className="btn-secondary text-xs">+ {isRu ? 'Парковка' : 'Avtoturargoh'}</button>
             <button onClick={() => add('telecom')} className="btn-secondary text-xs">+ {isRu ? 'Телеком' : 'Telekom'}</button>
+            <button onClick={() => add('advertising')} className="btn-secondary text-xs">+ {isRu ? 'Реклама' : 'Reklama'}</button>
           </div>
         </div>
 
         {incomes.length === 0 ? (
           <div className="text-center text-gray-400 py-6 text-sm">
-            {isRu ? 'Нет доходов. Коммерция/подвал/парковка удешевляют тариф, телеком компенсирует жителям после наценки.' : 'Daromadlar yo\'q.'}
+            {isRu ? 'Нет доходов. Коммерция/подвал/парковка/реклама удешевляют тариф жителям, телеком компенсирует после наценки.' : 'Daromadlar yo\'q.'}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -783,12 +1192,24 @@ function Step4IncomesAndResult(props: {
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs">
                       {inc.type}
                     </span>
+                    {scopeBuildings.length > 0 && (
+                      <select
+                        value={inc.building_id || ''}
+                        onChange={(ev) => update(i, { building_id: ev.target.value || undefined })}
+                        className="mt-1 w-full px-2 py-1 rounded border border-gray-200 bg-white text-xs focus:ring-1 focus:ring-primary-500 outline-none"
+                      >
+                        <option value="">{isRu ? 'Весь ЖК' : 'Butun JK'}</option>
+                        {scopeBuildings.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="py-1.5 px-2">
-                    <input
-                      type="number" min="0" step="10000"
+                    <NumericInput
                       value={inc.monthly}
-                      onChange={(e) => update(i, { monthly: parseNum(e.target.value) })}
+                      onChange={(n) => update(i, { monthly: n })}
+                      placeholder={isRu ? 'сумма/мес' : 'summa/oy'}
                       className="w-full px-2 py-1 rounded border border-gray-200 bg-white text-sm text-right focus:ring-1 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </td>
@@ -808,7 +1229,45 @@ function Step4IncomesAndResult(props: {
       {/* Warnings */}
       {warnings.length > 0 && <WarningsPanel warnings={warnings} isRu={isRu} />}
 
-      {/* Итог */}
+      {/* Пер-домовой итог (смета на ЖК) */}
+      {complexResult && complexResult.buildings.length > 0 && (
+        <div className="border-2 border-primary-300 rounded-xl p-4 bg-white overflow-x-auto">
+          <h3 className="text-base font-bold text-primary-800 mb-3">
+            {isRu ? 'Тариф по домам ЖК' : 'JK uylari bo\'yicha tarif'}
+          </h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 border-b">
+                <th className="text-left py-2 pr-2 font-medium">{isRu ? 'Дом' : 'Uy'}</th>
+                <th className="text-right py-2 px-2 font-medium">{isRu ? 'Жил. площадь' : 'Turar maydon'}</th>
+                <th className="text-right py-2 px-2 font-medium">{isRu ? 'Расход/мес' : 'Xarajat/oy'}</th>
+                <th className="text-right py-2 px-2 font-medium">{isRu ? '⭐ Тариф, сум/м²' : '⭐ Tarif'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {complexResult.buildings.map((b) => (
+                <tr key={b.building_id} className="border-b">
+                  <td className="py-1.5 pr-2">{buildingNameMap[b.building_id] || b.building_id}</td>
+                  <td className="py-1.5 px-2 text-right tabular-nums">{fmt(b.residential_area)} м²</td>
+                  <td className="py-1.5 px-2 text-right tabular-nums">{fmt(b.self_expense)}</td>
+                  <td className="py-1.5 px-2 text-right tabular-nums font-bold text-primary-700">{fmt(b.tariff_effective)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="py-2 pr-2" colSpan={2}>{isRu ? 'Итого по ЖК' : 'JK jami'}</td>
+                <td className="py-2 px-2 text-right tabular-nums">{fmt(complexResult.total_expenses)}</td>
+                <td className="py-2 px-2 text-right text-xs text-gray-500">
+                  {isRu ? `дефицит/год: ${fmt(complexResult.deficit_year)}` : `defitsit: ${fmt(complexResult.deficit_year)}`}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {/* Итог (одиночная смета / агрегат) */}
       {result && (
         <div className="border-2 border-primary-300 rounded-xl p-5 bg-primary-50/40 space-y-2 text-sm">
           <h3 className="text-base font-bold text-primary-800 mb-3">
@@ -818,6 +1277,13 @@ function Step4IncomesAndResult(props: {
           <ResultRow label={isRu ? 'База / м²' : 'Baza / m²'} value={result.base_per_m2} suffix="сум/м²" />
           <ResultRow label={isRu ? 'С прибылью / м²' : 'Foyda bilan / m²'} value={result.with_profit_per_m2} suffix="сум/м²" />
           <ResultRow label={isRu ? 'Компенсация телеком / м²' : 'Telekom kompensatsiya'} value={result.telecom_comp_per_m2} suffix="сум/м²" negative />
+          {!!result.resident_saving_per_m2 && result.resident_saving_per_m2 > 0 && (
+            <div className="mt-2 rounded-lg bg-green-50 border border-green-100 px-3 py-2 text-green-800 text-xs">
+              {isRu
+                ? `💚 Экономия жителям за счёт доходов УК: ${fmt(result.resident_saving_per_m2)} сум/м²/мес (${fmt(result.resident_saving_year || 0)} сум/год). На столько тариф ниже.`
+                : `💚 Aholiga tejamkorlik: ${fmt(result.resident_saving_per_m2)} so'm/m²/oy (${fmt(result.resident_saving_year || 0)} so'm/yil).`}
+            </div>
+          )}
           <div className="border-t border-primary-200 pt-3 mt-2">
             <ResultRow
               label={isRu ? '⭐ ТАРИФ ЖИТЕЛЮ' : '⭐ AHOLI TARIFI'}
@@ -825,6 +1291,12 @@ function Step4IncomesAndResult(props: {
               suffix="сум/м²/мес"
               bold
             />
+            {!!result.vat_per_m2 && result.vat_per_m2 > 0 && (
+              <>
+                <ResultRow label={isRu ? 'в т.ч. НДС' : 'shu jumladan QQS'} value={result.vat_per_m2} suffix="сум/м²" />
+                <ResultRow label={isRu ? 'ИТОГО с НДС' : 'QQS bilan JAMI'} value={result.tariff_with_vat || 0} suffix="сум/м²/мес" bold />
+              </>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-2 pt-3 text-xs">
             <MiniStat label={isRu ? 'Приход/год' : 'Yiliga daromad'} value={result.jami_tushum_year} />

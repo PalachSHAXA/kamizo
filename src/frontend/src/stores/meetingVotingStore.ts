@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { useToastStore } from './toastStore';
 import type {
   Meeting,
@@ -26,7 +27,10 @@ import {
 
 // ============ Mappers ============
 
-interface VoteRecordApiData {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+interface VoteRecordApiData extends Record<string, unknown> {
   id: string;
   meeting_id: string;
   agenda_item_id: string;
@@ -43,6 +47,22 @@ interface VoteRecordApiData {
   is_revote: number;
   previous_vote_id?: string;
 }
+
+const voteChoices: VoteChoice[] = ['for', 'against', 'abstain', 'not_voted'];
+
+const isVoteRecordApiData = (value: unknown): value is VoteRecordApiData =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.meeting_id === 'string' &&
+  typeof value.agenda_item_id === 'string' &&
+  typeof value.voter_id === 'string' &&
+  typeof value.voter_name === 'string' &&
+  voteChoices.includes(value.choice as VoteChoice) &&
+  typeof value.verification_method === 'string' &&
+  typeof value.otp_verified === 'number' &&
+  typeof value.voted_at === 'string' &&
+  typeof value.vote_hash === 'string' &&
+  typeof value.is_revote === 'number';
 
 export const mapVoteRecordFromApi = (data: VoteRecordApiData): VoteRecord => ({
   id: data.id,
@@ -62,62 +82,49 @@ export const mapVoteRecordFromApi = (data: VoteRecordApiData): VoteRecord => ({
   previousVoteId: data.previous_vote_id,
 });
 
-interface OTPRecordApiData {
-  id: string;
-  user_id: string;
-  phone: string;
-  code: string;
-  purpose: OTPRecord['purpose'];
-  meeting_id?: string;
-  agenda_item_id?: string;
-  attempts: number;
-  max_attempts: number;
-  created_at: string;
-  expires_at: string;
-  is_used: number;
-  verified_at?: string;
+interface OTPRequestApiData {
+  otpId: string;
+  expiresAt: string;
 }
 
-const mapOTPRecordFromApi = (data: OTPRecordApiData): OTPRecord => ({
-  id: data.id,
-  userId: data.user_id,
-  phone: data.phone,
-  code: data.code,
-  purpose: data.purpose,
-  meetingId: data.meeting_id,
-  agendaItemId: data.agenda_item_id,
-  attempts: data.attempts,
-  maxAttempts: data.max_attempts,
-  createdAt: data.created_at,
-  expiresAt: data.expires_at,
-  isUsed: Boolean(data.is_used),
-  verifiedAt: data.verified_at,
-});
+const isOTPRequestApiData = (value: unknown): value is OTPRequestApiData =>
+  isRecord(value) && typeof value.otpId === 'string' && typeof value.expiresAt === 'string';
 
-interface VotingUnitApiData {
+interface VotingUnitApiData extends Record<string, unknown> {
   id: string;
   building_id: string;
   apartment_id?: string;
   apartment_number: string;
-  total_area: number;
+  total_area: number | null;
   ownership_share: number;
-  owner_id: string;
-  owner_name: string;
+  owner_id: string | null;
+  owner_name?: string | null;
   co_owner_ids: string;
   is_verified: number;
   verified_at?: string;
   verified_by?: string;
 }
 
+const isVotingUnitApiData = (value: unknown): value is VotingUnitApiData =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.building_id === 'string' &&
+  typeof value.apartment_number === 'string' &&
+  (typeof value.total_area === 'number' || value.total_area === null) &&
+  typeof value.ownership_share === 'number' &&
+  (typeof value.owner_id === 'string' || value.owner_id === null) &&
+  typeof value.co_owner_ids === 'string' &&
+  typeof value.is_verified === 'number';
+
 export const mapVotingUnitFromApi = (data: VotingUnitApiData): VotingUnit => ({
   id: data.id,
   buildingId: data.building_id,
   apartmentId: data.apartment_id,
   apartmentNumber: data.apartment_number,
-  totalArea: data.total_area,
+  totalArea: data.total_area ?? undefined,
   ownershipShare: data.ownership_share,
-  ownerId: data.owner_id,
-  ownerName: data.owner_name,
+  ownerId: data.owner_id || '',
+  ownerName: data.owner_name ?? undefined,
   coOwnerIds: JSON.parse(data.co_owner_ids || '[]'),
   isVerified: Boolean(data.is_verified),
   verifiedAt: data.verified_at,
@@ -285,7 +292,9 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           apartmentNumber: verificationData.apartmentNumber,
           ownershipShare: verificationData.ownershipShare,
           votedAt: new Date().toISOString(),
-          voteHash: response.data?.voteHash || '',
+          voteHash: isRecord(response.data) && typeof response.data.voteHash === 'string'
+            ? response.data.voteHash
+            : '',
           isRevote: false,
         };
 
@@ -315,7 +324,9 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
       try {
         const response = await meetingAgendaVotesApi.getMyVotes(meetingId);
         if (response.success && response.data) {
-          const votes = (response.data as Record<string, unknown>[]).map(mapVoteRecordFromApi);
+          const votes = Array.isArray(response.data)
+            ? response.data.filter(isVoteRecordApiData).map(mapVoteRecordFromApi)
+            : [];
 
           // Update store with fetched votes (merge with existing, avoiding duplicates)
           set((state) => {
@@ -346,8 +357,21 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           purpose: apiPurpose as 'schedule_vote' | 'agenda_vote' | 'protocol_sign',
           meetingId, agendaItemId
         });
-        if (response.success && response.data) {
-          const otpRecord = mapOTPRecordFromApi(response.data);
+        if (response.success && isOTPRequestApiData(response.data)) {
+          const otpRecord: OTPRecord = {
+            id: response.data.otpId,
+            userId,
+            phone,
+            code: '',
+            purpose,
+            meetingId,
+            agendaItemId,
+            attempts: 0,
+            maxAttempts: 3,
+            createdAt: new Date().toISOString(),
+            expiresAt: response.data.expiresAt,
+            isUsed: false,
+          };
           set((state) => ({ otpRecords: [...state.otpRecords, otpRecord] }));
           return otpRecord;
         }
@@ -465,7 +489,9 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
       try {
         const response = await meetingVotingUnitsApi.getByBuilding(buildingId);
         if (response.success && response.data) {
-          const newUnits = Array.isArray(response.data) ? response.data.map(mapVotingUnitFromApi) : [];
+          const newUnits = Array.isArray(response.data)
+            ? response.data.filter(isVotingUnitApiData).map(mapVotingUnitFromApi)
+            : [];
           set((state) => {
             const otherUnits = state.votingUnits.filter(u => u.buildingId !== buildingId);
             return { votingUnits: [...otherUnits, ...newUnits] };
@@ -492,7 +518,7 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
           ownerName: unit.ownerName,
           coOwnerIds: unit.coOwnerIds || [],
         });
-        if (response.success && response.data) {
+        if (response.success && isVotingUnitApiData(response.data)) {
           const votingUnit = mapVotingUnitFromApi(response.data);
           set((state) => ({ votingUnits: [...state.votingUnits, votingUnit] }));
           return votingUnit;
@@ -533,7 +559,7 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
       // unverified on server but UI showed no error. Now: toast + throw.
       try {
         const response = await meetingVotingUnitsApi.verify(id, verifiedBy);
-        if (response.success && response.data) {
+        if (response.success && isVotingUnitApiData(response.data)) {
           const votingUnit = mapVotingUnitFromApi(response.data);
           set((state) => ({
             votingUnits: state.votingUnits.map(u => u.id === id ? votingUnit : u)
@@ -564,8 +590,9 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
       try {
         const response = await meetingAgendaVotesApi.getVoteRecords(meetingId);
         if (response.success && response.data) {
-          const dataArray = Array.isArray(response.data) ? response.data : [];
-          const records = dataArray.map(mapVoteRecordFromApi);
+          const records = Array.isArray(response.data)
+            ? response.data.filter(isVoteRecordApiData).map(mapVoteRecordFromApi)
+            : [];
           set((state) => {
             const otherRecords = state.voteRecords.filter(v => v.meetingId !== meetingId);
             return { voteRecords: [...otherRecords, ...records] };
@@ -581,3 +608,5 @@ export const useMeetingVotingStore = create<MeetingVotingState>()(
     },
   })
 );
+
+registerSessionStore(useMeetingVotingStore);

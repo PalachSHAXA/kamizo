@@ -1,7 +1,7 @@
 // Meetings API (simple + full OSS workflow), Schedule Votes, Agenda Votes,
 // Reconsideration, OTP, Building Settings, Voting Units, Eligible Voters, Agenda Comments
 
-import { apiRequest, apiRequestWrapped, cachedGet, invalidateCache, CACHE_TTL, API_URL } from './client';
+import { apiRequest, apiRequestText, apiRequestWrapped, cachedGet, invalidateCache, CACHE_TTL } from './client';
 
 // Meetings API (simple)
 export const meetingsApi = {
@@ -79,7 +79,7 @@ export const meetingsFullApi = {
     location?: string;
     description?: string;
     meetingTime?: string;
-    agendaItems: { title: string; description?: string; threshold?: string; attachments?: { name: string; url: string; type: string; size: number }[] }[];
+    agendaItems: { title: string; description?: string; threshold?: string; attachments?: { name: string; url: string; type: string; size?: number }[] }[];
     materials?: Record<string, unknown>[];
   }) => {
     invalidateCache('/api/meetings');
@@ -233,11 +233,7 @@ export const meetingsFullApi = {
 
   // Get protocol as HTML (for PDF export)
   getProtocolHtml: async (meetingId: string): Promise<string> => {
-    const token = localStorage.getItem('auth_token');
-    const response = await fetch(`${API_URL}/api/meetings/${meetingId}/protocol/html`, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-    });
-    return response.text();
+    return apiRequestText(`/api/meetings/${meetingId}/protocol/html`);
   },
 
   // Open protocol in new tab for printing/PDF
@@ -307,7 +303,7 @@ export const meetingAgendaVotesApi = {
     comment?: string;
     counter_proposal?: string;
   }) => {
-    return apiRequestWrapped<Record<string, unknown>>(
+    return apiRequestWrapped<{ success: boolean; voteHash: string; voteWeight: number }>(
       `/api/meetings/${meetingId}/agenda/${agendaItemId}/vote`,
       {
         method: 'POST',
@@ -342,7 +338,7 @@ export const meetingAgendaVotesApi = {
 export const meetingReconsiderationApi = {
   // Get "against" votes for an agenda item (for managers)
   getAgainstVotes: async (meetingId: string, agendaItemId: string) => {
-    return apiRequestWrapped<{ votes: Record<string, unknown>[] }>(
+    return apiRequestWrapped<{ votes: unknown[] }>(
       `/api/meetings/${meetingId}/agenda/${agendaItemId}/votes/against`
     ).then(r => ({
       success: r.success,
@@ -373,7 +369,7 @@ export const meetingReconsiderationApi = {
 
   // Get resident's pending reconsideration requests
   getMyRequests: async () => {
-    return apiRequestWrapped<{ requests: Record<string, unknown>[] }>(
+    return apiRequestWrapped<{ requests: unknown[] }>(
       '/api/meetings/reconsideration-requests/me'
     ).then(r => ({
       success: r.success,
@@ -408,7 +404,7 @@ export const meetingReconsiderationApi = {
 
   // Get reconsideration statistics for a meeting
   getStats: async (meetingId: string) => {
-    return apiRequestWrapped<{ stats: Record<string, unknown> }>(
+    return apiRequestWrapped<{ stats: unknown }>(
       `/api/meetings/${meetingId}/reconsideration-requests/stats`
     ).then(r => ({
       success: r.success,
@@ -427,7 +423,7 @@ export const meetingOtpApi = {
     meetingId?: string;
     agendaItemId?: string;
   }) => {
-    return apiRequestWrapped<Record<string, unknown>>('/api/meetings/otp/request', {
+    return apiRequestWrapped<{ otpId: string; expiresAt: string }>('/api/meetings/otp/request', {
       method: 'POST',
       body: JSON.stringify(data),
     }).then(r => ({

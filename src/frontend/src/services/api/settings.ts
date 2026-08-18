@@ -26,7 +26,7 @@ export interface AppSettings {
 export const settingsApi = {
   // Get all settings
   getAll: async () => {
-    return apiRequestWrapped<{ settings: Record<string, unknown> }>('/api/settings').then(r => ({
+    return apiRequestWrapped<{ settings: Partial<AppSettings> }>('/api/settings').then(r => ({
       success: r.success,
       data: r.data,
       error: r.error

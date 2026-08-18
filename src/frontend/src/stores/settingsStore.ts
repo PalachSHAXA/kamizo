@@ -1,23 +1,7 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { persist } from 'zustand/middleware';
-
-// Settings interface
-interface AppSettings {
-  companyName: string;
-  companyInn: string;
-  companyAddress: string;
-  companyPhone: string;
-  routingMode: 'manual' | 'auto' | 'hybrid';
-  workingHoursStart: string;
-  workingHoursEnd: string;
-  autoAssign: boolean;
-  notifyOnNew: boolean;
-  notifyOnComplete: boolean;
-  notifyOnRating: boolean;
-  smsNotifications: boolean;
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-}
+import type { AppSettings } from '../services/api/settings';
 
 // Default settings — empty company info, loaded from tenant config at runtime
 const defaultSettings: AppSettings = {
@@ -105,3 +89,5 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+
+registerSessionStore(useSettingsStore);

@@ -83,6 +83,7 @@ interface ContractUploaderProps {
    * Optional title override. Defaults to "Договор управления".
    */
   title?: string;
+  readOnly?: boolean;
 }
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -108,6 +109,7 @@ export function ContractUploader({
   onChanged,
   language = 'ru',
   title,
+  readOnly = false,
 }: ContractUploaderProps) {
   const isRu = language === 'ru';
   const addToast = useToastStore(s => s.addToast);
@@ -269,7 +271,7 @@ export function ContractUploader({
                 {isRu ? 'Скачать' : 'Yuklab olish'}
               </button>
             )}
-            <button
+            {!readOnly && <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading || isDeleting}
@@ -277,8 +279,8 @@ export function ContractUploader({
             >
               {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               {isRu ? 'Заменить файл' : 'Faylni almashtirish'}
-            </button>
-            {allowDelete && deleteEndpoint && (
+            </button>}
+            {!readOnly && allowDelete && deleteEndpoint && (
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
@@ -290,6 +292,10 @@ export function ContractUploader({
               </button>
             )}
           </div>
+        </div>
+      ) : readOnly ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400">
+          {isRu ? 'Договор не загружен' : 'Shartnoma yuklanmagan'}
         </div>
       ) : (
         <div
@@ -326,14 +332,14 @@ export function ContractUploader({
         </div>
       )}
 
-      <input
+      {!readOnly && <input
         ref={fileInputRef}
         type="file"
         accept="application/pdf"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         aria-label={isRu ? 'Файл договора' : 'Shartnoma fayli'}
-      />
+      />}
 
       <ConfirmDialog
         isOpen={showDeleteConfirm}

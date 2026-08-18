@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { apiLogin, apiCall, loginAs } from './helpers/auth';
 
 // API-level test: resident creates a request, sees it in their list.
@@ -29,12 +29,5 @@ test('ui: resident reaches dashboard and can see "create request" affordance', a
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
-  // Resident dashboard should expose a way to create a request — keep selector loose;
-  // this is a smoke test, not a layout regression.
-  const content = await page.locator('body').innerText();
-  // Either there's a button/link with create-request semantics, or the requests page exists in nav.
-  const hasCreateAffordance =
-    /создать|подать|новая заявка|new request|yangi/i.test(content) ||
-    await page.locator('a[href*="/requests"], a[href="/"]').count() > 0;
-  expect(hasCreateAffordance).toBeTruthy();
+  await expect(page.getByRole('button', { name: /^(Заявка|Создать|Подать|Yangi)/i }).first()).toBeVisible();
 });

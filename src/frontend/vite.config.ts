@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    manifest: true,
     // Reduce chunk size warning limit
     chunkSizeWarningLimit: 500,
     rollupOptions: {
@@ -34,17 +35,9 @@ export default defineConfig(({ mode }) => ({
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
-        // Code splitting: only split heavy lazy-loaded libs, let Rollup handle the rest
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Heavy libs that are dynamically imported — isolate into own chunks
-            if (id.includes('exceljs')) return 'exceljs';
-            if (id.includes('xlsx')) return 'xlsx';
-            if (id.includes('recharts') || id.includes('d3-') || id.includes('react-redux')) return 'charts';
-            if (id.includes('docxtemplater') || id.includes('pizzip') || id.includes('/docx/')) return 'docx-gen';
-            if (id.includes('jsqr')) return 'qr-scanner';
-          }
-        },
+        // Heavy feature libraries are loaded through dynamic imports. Let
+        // Rollup preserve those boundaries; forced vendor chunks can pull
+        // shared runtime modules back into the initial preload graph.
       },
     },
     // Disable source maps to reduce build time and memory usage

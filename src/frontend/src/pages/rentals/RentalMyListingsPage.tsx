@@ -7,14 +7,13 @@
 // Empty state when the resident has zero listings — the typical
 // starting state.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, MoreHorizontal, Heart, Edit3, Check, RefreshCw, Trash2,
-  ShieldAlert, Key, Clock,
+  ArrowLeft, Plus, Heart, Edit3, Check, RefreshCw, Trash2,
+  ShieldAlert, Key,
 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
-import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
@@ -22,7 +21,7 @@ import { CardSkeleton } from '../../components/CardSkeleton';
 import { RentalsBottomBar } from './RentalsBottomBar';
 // MOCK_USER_ID intentionally NOT imported — see note on RentalListingDetailPage.
 // No usage in this file today; keeping the removal explicit as a guard.
-import { neighbourKicker, type RentalListingUI, type RentalListingPhotoAPI, type RentalState } from './types';
+import { neighbourKicker, type RentalListingUI, type RentalListingPhotoAPI } from './types';
 import { rentalsApi } from './api';
 
 const FAV_KEY = 'kamizo_rental_favs';
@@ -42,7 +41,6 @@ function daysSince(iso: string): number {
 export function RentalMyListingsPage() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
-  const { user } = useAuthStore();
   const addToast = useToastStore(s => s.addToast);
   useModalPresence(true);
 
@@ -192,7 +190,7 @@ export function RentalMyListingsPage() {
                   {t(language, 'Нет', "Yo'q")}
                 </button>
                 <button
-                  onClick={() => confirmStill(dueListing.id)}
+                  onClick={() => setConfirmAction({ kind: 'confirm-still', listingId: dueListing.id })}
                   className="h-8 px-3 rounded-[10px] bg-primary-500 text-white text-[11px] font-bold"
                 >
                   {t(language, 'Да', 'Ha')}

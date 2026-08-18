@@ -66,6 +66,9 @@ export function RentalsModerationPage() {
   const navigate = useNavigate();
   const { language } = useLanguageStore();
   const { user } = useAuthStore();
+  const tenantId = user && 'tenant_id' in user && typeof user.tenant_id === 'string'
+    ? user.tenant_id
+    : null;
   const addToast = useToastStore(s => s.addToast);
   useModalPresence(true);
 
@@ -222,12 +225,12 @@ export function RentalsModerationPage() {
       {/* Cheap fingerprint so the manager knows which tenant + role
           they're moderating on — quick sanity for a super_admin who's
           impersonating across tenants. */}
-      {user?.tenant_id && (
+      {user && tenantId && (
         <div className="px-4 pb-6 text-[10.5px] text-gray-400 flex items-center gap-1.5">
           <Home className="w-3 h-3" strokeWidth={2} />
           <span className="min-w-0 truncate">
-            {t(language, `Роль: ${user.role} · арендатор: ${user.tenant_id.slice(0, 8)}`,
-                        `Rol: ${user.role} · ijarachi: ${user.tenant_id.slice(0, 8)}`)}
+            {t(language, `Роль: ${user.role} · арендатор: ${tenantId.slice(0, 8)}`,
+                        `Rol: ${user.role} · ijarachi: ${tenantId.slice(0, 8)}`)}
           </span>
         </div>
       )}

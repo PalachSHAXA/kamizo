@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type {
   Apartment,
   Owner,
@@ -6,8 +7,10 @@ import type {
   PersonalAccount,
 } from '../types';
 import { apartmentsApi, ownersApi, crmResidentsApi } from '../services/api';
+import type { ApartmentApiResponse } from '../services/api/buildings';
+import type { OwnerApiResponse, PersonalAccountApiResponse, ResidentApiResponse } from '../services/api/crm';
 
-const mapApartmentFromApi = (a: Record<string, unknown>): Apartment => ({
+const mapApartmentFromApi = (a: ApartmentApiResponse): Apartment => ({
   id: a.id,
   buildingId: a.building_id,
   entranceId: a.entrance_id,
@@ -38,9 +41,9 @@ const mapApartmentFromApi = (a: Record<string, unknown>): Apartment => ({
   notes: a.notes,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
-} as Apartment);
+});
 
-const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
+const mapOwnerFromApi = (o: OwnerApiResponse): Owner => ({
   id: o.id,
   type: o.type || 'individual',
   lastName: o.last_name,
@@ -69,8 +72,8 @@ const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   ownershipShare: o.ownership_share || 100,
   ownershipDocument: o.ownership_document,
   ownershipDocumentDate: o.ownership_document_date,
-  apartmentIds: o.apartment_ids ? JSON.parse(o.apartment_ids as string) : [],
-  personalAccountIds: o.personal_account_ids ? JSON.parse(o.personal_account_ids as string) : [],
+  apartmentIds: o.apartment_ids ? JSON.parse(o.apartment_ids) : [],
+  personalAccountIds: o.personal_account_ids ? JSON.parse(o.personal_account_ids) : [],
   isActive: o.is_active !== false && o.is_active !== 0,
   isVerified: !!o.is_verified,
   verifiedAt: o.verified_at,
@@ -78,13 +81,13 @@ const mapOwnerFromApi = (o: Record<string, unknown>): Owner => ({
   bankName: o.bank_name,
   bankBik: o.bank_bik,
   bankAccount: o.bank_account,
-  tags: o.tags ? JSON.parse(o.tags as string) : [],
+  tags: o.tags ? JSON.parse(o.tags) : [],
   notes: o.notes,
   createdAt: o.created_at,
   updatedAt: o.updated_at,
-} as Owner);
+});
 
-const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
+const mapAccountFromApi = (a: PersonalAccountApiResponse): PersonalAccount => ({
   id: a.id,
   number: a.number,
   apartmentId: a.apartment_id,
@@ -93,12 +96,12 @@ const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   ownerName: a.owner_name,
   apartmentNumber: a.apartment_number,
   address: a.address,
-  totalArea: (a.total_area as number) || 0,
-  residentsCount: (a.residents_count as number) || 0,
-  registeredCount: (a.registered_count as number) || 0,
-  balance: (a.balance as number) || 0,
-  currentDebt: (a.current_debt as number) || 0,
-  penaltyAmount: (a.penalty_amount as number) || 0,
+  totalArea: a.total_area || 0,
+  residentsCount: a.residents_count || 0,
+  registeredCount: a.registered_count || 0,
+  balance: a.balance || 0,
+  currentDebt: a.current_debt || 0,
+  penaltyAmount: a.penalty_amount || 0,
   lastPaymentDate: a.last_payment_date,
   lastPaymentAmount: a.last_payment_amount,
   lastChargeDate: a.last_charge_date,
@@ -110,15 +113,15 @@ const mapAccountFromApi = (a: Record<string, unknown>): PersonalAccount => ({
   hasDiscount: !!a.has_discount,
   discountPercent: a.discount_percent,
   discountReason: a.discount_reason,
-  status: (a.status as string) || 'active',
+  status: a.status || 'active',
   closedAt: a.closed_at,
   closedReason: a.closed_reason,
   notes: a.notes,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
-} as PersonalAccount);
+});
 
-const mapResidentFromApi = (r: Record<string, unknown>): Resident => ({
+const mapResidentFromApi = (r: ResidentApiResponse): Resident => ({
   id: r.id,
   apartmentId: r.apartment_id,
   ownerId: r.owner_id,
@@ -144,7 +147,7 @@ const mapResidentFromApi = (r: Record<string, unknown>): Resident => ({
   notes: r.notes,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-} as Resident);
+});
 
 interface ApartmentState {
   // Data
@@ -206,7 +209,7 @@ export const useApartmentStore = create<ApartmentState>()(
     fetchApartmentsByBuilding: async (buildingId: string, options?: { entranceId?: string; status?: string }) => {
       set({ isLoadingApartments: true });
       try {
-        const response = await apartmentsApi.getByBuilding(buildingId, options);
+        const response = await apartmentsApi.getByBuilding<ApartmentApiResponse>(buildingId, options);
         const apartments = (response.apartments || []).map(mapApartmentFromApi);
 
         // Replace apartments for this building
@@ -225,7 +228,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     fetchApartmentById: async (id: string) => {
       try {
-        const response = await apartmentsApi.getById(id);
+        const response = await apartmentsApi.getById<ApartmentApiResponse, OwnerApiResponse, PersonalAccountApiResponse>(id);
         if (!response.apartment) return null;
 
         const apartment = mapApartmentFromApi(response.apartment);
@@ -250,7 +253,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     addApartment: async (apartmentData) => {
       try {
-        const response = await apartmentsApi.create(apartmentData.buildingId, {
+        const response = await apartmentsApi.create<ApartmentApiResponse>(apartmentData.buildingId, {
           number: apartmentData.number,
           entranceId: apartmentData.entranceId,
           floor: apartmentData.floor,
@@ -276,7 +279,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateApartment: async (id, data) => {
       try {
-        await apartmentsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await apartmentsApi.update(id, data);
         set((state) => ({
           apartments: state.apartments.map((a) =>
             a.id === id ? { ...a, ...data, updatedAt: new Date().toISOString() } : a
@@ -316,7 +319,7 @@ export const useApartmentStore = create<ApartmentState>()(
     fetchOwners: async (options?: { type?: string; search?: string }) => {
       set({ isLoadingOwners: true });
       try {
-        const response = await ownersApi.getAll(options);
+        const response = await ownersApi.getAll<OwnerApiResponse>(options);
         const owners = (response.owners || []).map(mapOwnerFromApi);
         set({ owners, isLoadingOwners: false });
         return owners;
@@ -329,7 +332,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     fetchOwnerById: async (id: string) => {
       try {
-        const response = await ownersApi.getById(id);
+        const response = await ownersApi.getById<OwnerApiResponse, ApartmentApiResponse>(id);
         if (!response.owner) return null;
 
         const owner = mapOwnerFromApi(response.owner);
@@ -352,7 +355,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     addOwner: async (ownerData) => {
       try {
-        const response = await ownersApi.create({
+        const response = await ownersApi.create<OwnerApiResponse>({
           type: ownerData.type,
           lastName: ownerData.lastName,
           firstName: ownerData.firstName,
@@ -377,7 +380,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateOwner: async (id, data) => {
       try {
-        await ownersApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await ownersApi.update(id, data);
         set((state) => ({
           owners: state.owners.map((o) =>
             o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o
@@ -453,7 +456,7 @@ export const useApartmentStore = create<ApartmentState>()(
     fetchResidentsByApartment: async (apartmentId: string, options?: { isActive?: boolean }) => {
       set({ isLoadingResidents: true });
       try {
-        const response = await crmResidentsApi.getByApartment(apartmentId, options);
+        const response = await crmResidentsApi.getByApartment<ResidentApiResponse>(apartmentId, options);
         const residents = (response.residents || []).map(mapResidentFromApi);
 
         // Replace residents for this apartment
@@ -472,7 +475,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     fetchResidentById: async (id: string) => {
       try {
-        const response = await crmResidentsApi.getById(id);
+        const response = await crmResidentsApi.getById<ResidentApiResponse>(id);
         if (!response.resident) return null;
 
         const resident = mapResidentFromApi(response.resident);
@@ -494,7 +497,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     addResident: async (apartmentId, residentData) => {
       try {
-        const response = await crmResidentsApi.create(apartmentId, {
+        const response = await crmResidentsApi.create<ResidentApiResponse>(apartmentId, {
           lastName: residentData.lastName,
           firstName: residentData.firstName,
           middleName: residentData.middleName,
@@ -523,7 +526,7 @@ export const useApartmentStore = create<ApartmentState>()(
 
     updateResident: async (id, data) => {
       try {
-        await crmResidentsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await crmResidentsApi.update(id, data);
         set((state) => ({
           residents: state.residents.map((r) =>
             r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r
@@ -563,3 +566,5 @@ export const useApartmentStore = create<ApartmentState>()(
     },
   })
 );
+
+registerSessionStore(useApartmentStore);

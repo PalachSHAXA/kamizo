@@ -1,6 +1,7 @@
 // Finance store — Zustand module for the full finance module
 
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { financeApi } from '../services/api/finance';
 import { useToastStore } from './toastStore';
 
@@ -51,7 +52,7 @@ interface FinanceState {
   fetchCharges: (page?: number) => Promise<void>;
   fetchChargesSummary: (buildingId: string, period?: string) => Promise<void>;
   // Actions — Payments
-  createPayment: (data: Parameters<typeof financeApi.createPayment>[0]) => Promise<boolean>;
+  createPayment: (data: Parameters<typeof financeApi.createPayment>[0], idempotencyKey: string) => Promise<boolean>;
   fetchPayments: (page?: number) => Promise<void>;
   // Actions — Debtors
   fetchDebtors: () => Promise<void>;
@@ -216,9 +217,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   // ── Payments ─────────────────────────────────
 
-  createPayment: async (data) => {
+  createPayment: async (data, idempotencyKey) => {
     try {
-      const res = await financeApi.createPayment(data);
+      const res = await financeApi.createPayment(data, idempotencyKey);
       const receipt = (res.payment as Record<string, unknown>)?.receipt_number || '';
       addToast(`Оплата принята. Квитанция: ${receipt}`, 'success');
       await get().fetchPayments();
@@ -424,3 +425,5 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
 }));
+
+registerSessionStore(useFinanceStore);

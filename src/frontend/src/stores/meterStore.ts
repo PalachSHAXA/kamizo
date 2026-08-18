@@ -1,12 +1,14 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { useToastStore } from './toastStore';
 import type {
   Meter,
   MeterReading,
 } from '../types';
 import { metersApi, meterReadingsApi } from '../services/api';
+import type { MeterDto, MeterReadingDto } from '../services/api/crm';
 
-const mapMeterFromApi = (m: Record<string, unknown>): Meter => ({
+const mapMeterFromApi = (m: MeterDto): Meter => ({
   id: m.id,
   apartmentId: m.apartment_id,
   buildingId: m.building_id,
@@ -28,9 +30,9 @@ const mapMeterFromApi = (m: Record<string, unknown>): Meter => ({
   notes: m.notes,
   createdAt: m.created_at,
   updatedAt: m.updated_at,
-} as Meter);
+});
 
-const mapMeterReadingFromApi = (r: Record<string, unknown>): MeterReading => ({
+const mapMeterReadingFromApi = (r: MeterReadingDto): MeterReading => ({
   id: r.id,
   meterId: r.meter_id,
   value: r.value,
@@ -48,7 +50,7 @@ const mapMeterReadingFromApi = (r: Record<string, unknown>): MeterReading => ({
   rejectionReason: r.rejection_reason,
   notes: r.notes,
   createdAt: r.created_at,
-} as MeterReading);
+});
 
 interface MeterState {
   // Data
@@ -159,7 +161,7 @@ export const useMeterStore = create<MeterState>()(
         const response = await metersApi.create({
           apartmentId: meterData.apartmentId,
           buildingId: meterData.buildingId,
-          type: meterData.type as string, // TODO: type this properly
+          type: meterData.type,
           isCommon: meterData.isCommon,
           serialNumber: meterData.serialNumber,
           model: meterData.model,
@@ -188,7 +190,7 @@ export const useMeterStore = create<MeterState>()(
 
     updateMeter: async (id, data) => {
       try {
-        await metersApi.update(id, data as Record<string, unknown>);
+        await metersApi.update(id, data);
         set((state) => ({
           meters: state.meters.map((m) =>
             m.id === id ? { ...m, ...data, updatedAt: new Date().toISOString() } : m
@@ -327,3 +329,5 @@ export const useMeterStore = create<MeterState>()(
     },
   })
 );
+
+registerSessionStore(useMeterStore);

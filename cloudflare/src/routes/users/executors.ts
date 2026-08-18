@@ -16,7 +16,7 @@ route('GET', '/api/executors', async (request, env) => {
     return error('Unauthorized - login required', 401);
   }
 
-  const allowedRoles = ['admin', 'director', 'manager', 'department_head', 'executor', 'resident', 'marketplace_manager'];
+  const allowedRoles = ['super_admin', 'admin', 'director', 'manager', 'dispatcher', 'department_head', 'executor', 'resident', 'marketplace_manager'];
   const userRole = (user.role || '').trim().toLowerCase();
   if (!allowedRoles.includes(userRole)) {
     createRequestLogger(request).warn('Access denied to executors list', { role: user.role, userId: user.id });
@@ -24,6 +24,10 @@ route('GET', '/api/executors', async (request, env) => {
   }
 
   const tenantId = getTenantId(request);
+  if (!tenantId && userRole !== 'super_admin') {
+    createRequestLogger(request).warn('Missing tenant context for executors list', { role: user.role, userId: user.id });
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  }
 
   const url = new URL(request.url);
   const showAll = url.searchParams.get('all') === 'true';
@@ -67,7 +71,11 @@ route('GET', '/api/executors', async (request, env) => {
       u.id, u.login, u.name, u.phone, u.role, u.specialization, u.status, u.is_active, u.created_at,
       COALESCE(stats.completed_count, 0) as completed_count,
       COALESCE(stats.active_requests, 0) as active_requests,
-      COALESCE(stats.rating, 5.0) as rating,
+       COALESCE((
+         SELECT ROUND(AVG(er.rating), 1)
+         FROM employee_ratings er
+         WHERE er.executor_id = u.id AND er.tenant_id = u.tenant_id
+       ), stats.rating, 5.0) as rating,
       COALESCE(stats.avg_completion_time, 0) as avg_completion_time,
       0 as total_earnings
     FROM users u
@@ -104,18 +112,21 @@ route('GET', '/api/executors/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const allowedRoles = ['admin', 'director', 'manager', 'department_head'];
+  const allowedRoles = ['admin', 'director', 'manager', 'dispatcher', 'department_head'];
   if (!allowedRoles.includes(user.role)) {
     return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
   const tenantId = getTenantId(request);
+  if (!tenantId) {
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  }
 
   const executor = await env.DB.prepare(`
     SELECT id, login, name, phone, role, specialization, status, created_at
     FROM users
-    WHERE id = ? AND role IN ('executor', 'department_head') ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+    WHERE id = ? AND role IN ('executor', 'department_head') AND tenant_id = ?
+  `).bind(params.id, tenantId).first();
 
   if (!executor) {
     return error('Executor not found', 404);

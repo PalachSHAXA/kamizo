@@ -1,5 +1,6 @@
-import { X, Loader2, Plus, RefreshCw, Copy, Check } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Copy, Check } from 'lucide-react';
 import type { ExecutorSpecialization } from '../../../types';
+import { Modal } from '../../../components/ui/Modal';
 
 // Sprint 18: extracted from TeamPage. The add-new-staff dialog —
 // role (executor/department_head/manager), specialization, name,
@@ -53,28 +54,19 @@ export function AddStaffModal({
   generateLogin,
   generatePassword,
 }: AddStaffModalProps) {
+  const title = language === 'ru' ? 'Добавить сотрудника' : "Xodim qo'shish";
+
   return (
-    <div className="modal-backdrop items-end sm:items-center" onClick={onClose}>
-      <div
-        className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-bold">
-            {language === 'ru' ? 'Добавить сотрудника' : "Xodim qo'shish"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      size="lg"
+      panelClassName="max-h-[100dvh] sm:max-h-[90dvh] overflow-hidden flex flex-col"
+    >
+      {error && <div className="mx-4 mt-4 sm:mx-6 bg-red-50 text-red-600 p-3 rounded-xl text-sm">{error}</div>}
 
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-3 text-sm">{error}</div>}
-
-        <div className="space-y-3 sm:space-y-4 overflow-y-auto flex-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="space-y-3 sm:space-y-4 overflow-y-auto flex-1 min-h-0 px-4 py-4 sm:px-6">
           {/* Role */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -214,16 +206,18 @@ export function AddStaffModal({
               <button
                 type="button"
                 onClick={() => setForm({ ...form, password: generatePassword() })}
-                className="btn-secondary px-3 flex-shrink-0"
-                title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
+                 className="btn-secondary px-3 flex-shrink-0"
+                  title={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
+                  aria-label={language === 'ru' ? 'Сгенерировать пароль' : 'Parol yaratish'}
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => onCopy(form.password, 'addPassword')}
-                className="btn-secondary px-3 flex-shrink-0"
-                title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
+                 className="btn-secondary px-3 flex-shrink-0"
+                  title={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
+                  aria-label={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
               >
                 {copiedField === 'addPassword' ? (
                   <Check className="w-4 h-4 text-green-500" />
@@ -235,7 +229,10 @@ export function AddStaffModal({
           </div>
         </div>
 
-        <div className="flex gap-3 mt-4 sm:mt-6 pt-3 border-t sm:border-t-0 sm:pt-0">
+        <div
+          className="flex gap-3 shrink-0 border-t border-gray-100 px-4 pt-3 sm:px-6 sm:pt-4"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
+        >
           <button onClick={onClose} className="btn-secondary flex-1" disabled={loading}>
             {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
           </button>
@@ -248,7 +245,6 @@ export function AddStaffModal({
             {language === 'ru' ? 'Добавить' : "Qo'shish"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,15 +1,17 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
   FileSpreadsheet,
   FileText,
   Plus,
+  Pencil,
   Trash2,
   ChevronRight,
   Building2,
@@ -24,27 +26,32 @@ import {
 import { formatAmount } from '../../utils/formatCurrency';
 import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
 import { generateEstimatePdf } from '../../utils/generateEstimatePdf';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 // ── Default expense articles (real УК template) ──
-const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string }> = [
-  { name_ru: 'Хозяйственные товары', name_uz: 'Xo\'jalik mollari' },
-  { name_ru: 'Спецодежда с вышивкой', name_uz: 'Tikilgan maxsus kiyim' },
-  { name_ru: 'Канцелярские принадлежности', name_uz: 'Ish yuritish buyumlari' },
-  { name_ru: 'Принадлежности для электрика и сантехника', name_uz: 'Elektrik va santexnik uchun buyumlar' },
-  { name_ru: 'Закупка офисной мебели', name_uz: 'Ofis mebelini sotib olish' },
-  { name_ru: 'Закупка мебели для охранной будки', name_uz: 'Qo\'riqchi budkasi uchun mebel' },
-  { name_ru: 'Закупка оргтехники', name_uz: 'Orgtexnika sotib olish' },
-  { name_ru: 'Обслуживание лифта и домофона', name_uz: 'Lift va domofon xizmati' },
-  { name_ru: 'Общие коммунальные и профил. расходы', name_uz: 'Umumiy kommunal va profilaktika xarajatlari' },
-  { name_ru: 'Прочие расходы', name_uz: 'Boshqa xarajatlar' },
-  { name_ru: 'Расходы по зарплате', name_uz: 'Ish haqi xarajatlari' },
-  { name_ru: 'Расходы садовника', name_uz: 'Bog\'bon xarajatlari' },
+const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string; section: string }> = [
+  { name_ru: 'Расходы по зарплате', name_uz: 'Ish haqi xarajatlari', section: 'salary' },
+  { name_ru: 'Хозяйственные товары', name_uz: 'Xo\'jalik mollari', section: 'materials' },
+  { name_ru: 'Спецодежда с вышивкой', name_uz: 'Tikilgan maxsus kiyim', section: 'materials' },
+  { name_ru: 'Принадлежности для электрика и сантехника', name_uz: 'Elektrik va santexnik uchun buyumlar', section: 'materials' },
+  { name_ru: 'Общие коммунальные и профил. расходы', name_uz: 'Umumiy kommunal va profilaktika xarajatlari', section: 'materials' },
+  { name_ru: 'Обслуживание лифта и домофона', name_uz: 'Lift va domofon xizmati', section: 'production' },
+  { name_ru: 'Прочие расходы', name_uz: 'Boshqa xarajatlar', section: 'production' },
+  { name_ru: 'Канцелярские принадлежности', name_uz: 'Ish yuritish buyumlari', section: 'admin' },
+  { name_ru: 'Закупка офисной мебели', name_uz: 'Ofis mebelini sotib olish', section: 'admin' },
+  { name_ru: 'Закупка мебели для охранной будки', name_uz: 'Qo\'riqchi budkasi uchun mebel', section: 'admin' },
+  { name_ru: 'Закупка оргтехники', name_uz: 'Orgtexnika sotib olish', section: 'admin' },
+  { name_ru: 'Расходы садовника', name_uz: 'Bog\'bon xarajatlari', section: 'admin' },
 ];
 
 interface ExpenseItem {
   name: string;
   monthly_amount: number;
   amount: number; // yearly = monthly * 12
+  // Секция статьи для группировки в выгрузке сметы (Excel/PDF) с под-итогом
+  // «Жами». Ключи см. EXPENSE_SECTIONS в generateEstimateExcel.ts:
+  // salary | materials | production | admin | other.
+  section?: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -56,6 +63,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default function EstimatesPage() {
   const language = useLanguageStore((s) => s.language);
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const estimates = useFinanceStore((s) => s.estimates);
@@ -70,6 +78,7 @@ export default function EstimatesPage() {
 
   const buildings = useBuildingStore((s) => s.buildings);
   const fetchBuildings = useBuildingStore((s) => s.fetchBuildings);
+  const navigate = useNavigate();
 
   const [loadError, setLoadError] = useState(false);
 
@@ -93,6 +102,7 @@ export default function EstimatesPage() {
       name: language === 'ru' ? a.name_ru : a.name_uz,
       monthly_amount: 0,
       amount: 0,
+      section: a.section,
     }))
   );
   const [formProfitPct, setFormProfitPct] = useState(9);
@@ -208,7 +218,7 @@ export default function EstimatesPage() {
   };
 
   const addItem = () => {
-    setFormItems((prev) => [...prev, { name: '', monthly_amount: 0, amount: 0 }]);
+    setFormItems((prev) => [...prev, { name: '', monthly_amount: 0, amount: 0, section: 'other' }]);
   };
 
   // --- Create ---
@@ -221,6 +231,7 @@ export default function EstimatesPage() {
         name: language === 'ru' ? a.name_ru : a.name_uz,
         monthly_amount: 0,
         amount: 0,
+        section: a.section,
       }))
     );
     setFormProfitPct(9);
@@ -232,7 +243,7 @@ export default function EstimatesPage() {
   };
 
   const handleCreate = async () => {
-    if (!formBuilding || formItems.length === 0) return;
+    if (isDemoSession || !formBuilding || formItems.length === 0) return;
     setSaving(true);
     const validItems = formItems.filter((it) => it.name && (it.amount > 0 || it.monthly_amount > 0));
     const ok = await createEstimate({
@@ -242,7 +253,10 @@ export default function EstimatesPage() {
       title: formTitle || undefined,
       items: validItems.map((it) => ({
         name: it.name,
-        category: 'maintenance',
+        // Секция статьи (salary/materials/production/admin/other) едет в поле
+        // `category` — оно уже персистится и раньше было мёртвым 'maintenance'.
+        // По ней выгрузка сметы группирует статьи с под-итогом «Жами».
+        category: it.section || 'other',
         amount: Number(it.amount),
         monthly_amount: Number(it.monthly_amount),
       })),
@@ -265,10 +279,36 @@ export default function EstimatesPage() {
   const openDetail = async (id: string) => {
     await fetchEstimate(id);
     setShowDetail(true);
+    // Пересчитать и обновить кеш, чтобы модалка показывала реальные
+    // тариф/годовую сумму/дефицит (для v2/ЖК-смет иначе там нули).
+    try {
+      const { estimateV2Api } = await import('../../services/api');
+      await estimateV2Api.compute(id);
+      await fetchEstimate(id);
+    } catch { /* смета могла быть легаси/без v2-расчёта — игнорируем */ }
+  };
+
+  // Редактирование черновика — открываем Мастер v2 в режиме правки.
+  const handleEditEstimate = (id: string) => {
+    if (isDemoSession) return;
+    navigate(`/finance/estimates/v2/new?edit=${id}`);
+  };
+
+  // Удаление черновика (активные удалять нельзя — бэкенд вернёт 409).
+  const handleDeleteEstimate = async (id: string) => {
+    if (isDemoSession) return;
+    if (!window.confirm(t('Удалить черновик сметы?', 'Smeta qoralamasini o\'chirasizmi?'))) return;
+    try {
+      const { estimateV2Api } = await import('../../services/api');
+      await estimateV2Api.remove(id);
+      await fetchEstimates();
+    } catch (e: any) {
+      window.alert(e?.message || t('Не удалось удалить', 'O\'chirib bo\'lmadi'));
+    }
   };
 
   const handleActivate = async () => {
-    if (!currentEstimate) return;
+    if (isDemoSession || !currentEstimate) return;
     setActivating(true);
     const ok = await activateEstimate(currentEstimate.id as string);
     setActivating(false);
@@ -286,7 +326,7 @@ export default function EstimatesPage() {
   };
 
   const handleGenerate = async () => {
-    if (!currentEstimate) return;
+    if (isDemoSession || !currentEstimate) return;
     setGenerating(true);
     await generateCharges(currentEstimate.id as string);
     setGenerating(false);
@@ -299,12 +339,18 @@ export default function EstimatesPage() {
   }
 
   const detailItems = (currentEstimate?.items as Record<string, unknown>[] | undefined) || [];
+  // В «Статьи расхода» показываем только расходы (доходы kind='income' не сюда).
+  const detailExpenseItems = detailItems.filter((it) => (it.kind as string) !== 'income');
+  const detailExpMonthly = detailExpenseItems.reduce(
+    (s, it) => s + (Number(it.monthly_amount) || Math.round(Number(it.amount) / 12) || 0), 0,
+  );
+  const detailExpYear = detailExpenseItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
   const detailStatus = (currentEstimate?.status as string) || '';
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
+    <div className="admin-form-controls w-full min-w-0 max-w-full space-y-6 overflow-x-clip pb-24 md:pb-0">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-stretch justify-between gap-3 min-[360px]:flex-row min-[360px]:items-center">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
             <FileSpreadsheet className="w-5 h-5 text-white" />
@@ -318,28 +364,25 @@ export default function EstimatesPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex w-full items-center gap-2 min-[360px]:w-auto min-[360px]:shrink-0">
           {/* Sprint 3: новый 4-шаговый мастер v2 (штат + доходы + гос. минимум).
               Hotfix: заменили <a href> на <Link to> — иначе браузер делал
               полную перезагрузку, index.html → SPA-fallback → ProtectedRoute
               редиректил manager'а на "/", т.к. роут был admin/director-only.
               Роль manager теперь в allowedRoles Layout.tsx (см. далее). */}
-          <Link
+          {/* Создание сметы — только через Мастер v2 (старая форма убрана). */}
+          {!isDemoSession && <Link
             to="/finance/estimates/v2/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 border border-primary-300 text-primary-600 rounded-xl hover:bg-primary-50 transition-colors font-medium text-sm"
-            title={t('Новый мастер расчёта тарифа с проверкой Ташкентского минимума', 'Toshkent minimumini tekshirish bilan yangi tarif ustasi')}
-          >
-            ✨ {t('Мастер v2', 'v2 usta')}
-          </Link>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm"
+            aria-label={t('Создать смету', 'Smeta yaratish')}
+            className="staff-primary-control inline-flex min-h-[44px] w-full items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm min-[360px]:w-auto"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">{t('Создать смету', 'Smeta yaratish')}</span>
-          </button>
+            <span className="estimate-create-label">{t('Создать смету', 'Smeta yaratish')}</span>
+          </Link>}
         </div>
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filters */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3">
@@ -350,7 +393,7 @@ export default function EstimatesPage() {
         <select
           value={filterBuilding}
           onChange={(e) => setFilterBuilding(e.target.value)}
-          className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          className="min-h-[44px] flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
           <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
           {buildings.map((b) => (
@@ -362,7 +405,7 @@ export default function EstimatesPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="sm:w-48 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          className="min-h-[44px] sm:w-48 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
           <option value="">{t('Все статусы', 'Barcha statuslar')}</option>
           <option value="draft">{t('Черновик', 'Qoralama')}</option>
@@ -386,61 +429,113 @@ export default function EstimatesPage() {
             'Создайте первую смету для начала работы с финансами',
             'Moliyaviy ish boshlash uchun birinchi smetani yarating',
           )}
-          action={{
+          action={isDemoSession ? undefined : {
             label: t('Создать смету', 'Smeta yaratish'),
-            onClick: () => setShowCreate(true),
+            onClick: () => navigate('/finance/estimates/v2/new'),
           }}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 max-w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {estimates.map((est) => {
             const id = est.id as string;
             const status = (est.status as string) || 'draft';
             const bName = buildingMap[est.building_id as string] || '';
             const effectiveDate = est.effective_date as string | undefined;
             return (
-              <button
+              <div
                 key={id}
-                onClick={() => openDetail(id)}
-                className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-5 text-left hover:shadow-md transition-shadow group"
+                className="group min-w-0 max-w-full overflow-hidden rounded-xl border border-gray-100 bg-white/60 p-5 shadow-sm backdrop-blur-xl transition-shadow hover:shadow-md"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}
-                  >
-                    {statusLabel(status)}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors" />
-                </div>
-                {(est.title as string) && (
-                  <h3 className="font-semibold text-gray-900 mb-1 truncate">
-                    {est.title as string}
-                  </h3>
-                )}
-                <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-1">
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span className="truncate">{bName || t('Комплекс', 'Kompleks')}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>
-                    {effectiveDate
-                      ? `${t('с', 'dan')} ${effectiveDate}`
-                      : (est.period as string) || '-'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Banknote className="w-4 h-4 text-primary-500" />
-                  <span className="text-lg font-bold text-gray-900">
-                    {formatAmount(est.total_amount as number)} {t('сум', "so'm")}
-                  </span>
-                </div>
-                {Number(est.commercial_rate_per_sqm) > 0 && (
-                  <div className="text-xs text-gray-400 mt-1">
-                    1 {t('кв.м', 'kv.m')} = {formatAmount(est.commercial_rate_per_sqm as number)} {t('сум', "so'm")}
+                <button
+                  type="button"
+                  className="block min-h-[44px] w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+                  onClick={() => openDetail(id)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}
+                    >
+                      {statusLabel(status)}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors" />
+                  </div>
+                  {(est.title as string) && (
+                    <h3 className="font-semibold text-gray-900 mb-1 truncate">
+                      {est.title as string}
+                    </h3>
+                  )}
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-1">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span className="truncate">{bName || t('Комплекс', 'Kompleks')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>
+                      {effectiveDate
+                        ? `${t('с', 'dan')} ${effectiveDate}`
+                        : (est.period as string) || '-'}
+                    </span>
+                  </div>
+                  {(() => {
+                    const annual = Number(est.umumiy_year) || Number(est.total_amount) || 0;
+                    const tariff = Number(est.tariff_resident) || 0;
+                    const deficit = Number(est.deficit_year) || 0;
+                    if (annual <= 0) {
+                      // Смета ещё не рассчитана (не доходили до «Пересчитать»).
+                      return (
+                        <div className="text-sm text-amber-600 bg-amber-50 rounded-lg px-2 py-1.5">
+                          {t('Не рассчитана — откройте и нажмите «Пересчитать»', 'Hisoblanmagan — «Qayta hisoblash»')}
+                        </div>
+                      );
+                    }
+                    return (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Banknote className="w-4 h-4 text-primary-500" />
+                          <span className="text-lg font-bold text-gray-900">
+                            {formatAmount(annual)} {t('сум/год', "so'm/yil")}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap text-xs">
+                          {tariff > 0 && (
+                            <span className="text-gray-500">
+                              {t('тариф', 'tarif')} {formatAmount(tariff)} {t('сум/м²', "so'm/m²")}
+                            </span>
+                          )}
+                          {deficit < 0 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                              {t('Дефицит', 'Defitsit')}: {formatAmount(deficit)} {t('сум/год', "so'm")}
+                            </span>
+                          )}
+                        </div>
+                        {deficit < 0 && (
+                          <div className="text-[11px] text-red-500 mt-1">
+                            {t('Расходы выше доходов — поднимите тариф или добавьте доходы.', 'Xarajat daromaddan yuqori — tarifni oshiring.')}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </button>
+
+                {/* Действия: правка/удаление только для черновиков */}
+                {status === 'draft' && !isDemoSession && (
+                  <div className="flex min-w-0 max-w-full flex-col flex-wrap items-stretch gap-2 border-t border-gray-100 pt-3 mt-4 min-[360px]:flex-row min-[360px]:items-center">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleEditEstimate(id); }}
+                      className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50"
+                    >
+                      <Pencil className="w-3.5 h-3.5" /> {t('Редактировать', 'Tahrirlash')}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteEstimate(id); }}
+                      className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> {t('Удалить', "O'chirish")}
+                    </button>
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -448,7 +543,7 @@ export default function EstimatesPage() {
 
       {/* ─── Create Modal ─── */}
       <Modal
-        isOpen={showCreate}
+        isOpen={!isDemoSession && showCreate}
         onClose={() => {
           setShowCreate(false);
           resetForm();
@@ -753,17 +848,59 @@ export default function EstimatesPage() {
               </span>
             </div>
 
-            {/* Rates summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Смета на ЖК: тарифы у каждого дома свои */}
+            {(currentEstimate.scope_level as string) === 'complex' && (
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
+                {t('Смета на ЖК: у каждого дома свой тариф. Полная разбивка — в «Скачать Excel» (лист на каждый дом) или при «Редактировать».',
+                   'JK smetasi: har uyning tarifi alohida. To\'liq — Excelda.')}
+              </div>
+            )}
+
+            {/* Итоги (v2): годовая сумма, тариф, дефицит */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-primary-50 rounded-lg p-3">
                 <p className="text-xs text-primary-600 font-medium mb-1">
-                  {t('Жилое (за м²)', 'Turar joy (m² uchun)')}
+                  {(currentEstimate.scope_level as string) === 'complex'
+                    ? t('Тариф (средн. по ЖК)', 'Tarif (o\'rtacha)')
+                    : t('Тариф жилых, за м²', 'Turar tarif, m²')}
                 </p>
                 <p className="text-lg font-bold text-primary-900">
-                  {formatAmount(currentEstimate.commercial_rate_per_sqm as number)}
+                  {formatAmount((Number(currentEstimate.tariff_resident) || Number(currentEstimate.commercial_rate_per_sqm) || 0))}
                 </p>
-                <p className="text-xs text-primary-400">{t('сум', "so'm")}</p>
+                <p className="text-xs text-primary-400">{t('сум/м² (без НДС)', "so'm/m² (QQSsiz)")}</p>
+                {Number(currentEstimate.vat_enabled) === 1 && Number(currentEstimate.tariff_resident) > 0 && (
+                  <p className="text-xs text-primary-700 font-semibold mt-1">
+                    {t('с НДС', 'QQS bilan')}: {formatAmount(Math.round(Number(currentEstimate.tariff_resident) * (1 + (Number(currentEstimate.vat_rate) || 0.12))))} {t('сум/м²', "so'm/m²")}
+                  </p>
+                )}
               </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500 font-medium mb-1">{t('Годовая сумма', 'Yillik summa')}</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {formatAmount(Number(currentEstimate.umumiy_year) || 0)}
+                </p>
+                <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
+              </div>
+              <div className={`rounded-lg p-3 ${Number(currentEstimate.deficit_year) < 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                <p className={`text-xs font-medium mb-1 ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {Number(currentEstimate.deficit_year) < 0 ? t('Дефицит', 'Defitsit') : t('Профицит/баланс', 'Balans')}
+                </p>
+                <p className={`text-lg font-bold ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-900' : 'text-emerald-900'}`}>
+                  {formatAmount(Number(currentEstimate.deficit_year) || 0)}
+                </p>
+                <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
+              </div>
+            </div>
+            {Number(currentEstimate.deficit_year) < 0 && (
+              <div className="text-xs text-red-500">
+                {t('Расходы выше доходов — поднимите тариф или добавьте доходы (реклама/парковка/коммерция).',
+                   'Xarajat daromaddan yuqori — tarifni oshiring.')}
+              </div>
+            )}
+
+            {/* Доп. ставки (если заданы) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Number(currentEstimate.non_commercial_rate_per_sqm) > 0 && (
               <div className="bg-amber-50 rounded-lg p-3">
                 <p className="text-xs text-amber-600 font-medium mb-1">
                   {t('Нежилое (за м²)', 'Noturar (m² uchun)')}
@@ -773,6 +910,7 @@ export default function EstimatesPage() {
                 </p>
                 <p className="text-xs text-amber-400">{t('сум', "so'm")}</p>
               </div>
+              )}
               {Number(currentEstimate.commercial_rate) > 0 && (
                 <div className="bg-blue-50 rounded-lg p-3">
                   <p className="text-xs text-blue-600 font-medium mb-1">
@@ -798,7 +936,7 @@ export default function EstimatesPage() {
             </div>
 
             {/* Items table */}
-            {detailItems.length > 0 && (
+            {detailExpenseItems.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -818,7 +956,7 @@ export default function EstimatesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detailItems.map((it, idx) => (
+                    {detailExpenseItems.map((it, idx) => (
                       <tr key={idx} className="border-b border-gray-50">
                         <td className="py-2 px-3 text-gray-400 text-xs">{idx + 1}</td>
                         <td className="py-2 px-3 text-gray-900">
@@ -840,10 +978,10 @@ export default function EstimatesPage() {
                         {t('Итого расходов', 'Jami xarajatlar')}
                       </td>
                       <td className="py-2 px-3 text-right font-medium text-gray-600">
-                        {formatAmount(Math.round(Number(currentEstimate.total_amount) / 12))}
+                        {formatAmount(detailExpMonthly)}
                       </td>
                       <td className="py-2 px-3 text-right font-bold text-gray-900">
-                        {formatAmount(currentEstimate.total_amount as number)} {t('сум', "so'm")}
+                        {formatAmount(detailExpYear)} {t('сум', "so'm")}
                       </td>
                     </tr>
                     {Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent) > 0 && (
@@ -854,7 +992,7 @@ export default function EstimatesPage() {
                         </td>
                         <td />
                         <td className="py-2 px-3 text-right font-medium text-primary-700">
-                          {formatAmount(Math.round(Number(currentEstimate.total_amount) * Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent || 0) / 100))} {t('сум', "so'm")}
+                          {formatAmount(Math.round(detailExpYear * Number(currentEstimate.uk_profit_percent || currentEstimate.enterprise_profit_percent || 0) / 100))} {t('сум', "so'm")}
                         </td>
                       </tr>
                     )}
@@ -865,7 +1003,7 @@ export default function EstimatesPage() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
-              {detailStatus === 'draft' && (
+              {detailStatus === 'draft' && !isDemoSession && (
                 <button
                   onClick={handleActivate}
                   disabled={activating}
@@ -879,7 +1017,7 @@ export default function EstimatesPage() {
                   {t('Утвердить', 'Tasdiqlash')}
                 </button>
               )}
-              {detailStatus === 'active' && (
+              {detailStatus === 'active' && !isDemoSession && (
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
@@ -899,7 +1037,13 @@ export default function EstimatesPage() {
                     generateEstimateExcel(
                       currentEstimate,
                       detailItems,
-                      buildings as Array<Record<string, unknown>>,
+                      buildings.map((building) => ({
+                        id: building.id,
+                        name: building.name,
+                        totalArea: building.totalArea,
+                        livingArea: building.livingArea,
+                        commonArea: building.commonArea,
+                      })),
                       language as 'ru' | 'uz',
                       tenantName,  // Sprint 4: реальное имя УК в шапку
                     );
@@ -917,7 +1061,12 @@ export default function EstimatesPage() {
                     generateEstimatePdf(
                       currentEstimate as unknown as Record<string, unknown>,
                       detailItems as unknown as Parameters<typeof generateEstimatePdf>[1],
-                      buildings as Parameters<typeof generateEstimatePdf>[2],
+                      buildings.map((building) => ({
+                        id: building.id,
+                        name: building.name,
+                        address: building.address,
+                        totalArea: building.totalArea,
+                      })),
                       language as 'ru' | 'uz',
                       tenantName,
                     );

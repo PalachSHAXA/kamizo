@@ -21,17 +21,15 @@ import {
 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useAuthStore } from '../../stores/authStore';
-import { useTenantStore } from '../../stores/tenantStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { Sheet } from '../../components/common/Sheet';
-import { useAndroidKbSpacer } from './useAndroidKbSpacer';
 // MOCK_USER_ID intentionally NOT imported here: any top-level reference
 // forces Rollup to keep the __devMock chunk in prod. Runtime is safe —
 // ProtectedRoute means `user` is non-null on this route, so the OR-
 // fallback below never fires. The empty-string fallback is only for the
 // impossible "user removed mid-render" case.
-import { neighbourKicker, type RentalReportReason, type RentalListingUI, type RentalListingPhotoAPI } from './types';
+import { neighbourKicker, type RentalListingUI, type RentalListingPhotoAPI } from './types';
 import { rentalsApi } from './api';
 
 const FAV_KEY = 'kamizo_rental_favs';
@@ -559,91 +557,6 @@ function PhoneRevealSheet(props: {
           {phone || t(language, 'Номер скрыт владельцем', "Raqam egasi tomonidan yashirilgan")}
         </div>
         <div className="text-[12.5px] text-gray-500">{name}</div>
-      </div>
-    </Sheet>
-  );
-}
-
-// ── Report sheet ──────────────────────────────────────────────────
-const REPORT_REASONS: Array<{ value: RentalReportReason; ru: string; uz: string }> = [
-  { value: 'already_rented', ru: 'Уже сдано — висит зря', uz: "Allaqachon ijaraga berilgan" },
-  { value: 'misleading',      ru: 'Не соответствует описанию', uz: 'Tavsifga mos emas' },
-  { value: 'wrong_photos',    ru: 'Фото не с этой квартиры', uz: 'Suratlar bu kvartiradan emas' },
-  { value: 'fraud',           ru: 'Мошенничество / обман',   uz: "Firibgarlik" },
-  { value: 'other',           ru: 'Другое',                   uz: 'Boshqa' },
-];
-
-function ReportSheet(props: {
-  isOpen: boolean; onClose: () => void; listingId: string; language: string;
-}) {
-  const { isOpen, onClose, listingId, language } = props;
-  const addToast = useToastStore(s => s.addToast);
-  const [reason, setReason] = useState<RentalReportReason>('already_rented');
-  const [comment, setComment] = useState('');
-
-  useEffect(() => { if (!isOpen) { setReason('already_rented'); setComment(''); } }, [isOpen]);
-
-  const submit = () => {
-    // Mock — POST /api/rentals/listings/:id/report {reason, comment}
-    void listingId;
-    addToast('success', t(language, 'Жалоба отправлена. УК проверит в течение суток.',
-                                   "Shikoyat yuborildi. BK bir kun ichida tekshiradi."));
-    onClose();
-  };
-
-  return (
-    <Sheet
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t(language, 'Пожаловаться', 'Shikoyat qilish')}
-      subtitle={t(language, 'УК проверит объявление в течение суток. Ваше имя увидит только УК.',
-                            "BK e'lonni bir kun ichida tekshiradi. Sizning ismingizni faqat BK ko'radi.")}
-      size="md"
-      footer={
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 h-[46px] rounded-[15px] border border-gray-200 text-gray-900 font-semibold text-[14px]">
-            {t(language, 'Отмена', 'Bekor')}
-          </button>
-          <button
-            onClick={submit}
-            className="flex-1 h-[46px] rounded-[15px] text-white font-semibold text-[14px] active:scale-[0.98]"
-            style={{ background: 'linear-gradient(150deg, #FB923C, #EA580C)', boxShadow: '0 10px 24px -10px rgba(249,115,22,0.7)' }}
-          >
-            {t(language, 'Отправить', 'Yuborish')}
-          </button>
-        </div>
-      }
-    >
-      <div className="space-y-2" style={{ paddingBottom: 'var(--kz-kb-h, 0px)' }}>
-        {REPORT_REASONS.map(r => {
-          const on = reason === r.value;
-          return (
-            <button
-              key={r.value}
-              onClick={() => setReason(r.value)}
-              className={`w-full flex items-center gap-3 p-3.5 rounded-[14px] border text-left ${
-                on ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 rounded-full border-2 grid place-items-center flex-shrink-0 ${on ? 'border-primary-500' : 'border-gray-400'}`}
-              >
-                {on && <span className="w-2 h-2 rounded-full bg-primary-500" />}
-              </span>
-              <span className="text-[13.5px] font-semibold text-gray-900">
-                {t(language, r.ru, r.uz)}
-              </span>
-            </button>
-          );
-        })}
-
-        <textarea
-          value={comment}
-          onChange={e => setComment(e.target.value)}
-          placeholder={t(language, 'Уточните (необязательно)', "Aniqlashtiring (ixtiyoriy)")}
-          rows={3}
-          className="w-full mt-3 p-3 rounded-[14px] bg-gray-50 border border-gray-200 text-[13.5px] resize-none focus:outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-500/20"
-        />
       </div>
     </Sheet>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
@@ -15,6 +16,7 @@ import {
   Layers,
   AlertTriangle,
 } from 'lucide-react';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 const SOURCE_TYPES = ['rental', 'parking', 'advertising', 'basement', 'custom'] as const;
 type SourceType = (typeof SOURCE_TYPES)[number];
@@ -43,6 +45,7 @@ function getCurrentPeriod() {
 export default function IncomePage() {
   const language = useLanguageStore((s) => s.language);
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
 
   const income = useFinanceStore((s) => s.income);
   const incomeCategories = useFinanceStore((s) => s.incomeCategories);
@@ -108,7 +111,7 @@ export default function IncomePage() {
   }, [filteredIncome]);
 
   const handleCreateIncome = useCallback(async () => {
-    if (!form.category_id || !form.amount || !form.period) return;
+    if (isDemoSession || !form.category_id || !form.amount || !form.period) return;
     setFormLoading(true);
     const ok = await createIncome({
       category_id: form.category_id,
@@ -122,15 +125,15 @@ export default function IncomePage() {
       setAddModalOpen(false);
       setForm({ category_id: '', amount: '', period: getCurrentPeriod(), description: '', source_type: 'rental' });
     }
-  }, [form, createIncome]);
+  }, [form, createIncome, isDemoSession]);
 
   const handleCreateCategory = useCallback(async () => {
-    if (!newCatName.trim()) return;
+    if (isDemoSession || !newCatName.trim()) return;
     setCatLoading(true);
     const ok = await createIncomeCategory(newCatName.trim());
     setCatLoading(false);
     if (ok) setNewCatName('');
-  }, [newCatName, createIncomeCategory]);
+  }, [newCatName, createIncomeCategory, isDemoSession]);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '—';
@@ -162,7 +165,7 @@ export default function IncomePage() {
             {t('Управление доходами компании', 'Kompaniya daromadlarini boshqarish')}
           </p>
         </div>
-        <div className="flex gap-2">
+        {!isDemoSession && <div className="flex gap-2">
           <button
             onClick={() => setCatModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white/60 backdrop-blur-xl rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -177,8 +180,10 @@ export default function IncomePage() {
             <Plus className="w-4 h-4" />
             {t('Добавить доход', 'Daromad qo\'shish')}
           </button>
-        </div>
+        </div>}
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filters */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
@@ -318,7 +323,7 @@ export default function IncomePage() {
 
       {/* Add Income Modal */}
       <Modal
-        isOpen={addModalOpen}
+        isOpen={!isDemoSession && addModalOpen}
         onClose={() => setAddModalOpen(false)}
         title={t('Добавить доход', 'Daromad qo\'shish')}
         size="lg"
@@ -423,7 +428,7 @@ export default function IncomePage() {
 
       {/* Manage Categories Modal */}
       <Modal
-        isOpen={catModalOpen}
+        isOpen={!isDemoSession && catModalOpen}
         onClose={() => setCatModalOpen(false)}
         title={t('Управление категориями', 'Kategoriyalarni boshqarish')}
         size="md"

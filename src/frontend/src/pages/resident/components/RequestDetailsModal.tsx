@@ -57,7 +57,6 @@ const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.32)';
 const RADIUS_XL = 22;
 const RADIUS_LG = 16;
 const RADIUS_MD = 12;
-const RADIUS_SM = 10;
 
 // ── category labels + icons keyed by ExecutorSpecialization ─────────
 type CatVisuals = { Icon: typeof Droplets; ru: string; uz: string };
@@ -693,4 +692,3 @@ function Step({
     </>
   );
 }
-

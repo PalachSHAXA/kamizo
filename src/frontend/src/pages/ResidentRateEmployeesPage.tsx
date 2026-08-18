@@ -41,7 +41,6 @@ const TEXT_MUTED = '#A8A29E';
 const SURFACE = '#FFFFFF';
 const SURFACE_SUNKEN = '#EDE7DB';
 const BORDER = '#E6DFD2';
-const HAIRLINE = 'rgba(28,25,23,0.06)';
 const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
 const SHADOW_MD = '0 4px 16px rgba(28,25,23,0.06)';
 const AMBER_400 = '#FBBF24';
@@ -54,7 +53,6 @@ const STONE_50 = '#FBF8F2';
 const STONE_100 = '#F4F0E8';
 const STONE_200 = '#E6DFD2';
 const SUCCESS = '#15A06E';
-const STAR_EMPTY = '#D6D3D1';
 const STAR_GLOW = '0 8px 22px rgba(217,119,6,0.26)';
 
 interface TagOption { id: string; ruLabel: string; uzLabel: string; }

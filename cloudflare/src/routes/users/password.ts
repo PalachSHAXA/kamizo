@@ -1,10 +1,57 @@
-// Password management routes: change password, admin reset password
+// Password management routes: self change and privileged resets
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
 import { json, error, bilingualError, isManagement, isAdminLevel, canActOnRole } from '../../utils/helpers';
-import { hashPassword, verifyPassword, encryptPassword } from '../../utils/crypto';
+import { hashPassword, verifyPassword } from '../../utils/crypto';
+
+const MAX_PASSWORD_LENGTH = 128;
+
+function hasTenantContext(tenantId: string | null): tenantId is string {
+  return Boolean(tenantId && tenantId !== '__no_tenant__');
+}
+
+async function readBody(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const body = await request.json();
+    return body !== null && typeof body === 'object' && !Array.isArray(body)
+      ? body as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function validatePassword(value: unknown, field: 'current' | 'new'): string | Response {
+  if (typeof value !== 'string') {
+    return error(field === 'current'
+      ? 'Current password is required'
+      : 'Password must be at least 6 characters', 400);
+  }
+  const password = value.trim();
+  if (password.length < 6) {
+    return error(field === 'current' && password.length === 0
+      ? 'Current password is required'
+      : 'Password must be at least 6 characters', 400);
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return error('Password must be at most 128 characters', 400);
+  }
+  return password;
+}
+
+function hasOnlyFields(body: Record<string, unknown>, allowed: string[]): boolean {
+  return Object.keys(body).every(field => allowed.includes(field));
+}
+
+function secureToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
 
 export function registerPasswordRoutes() {
 
@@ -13,25 +60,35 @@ route('POST', '/api/users/me/password', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
-  const { current_password, new_password } = await request.json() as any;
+  const tenantId = getTenantId(request);
+  if (!hasTenantContext(tenantId)) return error('Tenant context required', 403);
 
-  const userWithHash = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
-    .bind(user.id).first() as any;
+  const body = await readBody(request);
+  if (!body) return error('Request body must be a plain object', 400);
+  if (!hasOnlyFields(body, ['current_password', 'new_password'])) return error('Unexpected request field', 400);
+  const currentPassword = validatePassword(body.current_password, 'current');
+  if (currentPassword instanceof Response) return currentPassword;
+  const newPassword = validatePassword(body.new_password, 'new');
+  if (newPassword instanceof Response) return newPassword;
+
+  const userWithHash = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ? AND tenant_id = ?')
+    .bind(user.id, tenantId).first() as { password_hash: string } | null;
 
   if (!userWithHash) {
     return error('User not found', 404);
   }
 
-  const isValid = await verifyPassword(current_password, userWithHash.password_hash);
+  const isValid = await verifyPassword(currentPassword, userWithHash.password_hash);
 
   if (!isValid) {
     return error('Current password is incorrect', 400);
   }
 
-  const newHash = await hashPassword(new_password);
-  const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
-  await env.DB.prepare("UPDATE users SET password_hash = ?, password_plain = ?, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
-    .bind(newHash, newPlain, user.id).run();
+  const newHash = await hashPassword(newPassword);
+  const result = await env.DB.prepare(
+    "UPDATE users SET password_hash = ?, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
+  ).bind(newHash, user.id, tenantId).run();
+  if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
   return json({ success: true, password_changed_at: new Date().toISOString() });
 });
@@ -43,84 +100,33 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
     return error('Manager access required', 403);
   }
 
-  // Sprint 66 P0/F6: role-relative check. Was authorising any management
-  // role to change ANY user's password — a manager could call this on
-  // the director or admin row and take over the account. Now: caller
-  // must outrank the target. Hierarchy: super_admin > admin/director >
-  // department_head > manager/advertiser > everyone else.
   const tenantIdPwd = getTenantId(request);
+  if (!hasTenantContext(tenantIdPwd)) return error('Tenant context required', 403);
+
+  const body = await readBody(request);
+  if (!body) return error('Request body must be a plain object', 400);
+  if (!hasOnlyFields(body, ['new_password'])) return error('Unexpected request field', 400);
+  const newPassword = validatePassword(body.new_password, 'new');
+  if (newPassword instanceof Response) return newPassword;
+
   const target = await env.DB.prepare(
-    `SELECT id, role FROM users WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).first() as { id: string; role: string } | null;
+    'SELECT id, role FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(params.id, tenantIdPwd).first() as { id: string; role: string } | null;
   if (!target) return error('User not found', 404);
 
-  const rank: Record<string, number> = {
-    super_admin: 100, admin: 80, director: 80, department_head: 60,
-    manager: 50, advertiser: 50, dispatcher: 40, executor: 30,
-    security: 30, resident: 10, tenant: 10, commercial_owner: 10,
-  };
-  const callerRank = rank[authUser!.role] ?? 0;
-  const targetRank = rank[target.role] ?? 0;
-  // Allow self-reset (e.g. admin resetting their own password) but not
-  // peers or higher. super_admin can reset anyone.
-  if (authUser!.id !== target.id && authUser!.role !== 'super_admin' && callerRank <= targetRank) {
+  if (!canActOnRole(authUser, target)) {
     return error('Cannot change password of a peer or higher-ranked user', 403);
   }
 
-  const { new_password } = await request.json() as any;
-  if (typeof new_password !== 'string' || new_password.length < 6) {
-    return error('Password must be at least 6 characters', 400);
-  }
-  const newHash = await hashPassword(new_password);
-  const newPlain = env.ENCRYPTION_KEY ? await encryptPassword(new_password, env.ENCRYPTION_KEY) : null;
-
-  await env.DB.prepare(`UPDATE users SET password_hash = ?, password_plain = ?, updated_at = datetime('now') WHERE id = ? ${tenantIdPwd ? 'AND tenant_id = ?' : ''}`).bind(newHash, newPlain, params.id, ...(tenantIdPwd ? [tenantIdPwd] : [])).run();
-
-  return json({ success: true });
-});
-
-// Admin: Update any user's password (admin only)
-route('POST', '/api/admin/reset-password', async (request, env) => {
-  const user = await getUser(request, env);
-  if (!user) return error('Unauthorized', 401);
-  if (user.role !== 'admin') return error('Only admin can reset passwords', 403);
-
-  const body = await request.json() as any;
-  const { login, password } = body;
-
-  if (!login || !password) {
-    return error('Login and password are required');
-  }
-
-  const tenantIdReset = getTenantId(request);
-  const targetUser = await env.DB.prepare(
-    `SELECT id, login, name, role FROM users WHERE login = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}`
-  ).bind(login, ...(tenantIdReset ? [tenantIdReset] : [])).first() as any;
-
-  if (!targetUser) {
-    return error('User not found', 404);
-  }
-
-  // Sprint 68 P1/F9: rank check. Without it, an admin could reset
-  // super_admin's password if they share a tenant (or null tenant on
-  // main domain).
-  if (!canActOnRole(user, targetUser)) {
-    return error('Cannot reset password of a peer or higher-ranked user', 403);
-  }
-
-  const hashedPassword = await hashPassword(password);
-  const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
-  await env.DB.prepare(`
-    UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ? ${tenantIdReset ? 'AND tenant_id = ?' : ''}
-  `).bind(hashedPassword, encryptedPlain, targetUser.id, ...(tenantIdReset ? [tenantIdReset] : [])).run();
+  const newHash = await hashPassword(newPassword);
+  const result = await env.DB.prepare(
+    "UPDATE users SET password_hash = ?, password_changed_at = NULL, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
+  ).bind(newHash, params.id, tenantIdPwd, target.role).run();
+  if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
   await invalidateOnChange('users', env.RATE_LIMITER);
 
-  return json({
-    success: true,
-    message: `Password updated for ${targetUser.name}`,
-    user: { login: targetUser.login, name: targetUser.name, role: targetUser.role }
-  });
+  return json({ success: true });
 });
 
 // Admin: Reset user password by ID
@@ -130,49 +136,35 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
+  if (!hasTenantContext(tenantId)) return error('Tenant context required', 403);
   const targetUser = await env.DB.prepare(
-    `SELECT id, login, name, role FROM users WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    'SELECT id, login, name, role FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(params.id, tenantId).first() as { id: string; login: string; name: string; role: string } | null;
 
   if (!targetUser) return error('User not found', 404);
 
-  // Sprint 68 P1/F9: rank check on /:id/reset-password too.
   if (!canActOnRole(user, targetUser)) {
     return error('Cannot reset password of a peer or higher-ranked user', 403);
   }
 
-  const randomSuffix = Math.random().toString(36).substring(2, 8);
-  const tempPassword = `${targetUser.login}_${randomSuffix}`;
+  const tempPassword = `${targetUser.login}_${secureToken()}`;
 
   const passwordHash = await hashPassword(tempPassword);
-  const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(tempPassword, env.ENCRYPTION_KEY) : null;
-  await env.DB.prepare(
-    `UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(passwordHash, encryptedPlain, targetUser.id, ...(tenantId ? [tenantId] : [])).run();
+  const result = await env.DB.prepare(
+    "UPDATE users SET password_hash = ?, password_changed_at = NULL, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
+  ).bind(passwordHash, targetUser.id, tenantId, targetUser.role).run();
+  if ((result.meta?.changes ?? 0) !== 1) return error('Password reset conflict', 409);
 
   await invalidateOnChange('users', env.RATE_LIMITER);
 
-  // Sprint 66 P2/F13: temp password is still returned because the admin
-  // UX needs to show it once to relay to the user (no SMS/email rails
-  // configured yet). The mitigation is upstream: request_logger must
-  // never log this response body, and the admin should treat the
-  // response panel like a one-time secret.
-  return json({
+  const response = json({
     success: true,
     message: `Temporary password set for ${targetUser.name}`,
     temporaryPassword: tempPassword,
     user: { id: targetUser.id, login: targetUser.login, name: targetUser.name, role: targetUser.role }
-  });
-});
-
-// Emergency password reset removed. It was used once to recover super_admin
-// access in 2026-04; the route stayed gated by EMERGENCY_RESET_SECRET (unset
-// in prod → 503), but the safer move is to delete the code path entirely.
-// For future recovery use one of:
-//   - `wrangler d1 execute kamizo-db --remote --command "UPDATE users SET ..."`
-//   - super_admin → /api/super-admin/reset-password
-route('POST', '/api/_emergency-reset', async (_request, _env) => {
-  return error('Endpoint removed. Use wrangler d1 execute or super-admin reset.', 410);
+  }, 200, 'no-store');
+  response.headers.set('Pragma', 'no-cache');
+  return response;
 });
 
 } // end registerPasswordRoutes

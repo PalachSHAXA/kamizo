@@ -1,7 +1,6 @@
 import { Suspense, type ComponentProps } from 'react';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
-// Direct import for Cell - it must be synchronous inside Pie
-import { Cell as RechartsCell } from 'recharts';
+import type { CellProps } from 'recharts';
 
 // Lazy load recharts components
 const LazyLineChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.LineChart })));
@@ -97,8 +96,11 @@ export const ResponsiveContainer = (props: ComponentProps<typeof LazyResponsiveC
   </Suspense>
 );
 
-// Cell must be synchronous - export directly
-export const Cell = RechartsCell;
+// Recharts Cell is a synchronous marker component (`props => null`) that Pie
+// identifies by displayName. Keeping the marker local avoids eagerly loading
+// the entire chart runtime while preserving the child API.
+export const Cell = (_props: CellProps) => null;
+Cell.displayName = 'Cell';
 
 // Area chart components
 const LazyAreaChart = lazyWithRetry(() => import('recharts').then(module => ({ default: module.AreaChart })));

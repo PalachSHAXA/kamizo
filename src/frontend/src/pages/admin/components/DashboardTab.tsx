@@ -23,6 +23,33 @@ interface DashboardTabProps {
   loadTenants: () => void;
 }
 
+interface TenantDetailRow {
+  id: string;
+  status?: string;
+  title?: string;
+  description?: string;
+  created_at?: string;
+  name?: string;
+  apartment?: string;
+  login?: string;
+  role?: string;
+  scheduled_date?: string;
+  guest_name?: string;
+  code?: string;
+  position?: string;
+}
+
+interface TenantSettingsDto {
+  show_useful_contacts_banner?: number;
+  show_marketplace_banner?: number;
+}
+
+interface TenantDetailsDto {
+  tenant: Tenant;
+  stats: TenantStats;
+  tabData: TenantDetailRow[] | TenantSettingsDto;
+}
+
 export function DashboardTab({
   tenants, setTenants, error, setError,
   onEditTenant, onDeleteTenant, onToggleActive,
@@ -32,7 +59,7 @@ export function DashboardTab({
 
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [tenantStats, setTenantStats] = useState<TenantStats | null>(null);
-  const [tenantTabData, setTenantTabData] = useState<Record<string, unknown>[] | Record<string, unknown> | null>(null);
+  const [tenantTabData, setTenantTabData] = useState<TenantDetailRow[] | TenantSettingsDto | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('requests');
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isLoadingTabData, setIsLoadingTabData] = useState(false);
@@ -52,7 +79,7 @@ export function DashboardTab({
     setIsLoadingDetail(true);
     setTenantTabData(null);
     try {
-      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: Record<string, unknown>[] | Record<string, unknown> }>(
+      const response = await apiRequest<TenantDetailsDto>(
         `/api/super-admin/tenants/${tenant.id}/details?tab=${tab}`
       );
       setTenantStats(response.stats);
@@ -70,7 +97,7 @@ export function DashboardTab({
     setIsLoadingTabData(true);
     setTenantTabData(null);
     try {
-      const response = await apiRequest<{ tenant: Tenant; stats: TenantStats; tabData: Record<string, unknown>[] | Record<string, unknown> }>(
+      const response = await apiRequest<TenantDetailsDto>(
         `/api/super-admin/tenants/${selectedTenant.id}/details?tab=${tab}`
       );
       setTenantTabData(response.tabData);
@@ -160,27 +187,16 @@ export function DashboardTab({
             <button
               onClick={async () => {
                 try {
-                  const resp = await apiRequest<{ user: Record<string, unknown>; token: string; tenantUrl: string; tenantName: string }>(
+                  const resp = await apiRequest<{ exchangeCode: string; tenantUrl: string; ttlSec: number }>(
                     `/api/super-admin/impersonate/${selectedTenant.id}`,
-                    { method: 'POST' }
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({ originUrl: window.location.href }),
+                    }
                   );
-                  const transformedUser = {
-                    ...resp.user,
-                    passwordChangedAt: resp.user.password_changed_at,
-                    contractSignedAt: resp.user.contract_signed_at,
-                    buildingId: resp.user.building_id,
-                    totalArea: resp.user.total_area,
-                    accountType: resp.user.account_type,
-                    tenantId: resp.user.tenant_id,
-                  };
-                  const authData = btoa(encodeURIComponent(JSON.stringify({
-                    state: { user: transformedUser, token: resp.token },
-                    version: 4,
-                    is_impersonated: true,
-                    super_admin_url: window.location.href,
-                    tenant_name: resp.tenantName || selectedTenant.name,
-                  })));
-                  window.open(`${selectedTenant.url}?auto_auth=${encodeURIComponent(authData)}`, '_blank');
+                  const tenantUrl = new URL(resp.tenantUrl);
+                  tenantUrl.searchParams.set('impersonation_code', resp.exchangeCode);
+                  window.open(tenantUrl.toString(), '_blank');
                 } catch (e: unknown) {
                   useToastStore.getState().addToast('error', (e instanceof Error ? e.message : '') || 'Не удалось войти в админку УК');
                 }
@@ -289,10 +305,10 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет заявок</div>
                   ) : (
-                    tenantTabData.map((item: Record<string, unknown>) => (
+                    tenantTabData.map((item) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {STATUS_LABELS[item.status] || item.status}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status ?? '')}`}>
+                          {STATUS_LABELS[item.status ?? ''] || item.status}
                         </span>
                         <span className="text-sm font-medium flex-1 truncate">{item.title || item.description}</span>
                         <span className="text-xs text-gray-400">{item.created_at ? new Date(item.created_at).toLocaleDateString('ru-RU') : ''}</span>
@@ -304,7 +320,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет жителей</div>
                   ) : (
-                    tenantTabData.map((item: Record<string, unknown>) => (
+                    tenantTabData.map((item) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold text-sm">
                           {(item.name || '?')[0]}
@@ -313,8 +329,8 @@ export function DashboardTab({
                           <div className="text-sm font-medium truncate">{item.name}</div>
                           <div className="text-xs text-gray-500">{item.apartment ? `Кв. ${item.apartment}` : item.login}</div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(item.role)}`}>
-                          {ROLE_LABELS_MAP[item.role] || item.role}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(item.role ?? '')}`}>
+                          {ROLE_LABELS_MAP[item.role ?? ''] || item.role}
                         </span>
                       </div>
                     ))
@@ -324,10 +340,10 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет голосований</div>
                   ) : (
-                    tenantTabData.map((item: Record<string, unknown>) => (
+                    tenantTabData.map((item) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {STATUS_LABELS[item.status] || item.status}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status ?? '')}`}>
+                          {STATUS_LABELS[item.status ?? ''] || item.status}
                         </span>
                         <span className="text-sm font-medium flex-1 truncate">{item.title}</span>
                         <span className="text-xs text-gray-400">{item.scheduled_date ? new Date(item.scheduled_date).toLocaleDateString('ru-RU') : ''}</span>
@@ -339,15 +355,15 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет QR-кодов</div>
                   ) : (
-                    tenantTabData.map((item: Record<string, unknown>) => (
+                    tenantTabData.map((item) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <QrCode className="w-5 h-5 text-green-600 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{item.guest_name || 'Гость'}</div>
                           <div className="text-xs text-gray-500">{item.code}</div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {STATUS_LABELS[item.status] || item.status}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status ?? '')}`}>
+                          {STATUS_LABELS[item.status ?? ''] || item.status}
                         </span>
                       </div>
                     ))
@@ -357,7 +373,7 @@ export function DashboardTab({
                   tenantTabData.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">Нет персонала</div>
                   ) : (
-                    tenantTabData.map((item: Record<string, unknown>) => (
+                    tenantTabData.map((item) => (
                       <div key={item.id} className="bg-white p-3 rounded-lg border flex items-center gap-3">
                         <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-sm">
                           {(item.name || '?')[0]}
@@ -366,8 +382,8 @@ export function DashboardTab({
                           <div className="text-sm font-medium truncate">{item.name}</div>
                           <div className="text-xs text-gray-500">{item.position || item.login}</div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(item.role)}`}>
-                          {ROLE_LABELS_MAP[item.role] || item.role}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(item.role ?? '')}`}>
+                          {ROLE_LABELS_MAP[item.role ?? ''] || item.role}
                         </span>
                       </div>
                     ))
@@ -382,11 +398,11 @@ export function DashboardTab({
                         Coming Soon баннеры
                       </h3>
                       <p className="text-xs text-gray-500">Когда у тенанта нет данных, показывать красивый placeholder вместо пустой страницы</p>
-                      {[
+                      {([
                         { key: 'show_useful_contacts_banner', label: 'Полезные контакты', desc: 'Показать Coming Soon если нет контактов' },
                         { key: 'show_marketplace_banner', label: 'Маркетплейс', desc: 'Показать Coming Soon если нет товаров' },
-                      ].map(item => {
-                        const isOn = !!(selectedTenant as Record<string, unknown>)[item.key];
+                      ] as const).map(item => {
+                        const isOn = !!selectedTenant[item.key];
                         return (
                           <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div>
@@ -398,11 +414,11 @@ export function DashboardTab({
                               ariaLabel={item.label}
                               onChange={async () => {
                                 try {
-                                  const updated = await apiRequest<{ tenant: Record<string, unknown> }>(`/api/super-admin/tenants/${selectedTenant!.id}/banners`, {
+                                  const updated = await apiRequest<{ tenant: TenantSettingsDto }>(`/api/super-admin/tenants/${selectedTenant.id}/banners`, {
                                     method: 'PATCH',
                                     body: JSON.stringify({ [item.key]: !isOn }),
                                   });
-                                  setTenants(prev => prev.map(t => t.id === selectedTenant!.id ? { ...t, ...updated.tenant } : t));
+                                  setTenants(prev => prev.map(t => t.id === selectedTenant.id ? { ...t, ...updated.tenant } : t));
                                   setSelectedTenant(prev => prev ? { ...prev, ...updated.tenant } : prev);
                                 } catch { /* toggle may fail */ }
                               }}
@@ -544,7 +560,7 @@ export function DashboardTab({
               <div className="flex items-center gap-3 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {tenant.users_count || 0}</span>
                 <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" /> {tenant.requests_count || 0}</span>
-                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {(tenant as Record<string, unknown>).buildings_count as number || 0}</span>
+                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {('buildings_count' in tenant && typeof tenant.buildings_count === 'number') ? tenant.buildings_count : 0}</span>
                 {/* Sprint 85 commit 2 — contract presence badge from the
                     list endpoint's has_contract flag. Quiet visual: muted
                     emerald icon-only, no count. Lets the super-admin

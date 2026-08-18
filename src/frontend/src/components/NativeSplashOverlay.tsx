@@ -44,6 +44,7 @@ import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Haptics } from '@capacitor/haptics';
 import { SoftHaptic } from '../services/softHaptic';
+import { applyTheme, useThemeStore } from '../stores/themeStore';
 import './NativeSplashOverlay.css';
 
 type Theme = 'light' | 'dark';
@@ -238,11 +239,9 @@ async function takeOverStatusBarForSplash(theme: Theme): Promise<void> {
   } catch { /* plugin not available — give up silently */ }
 }
 
-async function restoreAppStatusBar(): Promise<void> {
+function restoreAppStatusBar(): void {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    const { applyTheme } = await import('../stores/themeStore');
-    const { useThemeStore } = await import('../stores/themeStore');
     // Re-apply the persisted app theme — this restores style +
     // backgroundColor + overlay state to the app's normal config.
     applyTheme(useThemeStore.getState().theme);

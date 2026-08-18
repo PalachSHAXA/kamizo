@@ -15,7 +15,7 @@
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Sliders, Heart, Key, Plus, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Search, Sliders, Heart, Key, Plus } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useTenantStore } from '../../stores/tenantStore';

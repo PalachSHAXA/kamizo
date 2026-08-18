@@ -3,7 +3,7 @@ import { Check, CheckCheck, Loader2, AlertCircle } from 'lucide-react';
 import { MessageContent } from '../../components/common';
 import { formatName } from '../../utils/formatName';
 import type { UserRole } from '../../types';
-import { getAvatarColor, getInitials } from './chatUtils';
+import { getAvatarColor, getInitials, type ChatMessage } from './chatUtils';
 
 // Sprint B (chat redesign): TG/WhatsApp-style message bubble.
 // - Avatar only on the first message of an author's block; siblings indent
@@ -15,20 +15,8 @@ import { getAvatarColor, getInitials } from './chatUtils';
 // - Timestamp 11px (was 10px), tick 14×14 (was 12×12), better-contrast
 //   white instead of white/75 inside own bubbles.
 
-export interface ChatMessageView {
-  id: string;
-  sender_id: string;
-  sender_name: string;
-  sender_role: UserRole;
-  content: string;
-  created_at: string;
-  read_by?: string[];
-  management_read?: boolean;
-  status?: 'sending' | 'sent' | 'failed';
-}
-
 interface MessageBubbleProps {
-  message: ChatMessageView;
+  message: ChatMessage;
   isOwn: boolean;
   showSender: boolean;
   isCurrentMatch: boolean;
@@ -38,7 +26,7 @@ interface MessageBubbleProps {
   language: 'ru' | 'uz';
   formatTime: (dateStr: string, lang: string) => string;
   renderRoleBadge: (role: UserRole) => ReactNode;
-  onRetry: (message: ChatMessageView) => void;
+  onRetry: (message: ChatMessage) => void;
 }
 
 function MessageBubbleImpl({

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '../../stores/dataStore';
@@ -11,6 +11,7 @@ import { Switch } from '../../components/ui';
 import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 import { ContractUploader } from '../../components/contracts/ContractUploader';
+import { DemoReadOnlyBanner } from '../../components/demo/DemoReadOnlyBanner';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export function SettingsPage() {
   const { language, setLanguage } = useLanguageStore();
   const { hasFeature, fetchConfig } = useTenantStore();
   const tenantContract = useTenantStore(s => s.config?.tenant?.contract);
+  const isDemoSession = user?.demoSession === true;
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const isAdmin = user?.role === 'admin';
   // Who may attach/replace the management contract — keep in sync with the
@@ -33,6 +35,7 @@ export function SettingsPage() {
   // managed here.
   const canManageContract = ['director', 'admin', 'manager'].includes(user?.role || '');
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users' | 'contract'>('profile');
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [saved, setSaved] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -188,6 +191,7 @@ export function SettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(settings.pushNotifications);
 
   const handleSave = () => {
+    if (isDemoSession) return;
     updateSettings({
       companyName,
       companyInn,
@@ -209,6 +213,7 @@ export function SettingsPage() {
   };
 
   const handleResetRequests = async () => {
+    if (isDemoSession) return;
     setIsResetting(true);
     setResetMessage(null);
     try {
@@ -228,6 +233,7 @@ export function SettingsPage() {
 
   // Save profile
   const handleSaveProfile = async () => {
+    if (isDemoSession) return;
     setIsProfileSaving(true);
     setProfileMessage(null);
     try {
@@ -236,7 +242,7 @@ export function SettingsPage() {
         phone: profilePhone,
       });
       if (result.user && user) {
-        updateUserProfile(user.login, { name: result.user.name, phone: result.user.phone });
+        updateUserProfile(user.login, { name: result.user.name, phone: result.user.phone ?? '' });
       }
       setProfileMessage({ type: 'success', text: language === 'ru' ? 'Профиль успешно сохранён' : 'Profil muvaffaqiyatli saqlandi' });
       setTimeout(() => setProfileMessage(null), 3000);
@@ -249,6 +255,7 @@ export function SettingsPage() {
 
   // Change password
   const handleChangePassword = async () => {
+    if (isDemoSession) return;
     setPasswordMessage(null);
 
     // Validation
@@ -310,43 +317,25 @@ export function SettingsPage() {
     ? [...baseTabs, { id: 'contract' as const, label: language === 'ru' ? 'Договор' : 'Shartnoma', icon: FileText }]
     : baseTabs;
 
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    const nextIndex = (index + direction + tabs.length) % tabs.length;
+    setActiveTab(tabs[nextIndex].id);
+    tabRefs.current[nextIndex]?.focus();
+  };
+
   return (
-    // v118.102 — restructured to the v241/v242 inner-scroller pattern.
-    // Was a plain `space-y-4` block inside Layout's .page-content with
-    // no safe-area handling, so on iOS the page's gear-icon header
-    // collided with the status bar (Layout's MobileHeader was stacked
-    // on top, but the page's content rose above its own offset). Now:
-    //   • Outer: height:100dvh + flex column + overflow:hidden.
-    //   • Pinned header (flex:0 0 auto) paints its own notch-aware
-    //     padding-top: env(safe-area-inset-top) so the gear / title /
-    //     subtitle sit cleanly below the status bar in both themes.
-    //     Layout hides the global MobileHeader for staff /profile via
-    //     isStaffSettingsFullBleed so the two don't stack.
-    //   • Inner scroller (flex:1 1 auto, minHeight:0, overflowY:auto,
-    //     overscrollBehavior:none, WebkitOverflowScrolling:touch) owns
-    //     ALL scroll; tabs + settings forms scroll inside it.
-    //   • Bottom safe-area + BottomBar reserve via paddingBottom.
-    <div style={{
-      // Full-viewport height. The inner scroller pads itself by
-      // (--bottom-bar-h + 24px) so its content ends UNDER the floating
-      // BottomBar, letting the bar's backdrop-blur render page content
-      // instead of the bare `--app-bg` beige. (Prior clip issue at
-      // scrollTop=max was resolved by the padding, not by trimming
-      // the outer height.)
-      height: '100dvh',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      // negative margins counteract Layout's .page-content `px-3 py-3`
-      // (3 + 12 = 12px each side, 12 top) so the page goes truly edge-
-      // to-edge. With isStaffSettingsFullBleed on, Layout already uses
-      // page-content-full-bleed but the wrapper element's <main> still
-      // sits inside .main-content with its own padding-bottom for the
-      // BottomBar. Pull negative -3 on the sides to be safe regardless.
-      marginLeft: 'calc(50% - 50vw)',
-      marginRight: 'calc(50% - 50vw)',
+    // Layout's .main-content is the single mobile/tablet scroll owner.
+    // Settings only consumes the available width/height and keeps its
+    // notch-aware header; it must not create a second viewport scroller.
+    <div className="admin-form-controls w-full max-w-full min-w-0" style={{
+      minHeight: 0,
       marginTop: 0,
-      width: '100vw',
+      width: '100%',
+      minWidth: 0,
+      maxWidth: '100%',
     }}>
       {/* Pinned header — flex:0 0 auto, safe-area top */}
       <div style={{
@@ -365,12 +354,12 @@ export function SettingsPage() {
           <button
             onClick={() => navigate('/')}
             aria-label={language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
-            className="mb-2 w-9 h-9 rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors"
+            className="staff-primary-control mb-2 min-h-[44px] min-w-[44px] rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-stretch justify-between gap-3 min-[360px]:flex-row min-[360px]:items-center">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
               <Settings className="w-5 h-5 text-white" />
@@ -381,7 +370,7 @@ export function SettingsPage() {
             </div>
           </div>
           {saved && (
-            <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
+            <div className="flex min-h-[44px] items-center gap-2 self-start px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
               <CheckCircle className="w-4 h-4" />
               <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
             </div>
@@ -389,22 +378,18 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Inner scroller — flex:1 1 auto, owns all scroll */}
+      {/* Content flows through the parent .main-content scroller. */}
       <div className="settings-scroll" style={{
-        flex: '1 1 auto',
         minHeight: 0,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        overscrollBehavior: 'contain',
-        WebkitOverflowScrolling: 'touch',
+        minWidth: 0,
         paddingLeft: 12, paddingRight: 12, paddingTop: 12,
-        // Pad the bottom of the scroller by BottomBar height + breathing
-        // room so the last field can scroll ABOVE the bar and the bar's
-        // blur backdrop always renders real page content — no beige
-        // strip visible under the floating pill.
-        paddingBottom: 'calc(var(--bottom-bar-h, 64px) + 24px)',
+        paddingBottom: 24,
       }}>
       <div className="space-y-4 md:space-y-6">
+
+      {isDemoSession && (
+        <DemoReadOnlyBanner scope="settings" />
+      )}
 
       {/* Tabs - horizontal scroll on mobile.
           v118.118 — added `touch-action: pan-x` so iOS WKWebView
@@ -414,13 +399,23 @@ export function SettingsPage() {
           because it can't scroll vertically — visible as "scroll
           stalls in the upper part". Same discipline as v258 chips
           bar in ResidentChatView. */}
-      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar" style={{ touchAction: 'pan-x' }}>
-        <div className="glass-card p-1 inline-flex gap-1 min-w-max">
-          {tabs.map((tab) => (
+      <div className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar" style={{ touchAction: 'pan-x' }}>
+        <div
+          role="tablist"
+          aria-label={language === 'ru' ? 'Разделы настроек' : 'Sozlamalar bo\'limlari'}
+          className="glass-card p-1 inline-flex gap-1 min-w-max"
+        >
+          {tabs.map((tab, index) => (
             <button
               key={tab.id}
+              ref={(node) => { tabRefs.current[index] = node; }}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+              className={`min-h-[44px] px-3 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
                 activeTab === tab.id
                   ? 'bg-primary-500 text-gray-900'
                   : 'hover:bg-white/30 text-gray-600 active:bg-white/40'
@@ -434,7 +429,7 @@ export function SettingsPage() {
 
       {/* Profile Settings */}
       {activeTab === 'profile' && (
-        <div className="space-y-4 md:space-y-6">
+        <fieldset disabled={isDemoSession} className="min-w-0 border-0 p-0 space-y-4 md:space-y-6">
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-gray-400" />
@@ -457,6 +452,7 @@ export function SettingsPage() {
                       id="profile-name"
                       type="text"
                       value={profileName}
+                      disabled={isDemoSession}
                       onChange={(e) => setProfileName(e.target.value)}
                       className="input-field text-base"
                       placeholder={language === 'ru' ? 'Введите имя' : 'Ismni kiriting'}
@@ -480,6 +476,7 @@ export function SettingsPage() {
                       id="profile-email"
                       type="email"
                       value={profileEmail}
+                      disabled={isDemoSession}
                       onChange={(e) => setProfileEmail(e.target.value)}
                       className="input-field text-base"
                       placeholder="email@example.com"
@@ -492,6 +489,7 @@ export function SettingsPage() {
                       id="profile-phone"
                       type="tel" inputMode="tel" autoComplete="tel"
                       value={profilePhone}
+                      disabled={isDemoSession}
                       onChange={(e) => setProfilePhone(e.target.value)}
                       className="input-field text-base"
                       placeholder="+998 90 123 45 67"
@@ -597,6 +595,7 @@ export function SettingsPage() {
           </div>
 
           {/* Change Password */}
+          {!isDemoSession && (
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Изменить пароль' : 'Parolni o\'zgartirish'}</h2>
             <div className="space-y-4 max-w-md">
@@ -616,7 +615,10 @@ export function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showCurrentPassword
+                      ? (language === 'ru' ? 'Скрыть текущий пароль' : 'Joriy parolni yashirish')
+                      : (language === 'ru' ? 'Показать текущий пароль' : 'Joriy parolni ko\'rsatish')}
+                    className="absolute right-0 top-1/2 grid min-h-[44px] min-w-[44px] -translate-y-1/2 place-items-center text-gray-400 hover:text-gray-600"
                   >
                     {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -638,15 +640,19 @@ export function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showNewPassword
+                      ? (language === 'ru' ? 'Скрыть новый пароль' : 'Yangi parolni yashirish')
+                      : (language === 'ru' ? 'Показать новый пароль' : 'Yangi parolni ko\'rsatish')}
+                    className="absolute right-0 top-1/2 grid min-h-[44px] min-w-[44px] -translate-y-1/2 place-items-center text-gray-400 hover:text-gray-600"
                   >
                     {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Подтвердите пароль' : 'Parolni tasdiqlang'}</label>
+                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Подтвердите пароль' : 'Parolni tasdiqlang'}</label>
                 <input
+                  id="confirm-password"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -679,12 +685,13 @@ export function SettingsPage() {
               </button>
             </div>
           </div>
-        </div>
+          )}
+        </fieldset>
       )}
 
       {/* General Settings */}
       {activeTab === 'general' && isAdmin && (
-        <div className="space-y-4 md:space-y-6">
+        <fieldset disabled={isDemoSession} className="min-w-0 border-0 p-0 space-y-4 md:space-y-6">
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-gray-400" />
@@ -692,8 +699,9 @@ export function SettingsPage() {
             </h2>
             <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Название компании' : 'Kompaniya nomi'}</label>
+                <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Название компании' : 'Kompaniya nomi'}</label>
                 <input
+                  id="company-name"
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
@@ -722,8 +730,9 @@ export function SettingsPage() {
             </h2>
             <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Режим маршрутизации' : 'Marshrutlash tartibi'}</label>
+                <label htmlFor="routing-mode" className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Режим маршрутизации' : 'Marshrutlash tartibi'}</label>
                 <select
+                  id="routing-mode"
                   value={routingMode}
                   onChange={(e) => setRoutingMode(e.target.value as 'manual' | 'auto' | 'hybrid')}
                   className="input-field text-base"
@@ -799,6 +808,7 @@ export function SettingsPage() {
           </button>
 
           {/* Danger Zone */}
+          {!isDemoSession && (
           <div className="glass-card p-4 md:p-6 border-2 border-red-200 bg-red-50/30">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2 text-red-700">
               <AlertTriangle className="w-5 h-5" />
@@ -827,7 +837,8 @@ export function SettingsPage() {
               )}
             </div>
           </div>
-        </div>
+          )}
+        </fieldset>
       )}
 
       {/* Modules Settings */}
@@ -870,7 +881,7 @@ export function SettingsPage() {
                     ) : (
                       <Switch
                         checked={enabled}
-                        disabled={togglingFeature === mod.key}
+                        disabled={isDemoSession || togglingFeature === mod.key}
                         ariaLabel={language === 'ru' ? `${mod.label.ru}: ${enabled ? 'включён' : 'выключен'}` : `${mod.label.uz}: ${enabled ? 'yoqilgan' : 'oʻchirilgan'}`}
                         onChange={async () => {
                           setTogglingFeature(mod.key);
@@ -893,6 +904,7 @@ export function SettingsPage() {
       {/* Notifications Settings */}
       {activeTab === 'notifications' && (
         <div className="space-y-4 md:space-y-6">
+          <fieldset disabled={isDemoSession} className="min-w-0 border-0 p-0 space-y-4 md:space-y-6">
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 flex items-center gap-2">
               <Bell className="w-5 h-5 text-gray-400" />
@@ -906,6 +918,7 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   checked={pushNotifications}
+                  disabled={isDemoSession}
                   onChange={setPushNotifications}
                   ariaLabel={language === 'ru' ? 'Push-уведомления' : 'Push-bildirishnomalar'}
                 />
@@ -917,6 +930,7 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   checked={smsNotifications}
+                  disabled={isDemoSession}
                   onChange={setSmsNotifications}
                   ariaLabel={language === 'ru' ? 'SMS-уведомления' : 'SMS-bildirishnomalar'}
                 />
@@ -928,6 +942,7 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   checked={emailNotifications}
+                  disabled={isDemoSession}
                   onChange={setEmailNotifications}
                   ariaLabel={language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}
                 />
@@ -939,6 +954,7 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   checked={false}
+                  disabled={isDemoSession}
                   onChange={() => { /* Telegram-бот wiring TBD */ }}
                   ariaLabel={language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}
                 />
@@ -1010,6 +1026,7 @@ export function SettingsPage() {
               </label>
             </div>
           </div>
+          </fieldset>
 
           {/* Push Notifications Setup */}
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
@@ -1076,7 +1093,7 @@ export function SettingsPage() {
               {pushStatus.permission !== 'granted' && pushStatus.isSupported && (
                 <button
                   onClick={handleEnablePush}
-                  disabled={isPushLoading}
+                  disabled={isDemoSession || isPushLoading}
                   className="flex-1 px-4 py-3 bg-primary-400 hover:bg-primary-500 text-black font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                 >
                   {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
@@ -1084,10 +1101,10 @@ export function SettingsPage() {
                 </button>
               )}
 
-              {pushStatus.permission === 'granted' && (
+              {pushStatus.permission === 'granted' && !isDemoSession && (
                 <button
                   onClick={handleTestPush}
-                  disabled={isPushLoading}
+                  disabled={isDemoSession || isPushLoading}
                   className="flex-1 px-4 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                 >
                   {isPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -1127,7 +1144,7 @@ export function SettingsPage() {
             )}
           </div>
 
-          <button onClick={handleSave} className="btn-primary w-full md:w-auto py-3 md:py-2 text-base touch-manipulation">
+          <button disabled={isDemoSession} onClick={handleSave} className="btn-primary w-full md:w-auto py-3 md:py-2 text-base touch-manipulation">
             {language === 'ru' ? 'Сохранить изменения' : 'O\'zgarishlarni saqlash'}
           </button>
         </div>
@@ -1343,6 +1360,7 @@ export function SettingsPage() {
               allowDelete={false}
               onChanged={fetchConfig}
               language={language === 'ru' ? 'ru' : 'uz'}
+              readOnly={isDemoSession}
             />
           </div>
         </div>
@@ -1353,7 +1371,7 @@ export function SettingsPage() {
 
       {/* Reset Requests Confirmation Modal — sibling of scroller; Modal
           portals itself, so visual placement is irrelevant. */}
-      <Modal isOpen={showResetModal} onClose={() => setShowResetModal(false)} title={language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'} size="sm">
+      <Modal isOpen={!isDemoSession && showResetModal} onClose={() => setShowResetModal(false)} title={language === 'ru' ? 'Подтвердите действие' : 'Amalni tasdiqlang'} size="sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-6 h-6 text-red-600" />

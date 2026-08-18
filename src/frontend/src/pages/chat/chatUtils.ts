@@ -21,6 +21,20 @@ export interface ChatMessage {
   status?: 'sending' | 'sent' | 'failed';
 }
 
+export function mapChatMessage(message: Record<string, unknown>): ChatMessage {
+  return {
+    id: String(message.id ?? ''),
+    channel_id: String(message.channel_id ?? ''),
+    sender_id: String(message.sender_id ?? ''),
+    sender_name: String(message.sender_name ?? ''),
+    sender_role: String(message.sender_role ?? 'resident') as UserRole,
+    content: String(message.content ?? ''),
+    created_at: String(message.created_at ?? ''),
+    read_by: Array.isArray(message.read_by) ? message.read_by.map(String) : undefined,
+    management_read: typeof message.management_read === 'boolean' ? message.management_read : undefined,
+  };
+}
+
 export interface ChatChannel {
   id: string;
   type: ChatChannelType;

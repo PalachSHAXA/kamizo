@@ -1,10 +1,10 @@
 import { useState, useEffect, Component } from 'react';
-import { Star, Users, Award, TrendingUp, Heart, MessageCircle, Loader2, CheckCircle } from 'lucide-react';
+import { Users, Loader2 } from 'lucide-react';
 import { useExecutorStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { useToastStore } from '../stores/toastStore';
-import { Modal, EmptyState } from '../components/common';
+import { EmptyState } from '../components/common';
+import { DemoReadOnlyBanner } from '../components/demo/DemoReadOnlyBanner';
 import { SPECIALIZATION_LABELS, type ExecutorSpecialization } from '../types';
 import { EmployeeRow } from './colleagues/EmployeeRow';
 import { RatingModal } from './colleagues/RatingModal';
@@ -103,6 +103,7 @@ function ColleaguesSectionInner() {
   const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
   const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
   const { user } = useAuthStore();
+  const isDemoSession = user?.demoSession === true;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [ratedThisMonth, setRatedThisMonth] = useState<Set<string>>(new Set());
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -128,11 +129,7 @@ function ColleaguesSectionInner() {
         .filter((e) => e && e.id) // skip totally broken rows
         .map((executor) => {
           const baseRating = (typeof executor.rating === 'number' && Number.isFinite(executor.rating)) ? executor.rating : 4.5;
-          const variance = 0.3;
-          const generateRating = () => {
-            const val = baseRating + (Math.random() - 0.5) * variance * 2;
-            return Math.min(5, Math.max(3.5, parseFloat(val.toFixed(1))));
-          };
+          const generateRating = () => baseRating;
           const name = (executor.name && String(executor.name).trim()) || 'Сотрудник';
           const spec = executor.specialization as string | undefined;
           return {
@@ -155,8 +152,8 @@ function ColleaguesSectionInner() {
             },
             totalRatings: (typeof executor.completedCount === 'number' && executor.completedCount >= 0)
               ? executor.completedCount
-              : Math.floor(Math.random() * 50) + 10,
-            monthlyRatings: Math.floor(Math.random() * 10) + 1,
+              : 0,
+            monthlyRatings: Math.min(10, executor.completedCount || 0),
             badges: generateBadges(baseRating, executor.completedCount || 0),
           };
         });
@@ -352,6 +349,8 @@ function ColleaguesSectionInner() {
         </div>
       </div>
 
+      {isDemoSession && <DemoReadOnlyBanner />}
+
       {employees.length === 0 ? (
         <EmptyState
           icon={<Users className="w-12 h-12" />}
@@ -380,6 +379,7 @@ function ColleaguesSectionInner() {
                       onOpen={() => setSelectedEmployee(emp)}
                       onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
                       onThank={() => setShowThankModal(emp)}
+                      readOnly={isDemoSession}
                       accent="team"
                     />
                   ))}
@@ -406,6 +406,7 @@ function ColleaguesSectionInner() {
                         onOpen={() => setSelectedEmployee(emp)}
                         onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
                         onThank={() => setShowThankModal(emp)}
+                        readOnly={isDemoSession}
                       />
                     ))}
                   </div>
@@ -427,6 +428,7 @@ function ColleaguesSectionInner() {
                       onOpen={() => setSelectedEmployee(emp)}
                       onRate={() => !ratedThisMonth.has(emp.id) && setShowRatingModal(emp)}
                       onThank={() => setShowThankModal(emp)}
+                      readOnly={isDemoSession}
                     />
                   ))}
                 </div>

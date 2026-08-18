@@ -304,9 +304,11 @@ export async function healthCheck(env: any): Promise<HealthCheck> {
   // Check Durable Objects (WebSocket)
   try {
     // Just check if we can get a stub
-    const id = env.CONNECTION_MANAGER.idFromName('health_check');
-    const stub = env.CONNECTION_MANAGER.get(id);
-    checks.websocket = !!stub;
+    if (env.CONNECTION_MANAGER) {
+      const id = env.CONNECTION_MANAGER.idFromName('health_check');
+      const stub = env.CONNECTION_MANAGER.get(id);
+      checks.websocket = !!stub;
+    }
   } catch (e) {
     console.error('[Health] WebSocket check failed:', e);
   }

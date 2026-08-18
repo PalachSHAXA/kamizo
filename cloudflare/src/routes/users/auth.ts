@@ -5,9 +5,10 @@ import { getTenantId, setTenantForRequest, getTenantSlug } from '../../middlewar
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { json, error, bilingualError, generateId, isAdminLevel } from '../../utils/helpers';
-import { hashPassword, verifyPasswordTolerant, createJWT, encryptPassword } from '../../utils/crypto';
+import { hashPassword, verifyPasswordTolerant, createJWT } from '../../utils/crypto';
 import { isExecutorRole, isSuperAdmin } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
+import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
 
@@ -321,6 +322,31 @@ route('POST', '/api/auth/login', async (request, env) => {
   }
   void tenantResolvedFromBody; // reserved for future audit logging
 
+  const isManifestDemoLogin = demoRoleManifest.some((role) => role.login === userWithHash.login);
+  if (isManifestDemoLogin && userWithHash.tenant_id) {
+    const demoTenant = await env.DB.prepare(
+      "SELECT id FROM tenants WHERE id = ? AND slug = 'demo' AND is_active = 1 LIMIT 1"
+    ).bind(userWithHash.tenant_id).first<{ id: string }>();
+    if (demoTenant) {
+      const ru = 'Для демонстрационного аккаунта используйте быстрый вход по роли';
+      const uz = 'Demo akkaunt uchun rol bo\'yicha tezkor kirishdan foydalaning';
+      return new Response(JSON.stringify({
+        error: ru,
+        error_ru: ru,
+        error_uz: uz,
+        demo_login_required: true,
+        demo_login_endpoint: '/api/auth/demo-login',
+      }), {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+        },
+      });
+    }
+  }
+
   // Auto-migrate legacy or old-format password hashes to current iteration count
   const parts = userWithHash.password_hash.split(':');
   const needsRehash = !userWithHash.password_hash.includes(':') || // legacy SHA-256
@@ -447,12 +473,11 @@ route('POST', '/api/auth/register', async (request, env) => {
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
-  const passwordPlain = env.ENCRYPTION_KEY ? await encryptPassword(password, env.ENCRYPTION_KEY) : null;
 
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, password_plain, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, passwordPlain, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
+    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
 
   // Auto-create apartment record if resident has building_id + apartment number
   if (building_id && apartment && (role === 'resident' || role === 'tenant')) {

@@ -5,7 +5,6 @@ export interface Executor {
   name: string;
   phone: string;
   login: string;
-  password?: string;
   specialization: ExecutorSpecialization;
   status: 'available' | 'busy' | 'offline';
   rating: number;

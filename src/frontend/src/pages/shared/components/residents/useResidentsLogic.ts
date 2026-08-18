@@ -17,6 +17,7 @@ import type {
   MappedResident,
   ResidentCardData,
 } from './types';
+import { mapBulkAccountDtos, mapResidentDtos } from './dtoMappers';
 
 export function useResidentsLogic() {
   const { buildings, fetchBuildings } = useCRMStore();
@@ -116,7 +117,7 @@ export function useResidentsLogic() {
     let cancelled = false;
     (async () => {
       try {
-        const tryOpen = (r: { id: string; login: string; name: string; phone?: string; address?: string; apartment?: string; building_id?: string }) => {
+        const tryOpen = (r: ApiResident) => {
           if (cancelled) return;
           setShowResidentCard({
             id: r.id,
@@ -125,7 +126,9 @@ export function useResidentsLogic() {
             phone: r.phone,
             address: r.address,
             apartment: r.apartment,
+            apartmentId: r.apartment_id,
             buildingId: r.building_id,
+            vehicle_count: r.vehicle_count,
           });
         };
         const fromCache = apiResidents.find(r => r.id === focusId);
@@ -134,9 +137,7 @@ export function useResidentsLogic() {
         } else {
           const result = await usersApi.getAll({ role: 'resident', limit: 5000 });
           if (cancelled) return;
-          // usersApi.getAll is typed loosely as Record<string, unknown>[]
-          // because the v1 endpoint pre-dates ApiResident; narrow here.
-          const rows = (result.users || []) as unknown as ApiResident[];
+          const rows = mapResidentDtos(result.users || []);
           const target = rows.find(u => u && u.id === focusId);
           if (target) tryOpen(target);
           // Silent no-op if not found — could be wrong tenant, deleted
@@ -190,7 +191,7 @@ export function useResidentsLogic() {
         building_id: buildingId,
         limit: 5000,
       });
-      setApiResidents(result.users || []);
+      setApiResidents(mapResidentDtos(result.users || []));
     } catch (err) {
       console.error('Failed to fetch residents:', err);
       setApiResidents([]);
@@ -304,7 +305,8 @@ export function useResidentsLogic() {
     .map(([userLogin, data]) => ({
       ...data.user,
       login: userLogin,
-      password: data.password
+      password: data.password,
+      apartmentId: data.user.apartmentId ?? undefined,
     }));
 
   // Use API residents as primary source
@@ -316,6 +318,7 @@ export function useResidentsLogic() {
         phone: r.phone,
         address: r.address,
         apartment: r.apartment,
+        apartmentId: r.apartment_id,
         buildingId: r.building_id,
         entrance: r.entrance,
         floor: r.floor,
@@ -616,7 +619,7 @@ export function useResidentsLogic() {
 
       if (createdCount > 0 || updatedCount > 0) {
         const allAccounts = [...(result.created || []), ...(result.updated || [])];
-        setCreatedAccounts(allAccounts.map((u: { login: string; name: string }) => ({ login: u.login, name: u.name })));
+        setCreatedAccounts(mapBulkAccountDtos(allAccounts));
       }
 
       setUploadedData([]);
@@ -682,6 +685,7 @@ export function useResidentsLogic() {
         login, name: manualForm.fullName,
         address: manualForm.address || selectedBuilding?.address || '',
         apartment, phone: manualForm.phone,
+        buildingId,
       });
       setShowPassword(true);
       setManualForm({ fullName: '', phone: '', address: '', personalAccount: '' });

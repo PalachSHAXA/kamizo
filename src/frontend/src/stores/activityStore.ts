@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type { ActivityLog } from '../types';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -25,3 +26,5 @@ export const useActivityStore = create<ActivityState>()(
     },
   })
 );
+
+registerSessionStore(useActivityStore);

@@ -10,6 +10,27 @@ import { verifyJWT } from '../utils/crypto';
 // multiple times for the same request (e.g., rate limiter + route handler)
 const requestUserCache = new WeakMap<Request, User | null>();
 
+export function getRequestUser(request: Request): User | null | undefined {
+  return requestUserCache.get(request);
+}
+
+export function getAuditAttribution(user: User, details: Record<string, unknown>) {
+  if (user.isImpersonated === true && typeof user.impersonatedBy === 'string') {
+    return {
+      actorId: user.impersonatedBy,
+      actorName: 'super_admin',
+      actorRole: 'super_admin',
+      details: { ...details, impersonated_session_user_id: user.id },
+    };
+  }
+  return {
+    actorId: user.id,
+    actorName: user.name,
+    actorRole: user.role,
+    details,
+  };
+}
+
 // Auth middleware with caching
 export async function getUser(request: Request, env: Env): Promise<User | null> {
   // Return cached result if getUser was already called for this request
@@ -105,6 +126,26 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   if (result) {
     const user = result as any;
 
+    if (payload.imp === true && typeof payload.imp_by === 'string') {
+      user.isImpersonated = true;
+      user.impersonatedBy = payload.imp_by;
+    }
+
+    if (payload.demo_session === true) {
+      if (!payload.tenantId || payload.tenantId !== user.tenant_id) {
+        requestUserCache.set(request, null);
+        return null;
+      }
+      const demoTenant = await env.DB.prepare(
+        "SELECT id FROM tenants WHERE id = ? AND slug = 'demo' AND is_active = 1 LIMIT 1"
+      ).bind(payload.tenantId).first<{ id: string }>();
+      if (!demoTenant) {
+        requestUserCache.set(request, null);
+        return null;
+      }
+      user.isDemoSession = true;
+    }
+
     // Sprint 71 P1/F7: tenant-active gate. Super-admin can deactivate a
     // tenant; without this check users in that tenant kept passing auth
     // for the full JWT TTL (15s cache + no other check). Super-admin
@@ -138,7 +179,9 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
       }
     }
 
-    setCache(cacheKey, user, 15000);
+    // Demo capability validation includes the tenant's current slug and active
+    // state, so do not preserve it in the 15-second user cache.
+    if (user.isDemoSession !== true) setCache(cacheKey, user, 15000);
     requestUserCache.set(request, user as User);
     return user as User;
   }

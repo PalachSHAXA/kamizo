@@ -1,5 +1,6 @@
 import { type RefObject } from 'react';
-import { Upload, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Modal } from '../../../components/ui/Modal';
 
 // Sprint 17: extracted from TeamPage. Bulk-import staff from a .json
 // file. Displays the result summary (created / updated / skipped) when
@@ -32,28 +33,22 @@ export function StaffImportModal({
   importLoading,
   onImport,
 }: StaffImportModalProps) {
+  const title = language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish';
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-[18px] font-extrabold">
-              {language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
-            </h3>
-            <p className="text-[13px] text-gray-400 mt-0.5">
-              {language === 'ru'
-                ? 'Загрузите .json файл с данными сотрудников'
-                : "Xodimlar ma'lumotlari bilan .json faylni yuklang"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="min-w-[44px] min-h-[44px] rounded-lg flex items-center justify-center hover:bg-gray-100"
-            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      size="md"
+      panelClassName="max-h-[100dvh] sm:max-h-[90dvh] overflow-hidden flex flex-col"
+    >
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+        <p className="text-[13px] text-gray-500 mb-5">
+          {language === 'ru'
+            ? 'Загрузите .json файл с данными сотрудников'
+            : "Xodimlar ma'lumotlari bilan .json faylni yuklang"}
+        </p>
 
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -143,23 +138,27 @@ export function StaffImportModal({
           </div>
         )}
 
-        <div className="flex gap-3 mt-5">
+      </div>
+
+        <div
+          className="flex gap-3 shrink-0 border-t border-gray-100 px-4 pt-3 sm:px-6 sm:pt-4"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
+        >
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[14px] font-bold text-gray-600 hover:bg-gray-50 transition-all"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl border border-gray-200 text-[14px] font-bold text-gray-600 hover:bg-gray-50 transition-all"
           >
             {language === 'ru' ? 'Закрыть' : 'Yopish'}
           </button>
           <button
             onClick={onImport}
             disabled={!importFile || importLoading}
-            className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all disabled:opacity-50"
+            className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-blue-500 text-white text-[14px] font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all disabled:opacity-50"
           >
             {importLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {language === 'ru' ? 'Импортировать' : 'Import qilish'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

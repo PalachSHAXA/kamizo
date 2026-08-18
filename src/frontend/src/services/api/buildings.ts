@@ -1,11 +1,135 @@
 // Buildings API, Branches API, Entrances API, Building Documents API, Apartments API (CRM)
 
 import { apiRequest, cachedGet, invalidateCache, CACHE_TTL } from './client';
+import type { Apartment, BuildingDocument, BuildingFull, Entrance } from '../../types';
+
+export interface BuildingApiResponse extends Record<string, unknown> {
+  id: string;
+  name: string;
+  address: string;
+  zone?: string;
+  cadastral_number?: string;
+  branch_code?: string;
+  building_number?: string;
+  floors?: number;
+  entrances_actual?: number;
+  entrances_count?: number;
+  apartments_actual?: number;
+  apartments_count?: number;
+  total_area?: number;
+  living_area?: number;
+  common_area?: number;
+  land_area?: number;
+  year_built?: number;
+  year_renovated?: number;
+  building_type?: BuildingFull['buildingType'];
+  roof_type?: BuildingFull['roofType'];
+  wall_material?: string;
+  foundation_type?: string;
+  has_elevator?: boolean | number;
+  elevator_count?: number;
+  has_gas?: boolean | number;
+  heating_type?: BuildingFull['heatingType'];
+  has_hot_water?: boolean | number;
+  water_supply_type?: BuildingFull['waterSupplyType'];
+  sewerage_type?: BuildingFull['sewerageType'];
+  has_intercom?: boolean | number;
+  has_video_surveillance?: boolean | number;
+  has_concierge?: boolean | number;
+  has_parking_lot?: boolean | number;
+  parking_spaces?: number;
+  has_playground?: boolean | number;
+  manager_id?: string;
+  manager_name?: string;
+  management_start_date?: string;
+  contract_number?: string;
+  contract_end_date?: string;
+  monthly_budget?: number;
+  reserve_fund?: number;
+  total_debt?: number;
+  collection_rate?: number;
+  residents_count?: number;
+  owners_count?: number;
+  tenants_count?: number;
+  vacant_apartments?: number;
+  active_requests_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BranchApiResponse extends Record<string, unknown> {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface EntranceApiResponse extends Record<string, unknown> {
+  id: string;
+  building_id: string;
+  number: number;
+  floors_from?: number;
+  floors_to: number;
+  apartments_from: number;
+  apartments_to: number;
+  has_elevator?: boolean | number;
+  elevator_id?: string;
+  intercom_type?: Entrance['intercomType'];
+  intercom_code?: string;
+  cleaning_schedule?: string;
+  responsible_id?: string;
+  last_inspection?: string;
+  notes?: string;
+}
+
+export interface BuildingDocumentApiResponse extends Record<string, unknown> {
+  id: string;
+  building_id: string;
+  name: string;
+  type: BuildingDocument['type'];
+  file_url: string;
+  file_size: number;
+  uploaded_at: string;
+  uploaded_by: string;
+  expires_at?: string;
+  is_active: boolean | number;
+}
+
+export interface ApartmentApiResponse extends Record<string, unknown> {
+  id: string;
+  building_id: string;
+  entrance_id: string;
+  number: string;
+  floor?: number;
+  rooms?: number;
+  total_area?: number;
+  living_area?: number;
+  kitchen_area?: number;
+  balcony_area?: number;
+  loggia_area?: number;
+  ceiling_height?: number;
+  has_balcony?: boolean | number;
+  has_loggia?: boolean | number;
+  has_storage?: boolean | number;
+  has_parking?: boolean | number;
+  parking_number?: string;
+  ownership_type?: Apartment['ownershipType'];
+  ownership_share?: number;
+  registration_number?: string;
+  registration_date?: string;
+  status?: Apartment['status'];
+  is_commercial?: boolean | number;
+  commercial_type?: string;
+  personal_account_id?: string;
+  primary_owner_id?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 // Branches API (CRM)
 export const branchesApi = {
   getAll: async () => {
-    return cachedGet<{ branches: Record<string, unknown>[] }>('/api/branches', CACHE_TTL.LONG);
+    return cachedGet<{ branches: BranchApiResponse[] }>('/api/branches', CACHE_TTL.LONG);
   },
 
   getById: async (id: string) => {
@@ -15,16 +139,20 @@ export const branchesApi = {
 
 // Buildings API (CRM)
 export const buildingsApi = {
-  getAll: async () => {
+  getAll: async <T extends Record<string, unknown> = Record<string, unknown>>() => {
     // Buildings rarely change - use long cache
-    return cachedGet<{ buildings: Record<string, unknown>[] }>('/api/buildings', CACHE_TTL.LONG);
+    return cachedGet<{ buildings: T[] }>('/api/buildings', CACHE_TTL.LONG);
   },
 
-  getById: async (id: string) => {
-    return cachedGet<{ building: Record<string, unknown>; entrances: Record<string, unknown>[]; documents: Record<string, unknown>[] }>(`/api/buildings/${id}`, CACHE_TTL.LONG);
+  getById: async <
+    B extends Record<string, unknown> = Record<string, unknown>,
+    E extends Record<string, unknown> = Record<string, unknown>,
+    D extends Record<string, unknown> = Record<string, unknown>,
+  >(id: string) => {
+    return cachedGet<{ building: B; entrances: E[]; documents: D[] }>(`/api/buildings/${id}`, CACHE_TTL.LONG);
   },
 
-  create: async (building: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(building: {
     name: string;
     address: string;
     zone?: string;
@@ -62,7 +190,7 @@ export const buildingsApi = {
     monthlyBudget?: number;
     reserveFund?: number;
   }) => {
-    const result = await apiRequest<{ building: Record<string, unknown> }>('/api/buildings', {
+    const result = await apiRequest<{ building: T }>('/api/buildings', {
       method: 'POST',
       body: JSON.stringify(building),
     });
@@ -111,7 +239,7 @@ export const buildingsApi = {
     totalDebt: number;
     collectionRate: number;
   }>) => {
-    const result = await apiRequest<{ building: Record<string, unknown> }>(`/api/buildings/${id}`, {
+    const result = await apiRequest<{ building: BuildingApiResponse }>(`/api/buildings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -132,11 +260,11 @@ export const buildingsApi = {
 
 // Entrances API (CRM)
 export const entrancesApi = {
-  getByBuilding: async (buildingId: string) => {
-    return apiRequest<{ entrances: Record<string, unknown>[] }>(`/api/buildings/${buildingId}/entrances`);
+  getByBuilding: async <T extends Record<string, unknown> = Record<string, unknown>>(buildingId: string) => {
+    return apiRequest<{ entrances: T[] }>(`/api/buildings/${buildingId}/entrances`);
   },
 
-  create: async (buildingId: string, entrance: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(buildingId: string, entrance: {
     number: number;
     floorsFrom?: number;
     floorsTo?: number;
@@ -150,7 +278,7 @@ export const entrancesApi = {
     responsibleId?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ entrance: Record<string, unknown> }>(`/api/buildings/${buildingId}/entrances`, {
+    return apiRequest<{ entrance: T }>(`/api/buildings/${buildingId}/entrances`, {
       method: 'POST',
       body: JSON.stringify(entrance),
     });
@@ -171,7 +299,7 @@ export const entrancesApi = {
     lastInspection: string;
     notes: string;
   }>) => {
-    return apiRequest<{ entrance: Record<string, unknown> }>(`/api/entrances/${id}`, {
+    return apiRequest<{ entrance: EntranceApiResponse }>(`/api/entrances/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -187,17 +315,17 @@ export const entrancesApi = {
 // Building Documents API (CRM)
 export const buildingDocumentsApi = {
   getByBuilding: async (buildingId: string) => {
-    return apiRequest<{ documents: Record<string, unknown>[] }>(`/api/buildings/${buildingId}/documents`);
+    return apiRequest<{ documents: BuildingDocumentApiResponse[] }>(`/api/buildings/${buildingId}/documents`);
   },
 
-  create: async (buildingId: string, document: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(buildingId: string, document: {
     name: string;
     type?: string;
     fileUrl: string;
     fileSize?: number;
     expiresAt?: string;
   }) => {
-    return apiRequest<{ document: Record<string, unknown> }>(`/api/buildings/${buildingId}/documents`, {
+    return apiRequest<{ document: T }>(`/api/buildings/${buildingId}/documents`, {
       method: 'POST',
       body: JSON.stringify(document),
     });
@@ -212,7 +340,7 @@ export const buildingDocumentsApi = {
 
 // Apartments API (CRM)
 export const apartmentsApi = {
-  getByBuilding: async (buildingId: string, options?: {
+  getByBuilding: async <T extends Record<string, unknown> = Record<string, unknown>>(buildingId: string, options?: {
     entranceId?: string;
     status?: string;
     page?: number;
@@ -224,16 +352,20 @@ export const apartmentsApi = {
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ apartments: Record<string, unknown>[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
+    return apiRequest<{ apartments: T[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
       `/api/buildings/${buildingId}/apartments${query}`
     );
   },
 
-  getById: async (id: string) => {
-    return apiRequest<{ apartment: Record<string, unknown>; owners: Record<string, unknown>[]; personalAccount: Record<string, unknown> }>(`/api/apartments/${id}`);
+  getById: async <
+    A extends Record<string, unknown> = Record<string, unknown>,
+    O extends Record<string, unknown> = Record<string, unknown>,
+    P extends Record<string, unknown> = Record<string, unknown>,
+  >(id: string) => {
+    return apiRequest<{ apartment: A; owners: O[]; personalAccount: P | null }>(`/api/apartments/${id}`);
   },
 
-  create: async (buildingId: string, apartment: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(buildingId: string, apartment: {
     number: string;
     entranceId?: string;
     floor?: number;
@@ -245,7 +377,7 @@ export const apartmentsApi = {
     hasLoggia?: boolean;
     status?: string;
   }) => {
-    return apiRequest<{ apartment: Record<string, unknown> }>(`/api/buildings/${buildingId}/apartments`, {
+    return apiRequest<{ apartment: T }>(`/api/buildings/${buildingId}/apartments`, {
       method: 'POST',
       body: JSON.stringify(apartment),
     });
@@ -262,7 +394,7 @@ export const apartmentsApi = {
     primaryOwnerId: string;
     personalAccountId: string;
   }>) => {
-    return apiRequest<{ apartment: Record<string, unknown> }>(`/api/apartments/${id}`, {
+    return apiRequest<{ apartment: ApartmentApiResponse }>(`/api/apartments/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });

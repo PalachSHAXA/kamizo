@@ -10,6 +10,8 @@ import type { MarketplaceReport } from './types';
 import type { Style } from 'exceljs';
 import { pluralWithCount } from '../../utils/plural';
 import { downloadBlob } from '../../utils/downloadFile';
+import type { PieLabelRenderProps } from 'recharts';
+import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 
 interface MarketplaceTabProps {
   language: string;
@@ -32,6 +34,16 @@ export function MarketplaceTab({
   onStartDateChange,
   onEndDateChange,
 }: MarketplaceTabProps) {
+  const formatSalesTooltip: Formatter<ValueType, NameType> = (value, name) => {
+    const numericValue = typeof value === 'number' ? value : Number(Array.isArray(value) ? value[0] : value ?? 0);
+    const seriesName = String(name ?? '');
+    return [
+      seriesName === 'revenue'
+        ? `${numericValue.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}`
+        : numericValue,
+      seriesName === 'revenue' ? t('director.revenue') : t('director.orders'),
+    ];
+  };
 
   const exportMarketplaceReport = async () => {
     if (!marketplaceReport) return;
@@ -415,10 +427,7 @@ export function MarketplaceTab({
                 />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
-                  formatter={(value: number, name: string) => [
-                    name === 'revenue' ? `${value.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}` : value,
-                    name === 'revenue' ? t('director.revenue') : t('director.orders')
-                  ]}
+                  formatter={formatSalesTooltip}
                   labelFormatter={(label: string) => new Date(label).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
                 />
                 <Legend />
@@ -609,7 +618,7 @@ export function MarketplaceTab({
                   labelLine={false}
                   outerRadius={80}
                   dataKey="value"
-                  label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }: PieLabelRenderProps) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
                   {marketplaceReport.orders_by_status.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={{

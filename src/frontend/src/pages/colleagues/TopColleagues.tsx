@@ -1,9 +1,7 @@
 // Sprint 27: extracted from ColleaguesSection. Top-3 rated employees
 // across the platform with their avatar + average rating + badge.
 
-import { Component } from 'react';
-import { Award, Star, Users } from 'lucide-react';
-import { EmptyState } from '../../components/common';
+import { Award, Star } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { safeFixed, safeAvgRating } from './ratingUtils';
 import type { Employee } from './types';
@@ -90,29 +88,4 @@ export function TopColleagues({ employees, isResidentView }: { employees: Employ
       )}
     </div>
   );
-}
-
-// ==================== MAIN COMPONENT ====================
-
-// Основной компонент
-// Local error boundary — if inner render throws due to unexpected executor data
-// shape, show a friendly empty state instead of the full-page React Error Boundary.
-class ColleaguesErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(err: Error) { console.error('[ColleaguesSection] render failed:', err); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-6">
-          <EmptyState
-            icon={<Users className="w-12 h-12" />}
-            title="Сотрудники"
-            description="Данные временно недоступны. Попробуйте позже."
-          />
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }

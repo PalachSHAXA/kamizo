@@ -6,12 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "verify:bundle-budget": "node scripts/verify-bundle-budget.mjs",
+    "build:budget": "npm run build && npm run verify:bundle-budget",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:bundle-budget && npm run test:workflow-safety",
+    "test:unit": "vitest run",
+    "test:bundle-budget": "node --test scripts/verify-bundle-budget.test.mjs",
+    "test:workflow-safety": "node --test scripts/workflow-safety.test.mjs && bash ../../scripts/tests/backend_production_preflight_test.sh",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run test:e2e:isolated",
+    "test:e2e:isolated": "node e2e/isolated/run-isolated.mjs",
+    "test:e2e:demo": "playwright test --config playwright.demo-isolated.config.ts",
+    "test:e2e:harness": "node --test e2e/isolated/*.test.mjs",
+    "test:e2e:smoke": "playwright test --config playwright.smoke.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
   },
@@ -66,6 +75,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^5.4.21",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "yaml": "^2.9.0"
   }
 }

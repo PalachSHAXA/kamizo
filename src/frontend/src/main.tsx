@@ -3,65 +3,99 @@ import { createRoot } from 'react-dom/client'
 import { Capacitor } from '@capacitor/core'
 import { Keyboard } from '@capacitor/keyboard'
 import './index.css'
-import App from './App.tsx'
+import { prepareSessionBoundary } from './stores/sessionReset'
+import { API_URL, transformUser, type UserApiResponse } from './services/api/client'
 
-// v118.14 — the early SplashScreen.hide() that used to live here was
-// REMOVED. It fired right after JS-bundle parse (before React mounted
-// anything), which dismissed the native splash 300 ms BEFORE
-// NativeSplashOverlay could paint, leaving an empty/flash gap. The
-// overlay (rendered as a top-level child of App.tsx) now owns the
-// hide() call inside its own mount effect — native splash stays up
-// until the webview overlay has painted, then they cross-fade.
-//
-// Keyboard.setAccessoryBarVisible(false) still fires here (no-op on
-// web/PWA / Android; iOS-only chrome suppression). Doesn't race with
-// anything visual — purely a keyboard config call.
-if (Capacitor.isNativePlatform()) {
-  Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {})
+interface ImpersonationExchangeResponse {
+  user: UserApiResponse & {
+    tenant_id?: string | null
+    account_type?: string | null
+  }
+  token: string
+  tenantName?: string
+  originUrl?: string
+}
+
+export async function installImpersonationExchange(
+  reload: () => void = () => window.location.reload(),
+): Promise<boolean> {
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('impersonation_code')
+  if (!code) return false
+
+  params.delete('impersonation_code')
+  const cleanUrl = window.location.pathname
+    + (params.toString() ? `?${params.toString()}` : '')
+    + window.location.hash
+  window.history.replaceState({}, '', cleanUrl)
+  prepareSessionBoundary()
+
+  try {
+    const response = await fetch(`${API_URL}/api/auth/impersonation-exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    })
+    if (!response.ok) return false
+
+    const exchanged = await response.json() as ImpersonationExchangeResponse
+    if (!exchanged?.user || typeof exchanged.token !== 'string' || !exchanged.token) return false
+
+    const user = transformUser(exchanged.user)
+    localStorage.setItem('uk-auth-storage', JSON.stringify({
+      state: { user, token: exchanged.token },
+      version: 4,
+    }))
+    localStorage.setItem('auth_token', exchanged.token)
+    localStorage.setItem('kamizo_impersonation', JSON.stringify({
+      origin_url: exchanged.originUrl || '',
+      tenant_name: exchanged.tenantName || '',
+    }))
+    reload()
+    return true
+  } catch {
+    prepareSessionBoundary()
+    return false
+  }
 }
 
 function setIOSPwaGap() {
-  const gap = Math.max(0, window.screen.height - window.innerHeight);
+  const gap = Math.max(0, window.screen.height - window.innerHeight)
   const standalone = window.matchMedia('(display-mode: standalone)').matches
-    || (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    || (window.navigator as unknown as { standalone?: boolean }).standalone === true
   document.documentElement.style.setProperty(
     '--ios-pwa-gap',
     standalone && gap > 0 ? `${gap}px` : '0px'
-  );
+  )
 }
-setIOSPwaGap();
-['resize', 'orientationchange', 'pageshow'].forEach(e =>
-  window.addEventListener(e, setIOSPwaGap)
-);
 
-// Soft entrance for the first paint after the inline splash. React's
-// createRoot wipes #root children, so we tag the root with .app-mounted on
-// the next frame to trigger the CSS opacity + translateY transition defined
-// in index.css. This smooths the seam between the splash and the live UI.
-//
-// CRITICAL: once the transition is over, drop the `app-booting` class
-// entirely. While it was on, #root carried `transform: translateY(0)` AND
-// `will-change: opacity, transform` — both of which establish a containing
-// block for `position: fixed` descendants (per CSS spec). Modals like
-// `.modal-backdrop` (position:fixed; inset:0) then pin to #root instead of
-// the viewport, and on tall pages they end up centered in the *document*,
-// well below the viewport. Removing the class restores normal fixed
-// positioning. The class is a one-shot entrance hook anyway, not a
-// permanent state.
-const rootEl = document.getElementById('root')!
-rootEl.classList.add('app-booting')
-createRoot(rootEl).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
-requestAnimationFrame(() => {
+export async function bootstrap(reload?: () => void) {
+  if (await installImpersonationExchange(reload)) return
+
+  if (Capacitor.isNativePlatform()) {
+    Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {})
+  }
+  setIOSPwaGap()
+  ;['resize', 'orientationchange', 'pageshow'].forEach(e =>
+    window.addEventListener(e, setIOSPwaGap)
+  )
+
+  const { default: App } = await import('./App.tsx')
+  const rootEl = document.getElementById('root')!
+  rootEl.classList.add('app-booting')
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
   requestAnimationFrame(() => {
-    rootEl.classList.add('app-mounted')
-    // The CSS transition is 0.34s; 600ms safely covers it on slow devices
-    // and clears the lingering containing-block trigger.
-    window.setTimeout(() => {
-      rootEl.classList.remove('app-booting', 'app-mounted')
-    }, 600)
+    requestAnimationFrame(() => {
+      rootEl.classList.add('app-mounted')
+      window.setTimeout(() => {
+        rootEl.classList.remove('app-booting', 'app-mounted')
+      }, 600)
+    })
   })
-})
+}
+
+if (import.meta.env.MODE !== 'test') void bootstrap()

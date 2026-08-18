@@ -5,19 +5,7 @@ import {
 import {
   TrendingUp, TrendingDown, Star, AlertTriangle
 } from 'lucide-react';
-
-interface RatingSummaryData {
-  current?: {
-    avg_overall?: number;
-    avg_cleanliness?: number;
-    avg_responsiveness?: number;
-    avg_communication?: number;
-    count?: number;
-  };
-  trend: number;
-  monthly?: Array<{ period: string; avg_overall?: number; count?: number }>;
-  recentComments?: Array<{ overall: number; comment: string; created_at?: string }>;
-}
+import type { RatingSummaryData } from './types';
 
 interface RatingsTabProps {
   language: string;
@@ -32,13 +20,17 @@ export function RatingsTab({
   ratingSummary,
   isLoadingRatings,
 }: RatingsTabProps) {
+  const current = ratingSummary?.current;
+  const monthly = ratingSummary?.monthly ?? [];
+  const recentComments = ratingSummary?.recentComments ?? [];
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <h2 className="text-lg font-semibold">{t('director.ukSatisfaction')}</h2>
 
       {isLoadingRatings ? (
         <div className="text-center text-gray-400 py-20">{t('director.loading')}</div>
-      ) : !ratingSummary?.current ? (
+      ) : !ratingSummary || !current ? (
         <div className="text-center text-gray-400 py-20">{t('director.noRatingsYet')}</div>
       ) : (
         <>
@@ -66,10 +58,10 @@ export function RatingsTab({
           {/* Overall Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: t('director.overallRating'), value: ratingSummary.current.avg_overall, color: 'primary' },
-              { label: t('director.cleanliness'), value: ratingSummary.current.avg_cleanliness, color: 'green' },
-              { label: t('director.responsiveness'), value: ratingSummary.current.avg_responsiveness, color: 'amber' },
-              { label: t('director.communication'), value: ratingSummary.current.avg_communication, color: 'blue' },
+              { label: t('director.overallRating'), value: current.avg_overall, color: 'primary' },
+              { label: t('director.cleanliness'), value: current.avg_cleanliness, color: 'green' },
+              { label: t('director.responsiveness'), value: current.avg_responsiveness, color: 'amber' },
+              { label: t('director.communication'), value: current.avg_communication, color: 'blue' },
             ].map((stat, idx) => (
               <div key={idx} className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
                 <div className="text-[12px] text-gray-500 font-medium mb-1">{stat.label}</div>
@@ -92,19 +84,19 @@ export function RatingsTab({
                   </div>
                 )}
                 <div className="text-xs text-gray-400 mt-1">
-                  {ratingSummary.current.count || 0} {t('director.totalVotes')}
+                  {current.count || 0} {t('director.totalVotes')}
                 </div>
               </div>
             ))}
           </div>
 
           {/* Monthly Trend Chart */}
-          {ratingSummary.monthly?.length > 1 && (
+          {monthly.length > 1 && (
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
               <h3 className="text-sm font-semibold mb-3">{t('director.monthlyTrend')}</h3>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={ratingSummary.monthly.map((m) => ({
+                  <AreaChart data={monthly.map((m) => ({
                     period: m.period,
                     overall: Number(m.avg_overall || 0).toFixed(1),
                     count: m.count,
@@ -121,13 +113,13 @@ export function RatingsTab({
           )}
 
           {/* Recommendations */}
-          {ratingSummary.current && (
+          {current && (
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
               <h3 className="text-sm font-semibold mb-3">{t('director.recommendations')}</h3>
               <div className="space-y-2">
                 {(() => {
                   const recs: { text: string; priority: 'high' | 'medium' | 'low' }[] = [];
-                  const c = ratingSummary.current;
+                  const c = current;
                   if (c.avg_responsiveness && Number(c.avg_responsiveness) < 3.5) {
                     recs.push({
                       text: language === 'ru'
@@ -184,11 +176,11 @@ export function RatingsTab({
           )}
 
           {/* Recent Comments */}
-          {ratingSummary.recentComments?.length > 0 && (
+          {recentComments.length > 0 && (
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-white/60">
               <h3 className="text-sm font-semibold mb-3">{t('director.recentComments')}</h3>
               <div className="space-y-3">
-                {ratingSummary.recentComments.map((comment, idx) => (
+                {recentComments.map((comment, idx) => (
                   <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">

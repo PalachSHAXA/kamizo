@@ -7,6 +7,7 @@ import { invalidateCache } from '../../middleware/cache-local';
 import { json, error, generateId, isManagement, sanitizeAttachmentUrl, sanitizeFilename } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
+import { broadcastWithConnectionManager } from '../../utils/connection-manager';
 
 export function registerAnnouncementMutationRoutes() {
 
@@ -241,15 +242,16 @@ route('POST', '/api/announcements', async (request, env) => {
   // Invalidate cache and broadcast WebSocket update
   invalidateCache('announcements:');
 
-  try {
-    const stub = env.CONNECTION_MANAGER.get(env.CONNECTION_MANAGER.idFromName('global'));
-    await stub.fetch('https://internal/invalidate-cache', {
+  await broadcastWithConnectionManager(
+    env,
+    request,
+    'announcement_cache_invalidation',
+    'https://internal/invalidate-cache',
+    {
       method: 'POST',
       body: JSON.stringify({ prefix: 'announcements:' })
-    });
-  } catch (err) {
-    createRequestLogger(request).error('Failed to broadcast announcement update', err);
-  }
+    },
+  );
 
   return json({ id }, 201);
 });

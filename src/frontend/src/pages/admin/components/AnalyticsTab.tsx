@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from '../../../components/LazyCharts';
 import { useLanguageStore } from '../../../stores/languageStore';
+import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { AnalyticsData, TimePeriod } from './types';
 import {
   PLAN_COLORS, PLAN_LABELS, FEATURE_COLORS,
@@ -52,6 +53,8 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
   const growthData = analytics.growth[timePeriod] || [];
   const periodLabel = timePeriod === 'daily' ? 'дням' : timePeriod === 'weekly' ? 'неделям' : 'месяцам';
   const periodTitle = timePeriod === 'daily' ? 'за 30 дней' : timePeriod === 'weekly' ? 'за 12 недель' : 'за 12 месяцев';
+  const formatRevenue = (value: ValueType | undefined) => `${Number(value ?? 0).toLocaleString('ru-RU')} сум`;
+  const formatTenantCount = (value: ValueType | undefined, name: NameType | undefined) => [`${Number(value ?? 0)} УК`, name ?? ''] as const;
 
   return (
     <div className="space-y-6">
@@ -176,7 +179,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="period" tick={{ fontSize: 12 }} tickFormatter={formatPeriod} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip labelFormatter={formatPeriod} formatter={(value: number) => Number(value).toLocaleString('ru-RU') + ' сум'} />
+              <Tooltip labelFormatter={formatPeriod} formatter={formatRevenue} />
               <Bar dataKey="revenue" fill="#10B981" name="Выручка" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -205,7 +208,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
                       <Cell key={`plan-${index}`} fill={PLAN_COLORS[entry.plan] || '#9CA3AF'} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number, name: string) => [`${value} УК`, name]} />
+                  <Tooltip formatter={formatTenantCount} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -241,7 +244,7 @@ export function AnalyticsTab({ analytics, isLoadingAnalytics }: AnalyticsTabProp
                       <Cell key={`feat-${index}`} fill={FEATURE_COLORS[index % FEATURE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number, name: string) => [`${value} УК`, name]} />
+                  <Tooltip formatter={formatTenantCount} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

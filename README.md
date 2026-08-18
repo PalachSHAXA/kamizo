@@ -88,14 +88,23 @@ wrangler secret put JWT_SECRET
 ## Testing
 
 ```bash
-# Frontend тесты (Vitest + jsdom + Testing Library)
+# Frontend unit-тесты (Vitest + jsdom + Testing Library)
 cd src/frontend && npm run test
+
+# Read-only CI smoke (локальный Vite preview, Chromium, без backend writes)
+cd src/frontend && npm run build && npm run test:e2e:smoke
+
+# Полный Playwright e2e — только вручную: global setup и mutable-сценарии
+cd src/frontend && npm run test:e2e
+
+# Проверка post-deploy frontend bundle на локальных HTTP fixtures
+./scripts/tests/verify_frontend_bundle_test.sh
 
 # Backend тесты (Vitest + node)
 cd cloudflare && npm run test
 
-# TypeScript проверка (frontend)
-cd src/frontend && npx tsc --noEmit
+# Полная строгая TypeScript проверка frontend
+cd src/frontend && npm run typecheck
 
 # TypeScript проверка (backend)
 cd cloudflare && npx tsc --noEmit
@@ -105,29 +114,55 @@ cd cloudflare && npx tsc --noEmit
 
 ### CI/CD (GitHub Actions)
 
-Автоматический деплой настроен в `.github/workflows/deploy.yml`:
+Деплой настроен в `.github/workflows/deploy.yml`:
 
-| Ветка | Среда | URL |
-|-------|-------|-----|
-| `main` | Production | https://kamizo.uz |
-| `develop` | Staging | https://kamizo-staging.workers.dev |
+| Ветка | Среда | Запуск | URL |
+|-------|-------|--------|-----|
+| `main` | Production | Только ручной `workflow_dispatch` | https://kamizo.uz |
+| `develop` | Staging | Автоматически при push | https://kamizo-staging.workers.dev |
 
-**Pipeline:**
-1. Install frontend deps -> Run frontend tests -> Build frontend
-2. Copy dist -> cloudflare/public
-3. Install backend deps -> Run backend tests
-4. Deploy via Wrangler
+**Production pipeline:**
+1. Install frontend deps -> Unit tests -> Full strict type-check -> Build
+2. Install backend deps -> Type-check backend -> Backend tests
+3. Install Chromium -> Full `npm run test:e2e:isolated` against local Wrangler/D1/KV only
+4. Copy dist -> `cloudflare/public`
+5. Deploy via Wrangler
+6. Verify the deployed `/assets/*.js` entry returns HTTP 200, JavaScript MIME and more than 100 KiB
 
-Тесты блокируют деплой — если тесты не проходят, деплой не происходит.
+Все проверки блокируют production deploy. Isolated E2E запрещает production
+origin access. Staging остаётся автоматическим и использует только read-only
+`npm run test:e2e:smoke`, чтобы не увеличивать время develop pipeline. Отдельный
+`.github/workflows/e2e-isolated.yml` запускает полный isolated E2E для PR и
+каждого прямого push в `main`, но ничего не деплоит.
 
-### Ручной деплой
+Post-deploy проверку можно запустить отдельно:
 
 ```bash
-# Frontend build + deploy
-cd src/frontend && npm run build
-rm -rf ../cloudflare/public && cp -r dist ../cloudflare/public
-cd ../cloudflare && wrangler deploy
+./scripts/verify-frontend-bundle.sh https://kamizo.uz
+./scripts/verify-frontend-bundle.sh https://kamizo-staging.workers.dev
 ```
+
+### Ручной production release
+
+Production frontend запрещено выпускать до backend. Точный порядок:
+
+```bash
+# 1. Deploy backend to VPS without --delete, restart it, then smoke both endpoints.
+rsync -avz -e "ssh -i ~/.ssh/kamizo_vps" \
+  cloudflare/src/ kamizo@95.46.96.209:/opt/kamizo/app/server-src/
+ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 \
+  'sudo systemctl restart kamizo-api && curl --fail http://127.0.0.1:3000/api/health'
+curl --fail https://api.kamizo.uz/api/health
+
+# 2. Only after both smokes pass, dispatch the main workflow with the checkbox true.
+gh workflow run deploy.yml --ref main -f backend_release_verified=true
+gh run watch --exit-status
+```
+
+В GitHub UI выберите `Deploy to Cloudflare` -> `Run workflow`, ветку `main`,
+отметьте обязательный checkbox `Backend deployed and smoke-tested on VPS` и
+только затем нажмите `Run workflow`. Job дополнительно требует GitHub
+environment `production`; настройте required reviewers в environment settings.
 
 ## Database Migrations
 
@@ -149,6 +184,17 @@ wrangler d1 execute kamizo-db --remote --file=schema.sql
 - Всегда используйте `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`
 - Обновляйте `schema.sql` и `schema_no_fk.sql` параллельно
 - Все таблицы должны содержать `tenant_id TEXT` для мультитенантности
+
+## Compatibility / Known Issues
+
+- **OTP rollout blocker for meeting voting:** `require_otp=1` is currently not
+  enforced. Voting records login verification honestly as `verification_method=login`
+  and `otp_verified=0`; this is not legal OTP compliance. Do not describe or
+  release meeting-voting changes as OTP-compliant until an OTP provider and
+  tenant rollout policy are approved and end-to-end enforcement is implemented.
+- Legacy `POST /api/payments` is retired and returns `410 Gone`; create payments through `POST /api/finance/payments`.
+- Legacy `GET /api/payments`, `GET /api/payments/:id`, and `GET /api/apartments/:apartmentId/balance` remain read compatibility endpoints. They reject missing/sentinel tenant context before SQL, use unconditional tenant equality, and return RFC 9745 `Deprecation: @1786752000` plus endpoint-specific successor links.
+- Frontend `/payments` redirects to `/finance/charges`. The legacy page, store, and API client retain read compatibility only; their mutation action was removed. The database table remains in place, with no table drop or data migration in this retirement.
 
 ## Key Features
 

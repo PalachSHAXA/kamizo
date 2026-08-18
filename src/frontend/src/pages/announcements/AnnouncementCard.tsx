@@ -13,6 +13,25 @@ import type { Announcement, AnnouncementPriority } from '../../types';
 import type { ReactNode } from 'react';
 import { plural } from '../../utils/plural';
 
+interface AnnouncementViewer {
+  id: string;
+  name: string;
+  apartment?: string;
+  address?: string;
+  viewed_at: string;
+}
+
+const optionalString = (value: unknown): string | undefined =>
+  value === undefined || value === null ? undefined : String(value);
+
+const mapAnnouncementViewer = (viewer: Record<string, unknown>): AnnouncementViewer => ({
+  id: String(viewer.id ?? ''),
+  name: String(viewer.name ?? ''),
+  apartment: optionalString(viewer.apartment),
+  address: optionalString(viewer.address),
+  viewed_at: String(viewer.viewed_at ?? ''),
+});
+
 export function AnnouncementCard({
   announcement,
   onDelete,
@@ -38,7 +57,7 @@ export function AnnouncementCard({
   language: string;
 }) {
   const [showViewers, setShowViewers] = useState(false);
-  const [viewers, setViewers] = useState<{ id: string; name: string; apartment?: string; address?: string; viewed_at: string }[]>([]);
+  const [viewers, setViewers] = useState<AnnouncementViewer[]>([]);
   const [isLoadingViewers, setIsLoadingViewers] = useState(false);
   const [viewStats, setViewStats] = useState<{ count: number; targetAudienceSize: number; viewPercentage: number } | null>(null);
 
@@ -53,7 +72,7 @@ export function AnnouncementCard({
     try {
       const { announcementsApi } = await import('../../services/api');
       const result = await announcementsApi.getViews(announcement.id);
-      setViewers(result.viewers || []);
+      setViewers((result.viewers || []).map(mapAnnouncementViewer));
       setViewStats({
         count: result.count,
         targetAudienceSize: result.targetAudienceSize,

@@ -4,7 +4,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature, recordBelongsToCaller, auditCrossTenantAttempt } from '../../middleware/tenant';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
-import { createRequestLogger } from '../../utils/logger';
+import { broadcastWithConnectionManager } from '../../utils/connection-manager';
 
 // v200 — admin actions on a chat channel.
 //
@@ -36,22 +36,16 @@ async function broadcastChannelUpdated(
   channelTenantId: string | null,
   patch: Record<string, unknown>,
 ): Promise<void> {
-  try {
-    const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
-    const connManager = env.CONNECTION_MANAGER.get(connManagerId);
-    await connManager.fetch('http://internal/broadcast', {
-      method: 'POST',
-      headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
-      body: JSON.stringify({
-        type: 'chat_channel_updated',
-        data: { channel_id: channelId, ...patch },
-        channels: [`chat:channel:${channelId}`, 'chat:all'],
-        tenantId: channelTenantId || undefined,
-      }),
-    });
-  } catch (e) {
-    createRequestLogger(request).error('Failed to broadcast chat:channel:updated', e);
-  }
+  await broadcastWithConnectionManager(env, request, 'chat_channel_updated', 'http://internal/broadcast', {
+    method: 'POST',
+    headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
+    body: JSON.stringify({
+      type: 'chat_channel_updated',
+      data: { channel_id: channelId, ...patch },
+      channels: [`chat:channel:${channelId}`, 'chat:all'],
+      tenantId: channelTenantId || undefined,
+    }),
+  });
 }
 
 // Columns the admin endpoints read on the channel row plus the joined

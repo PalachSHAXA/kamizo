@@ -5,7 +5,6 @@ import { usePaymentsStore } from '../paymentsStore'
 vi.mock('../../services/api', () => ({
   paymentsApi: {
     getPayments: vi.fn(),
-    createPayment: vi.fn(),
     getBalance: vi.fn(),
   },
 }))
@@ -23,7 +22,6 @@ import { paymentsApi } from '../../services/api'
 
 const mockedApi = paymentsApi as {
   getPayments: ReturnType<typeof vi.fn>
-  createPayment: ReturnType<typeof vi.fn>
   getBalance: ReturnType<typeof vi.fn>
 }
 
@@ -49,6 +47,7 @@ describe('paymentsStore', () => {
     expect(state.error).toBeNull()
     expect(state.filters).toEqual({})
     expect(state.pagination).toBeNull()
+    expect(state).not.toHaveProperty('createPayment')
   })
 
   it('fetchPayments loads payments from API', async () => {
@@ -81,29 +80,4 @@ describe('paymentsStore', () => {
     expect(state.isLoading).toBe(false)
   })
 
-  it('createPayment calls API and returns true on success', async () => {
-    mockedApi.createPayment.mockResolvedValueOnce({ payment: { id: '1' } })
-    mockedApi.getPayments.mockResolvedValueOnce({ payments: [], pagination: null })
-
-    const result = await usePaymentsStore.getState().createPayment({
-      apartment_id: 'apt-1',
-      amount: 500,
-      payment_type: 'cash',
-    })
-
-    expect(result).toBe(true)
-    expect(mockedApi.createPayment).toHaveBeenCalledOnce()
-  })
-
-  it('createPayment returns false on failure', async () => {
-    mockedApi.createPayment.mockRejectedValueOnce(new Error('Payment failed'))
-
-    const result = await usePaymentsStore.getState().createPayment({
-      apartment_id: 'apt-1',
-      amount: 500,
-      payment_type: 'cash',
-    })
-
-    expect(result).toBe(false)
-  })
 })

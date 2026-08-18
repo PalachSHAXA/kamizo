@@ -62,7 +62,6 @@ const SURFACE = 'var(--themed-surface, #FFFFFF)';
 const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
 const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
 const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
-const TEXT_ON_DARK = '#F4F0E8';
 const BORDER_C = 'var(--themed-border-c, rgba(28,25,23,0.08))';
 const BORDER_STRONG = 'var(--themed-border-strong, #D6D3D1)';
 const BRAND_DARK = '#EA580C';
@@ -469,4 +468,3 @@ function RequisiteCard({ title, lines }: { title: string; lines: string[] }) {
     </div>
   );
 }
-

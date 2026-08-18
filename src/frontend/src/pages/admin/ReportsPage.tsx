@@ -33,6 +33,33 @@ function csvRow(row: unknown[]): string {
   return row.map(csvCell).join(';');
 }
 
+interface DebtRecordDto {
+  id?: string;
+  resident_name: string | null;
+  district: string | null;
+  branch_name: string | null;
+  building_id: string | null;
+  building_name: string | null;
+  entrance: string | null;
+  apartment_number: string | null;
+  account_number: string | null;
+  tariff: number | null;
+  current_debt: number | null;
+  last_payment_date: string | null;
+  account_status: string | null;
+}
+
+interface DebtSummaryDto {
+  totalDebt: number;
+  totalBalance: number;
+  debtorCount: number;
+}
+
+interface DebtReportDto {
+  records: DebtRecordDto[];
+  summary: DebtSummaryDto;
+}
+
 export function ReportsPage() {
   const requests = useRequestStore(s => s.requests);
   const executors = useExecutorStore(s => s.executors);
@@ -44,8 +71,8 @@ export function ReportsPage() {
   const [reportType, setReportType] = useState<'general' | 'branch' | 'debts'>('general');
 
   // Debts tab state
-  const [debtRecords, setDebtRecords] = useState<Record<string, unknown>[]>([]);
-  const [debtSummary, setDebtSummary] = useState<{ totalDebt: number; totalBalance: number; debtorCount: number } | null>(null);
+  const [debtRecords, setDebtRecords] = useState<DebtRecordDto[]>([]);
+  const [debtSummary, setDebtSummary] = useState<DebtSummaryDto | null>(null);
   const [debtLoading, setDebtLoading] = useState(false);
   const [debtSearch, setDebtSearch] = useState('');
   const [debtFilterBuilding, setDebtFilterBuilding] = useState('');
@@ -65,7 +92,7 @@ export function ReportsPage() {
       params.set('sort_by', debtSortBy);
       params.set('sort_dir', debtSortDir);
       params.set('limit', '1000');
-      const data = await apiRequest<{ records: Record<string, unknown>[]; summary: { totalDebt: number; totalBalance: number; debtorCount: number } }>(`/api/reports/debts?${params}`);
+      const data = await apiRequest<DebtReportDto>(`/api/reports/debts?${params}`);
       setDebtRecords(data.records || []);
       setDebtSummary(data.summary || null);
     } catch {
@@ -136,7 +163,7 @@ export function ReportsPage() {
       r.tariff || 0,
       r.current_debt || 0,
       r.last_payment_date ? new Date(r.last_payment_date).toLocaleDateString('ru-RU') : '-',
-      statusLabel(r.account_status || 'active'),
+      statusLabel(r.account_status ?? 'active'),
     ]);
     const csvContent = [headers, ...rows].map(csvRow).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -179,16 +206,18 @@ export function ReportsPage() {
     return buildings.map(building => {
       // Get residents for this building - check multiple sources
       // 1. From CRM residents by apartmentId that belongs to this building
-      const crmResidentsCount = residents.filter((r) =>
-        (r as Record<string, unknown>).building_id === building.id || r.buildingId === building.id || r.apartmentId?.startsWith(building.id)
-      ).length;
+      const crmResidentsCount = residents.filter((r) => {
+        const resident = r as typeof r & { building_id?: string; buildingId?: string };
+        return resident.building_id === building.id || resident.buildingId === building.id || resident.apartmentId.startsWith(building.id);
+      }).length;
 
       // 2. From additionalUsers by buildingId or by matching address
       const additionalResidentsCount = Object.values(additionalUsers)
         .filter(u => {
           if (u.user.role !== 'resident') return false;
           // Check by buildingId
-          if (u.user.buildingId === building.id || (u.user as Record<string, unknown>).building_id === building.id) return true;
+          const legacyUser = u.user as typeof u.user & { building_id?: string };
+          if (u.user.buildingId === building.id || legacyUser.building_id === building.id) return true;
           // Check by address match
           if (u.user.address && (
             u.user.address.includes(building.address) ||

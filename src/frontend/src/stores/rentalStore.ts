@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type { RentalApartment, RentalRecord } from '../types';
 import { rentalsApi } from '../services/api';
 
@@ -61,7 +62,7 @@ export const useRentalStore = create<RentalState>()(
           ownerLogin: apartmentData.ownerLogin,
           ownerPassword: apartmentData.password,
           ownerType: apartmentData.ownerType || 'tenant',
-          existingUserId: (apartmentData as Record<string, unknown>).existingUserId as string | undefined,
+          existingUserId: apartmentData.existingUserId,
         });
 
         if (response.apartment) {
@@ -157,3 +158,5 @@ export const useRentalStore = create<RentalState>()(
     },
   })
 );
+
+registerSessionStore(useRentalStore);

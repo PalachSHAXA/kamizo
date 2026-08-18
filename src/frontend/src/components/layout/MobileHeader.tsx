@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Megaphone, Users, CheckCircle } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -12,9 +12,20 @@ import { useLanguageStore } from '../../stores/languageStore';
 interface MobileHeaderProps {
   onMenuClick: () => void;
   unreadCount: number;
+  isMenuOpen: boolean;
+  menuButtonRef?: Ref<HTMLButtonElement>;
 }
 
-export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
+interface OnboardingTaskDto {
+  id: string;
+  path: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  icon: React.ElementType;
+}
+
+export function MobileHeader({ onMenuClick, unreadCount, isMenuOpen, menuButtonRef }: MobileHeaderProps) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const { language } = useLanguageStore();
@@ -74,7 +85,7 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
     return null;
   };
 
-  const pendingTasks: unknown[] = [];
+  const pendingTasks: OnboardingTaskDto[] = [];
   const pendingTasksCount = 0;
 
   // Menu badge - only sidebar tab notifications (announcements, meetings), NOT onboarding tasks
@@ -125,10 +136,12 @@ export function MobileHeader({ onMenuClick, unreadCount }: MobileHeaderProps) {
             area padding via env(safe-area-inset-top). */}
       <header className="mobile-header" role="banner">
         <button
+          ref={menuButtonRef}
           onClick={onMenuClick}
           className="tap-target w-[42px] h-[42px] rounded-[14px] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] flex flex-col items-center justify-center gap-[4px] active:scale-[0.92] transition-transform touch-manipulation relative shrink-0"
           aria-label={language === 'ru' ? 'Открыть меню' : 'Menyuni ochish'}
-          aria-expanded={false}
+          aria-expanded={isMenuOpen}
+          aria-controls="app-sidebar"
         >
           <span className="w-[18px] h-[2px] rounded-[1px] bg-gray-900" />
           <span className="w-[12px] h-[2px] rounded-[1px] bg-primary-500" />

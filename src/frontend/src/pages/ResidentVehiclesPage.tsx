@@ -10,7 +10,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useIsMobile } from '../hooks/useBreakpoint';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
-import { SearchPlateInput, PlateNumberInput, UZFlag, Plate, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
+import { SearchPlateInput, PlateNumberInput, Plate, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
 
 // "Recent searches" persist across sessions in localStorage. Capped at 5
 // entries to keep the list scannable. We store the plate exactly as the
@@ -583,7 +583,7 @@ export function ResidentVehiclesPage() {
                     >
                       <Plate
                         plateNumber={vehicle.plateNumber}
-                        ownerType={vehicle.ownerType ?? 'individual'}
+                        ownerType={vehicle.ownerType === 'legal_entity' ? 'legal_entity' : 'individual'}
                         size="sm"
                       />
                     </button>

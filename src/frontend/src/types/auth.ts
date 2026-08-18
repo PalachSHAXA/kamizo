@@ -38,4 +38,15 @@ export interface User {
 
   // Special account types (for advertising platform)
   account_type?: 'advertiser';
+  accountType?: 'advertiser';
+  tenantId?: string | null;
+  demoSession?: boolean;
+}
+
+export interface DemoRole {
+  roleKey: string;
+  role: UserRole;
+  specialization: ExecutorSpecialization | null;
+  primary: boolean;
+  order: number;
 }

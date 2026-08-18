@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { persist } from 'zustand/middleware';
 import type { Notification } from '../types';
 import { apiRequest } from '../services/api';
@@ -164,3 +165,5 @@ export const useNotificationStore = create<NotificationState>()(
     }
   )
 );
+
+registerSessionStore(useNotificationStore);

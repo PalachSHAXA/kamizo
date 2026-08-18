@@ -1,11 +1,45 @@
 // Vehicles API & Rentals API
 
 import { apiRequest, cachedGet, CACHE_TTL } from './client';
+import type { RentalApartment, RentalRecord } from '../../types';
+
+export interface RentalApartmentDto extends RentalApartment {
+  ownerPassword?: string;
+}
+
+export interface RentalRecordDto extends RentalRecord {
+  exchangeRate?: number | null;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+}
+
+export interface VehicleDto {
+  id: string;
+  user_id: string;
+  resident_id?: string;
+  owner_name?: string;
+  owner_phone?: string;
+  apartment?: string;
+  address?: string;
+  plate_number: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  year?: number;
+  vehicle_type?: string;
+  owner_type?: string;
+  company_name?: string;
+  parking_spot?: string;
+  notes?: string;
+  is_primary?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export const vehiclesApi = {
   // Get current user's vehicles only
   getMyVehicles: async () => {
-    return cachedGet<{ vehicles: Record<string, unknown>[] }>('/api/vehicles', CACHE_TTL.MEDIUM);
+    return cachedGet<{ vehicles: VehicleDto[] }>('/api/vehicles', CACHE_TTL.MEDIUM);
   },
 
   // Get ALL vehicles with pagination (for staff: admin, manager, executor, department_head)
@@ -16,7 +50,7 @@ export const vehiclesApi = {
     if (options?.limit) params.append('limit', String(options.limit));
     if (options?.search) params.append('search', options.search);
     const query = params.toString();
-    return apiRequest<{ vehicles: Record<string, unknown>[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(
+    return apiRequest<{ vehicles: VehicleDto[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(
       `/api/vehicles/all${query ? '?' + query : ''}`
     );
   },
@@ -38,7 +72,7 @@ export const vehiclesApi = {
     notes?: string;
     is_primary?: boolean;
   }) => {
-    return apiRequest<{ vehicle: Record<string, unknown> }>('/api/vehicles', {
+    return apiRequest<{ vehicle: VehicleDto }>('/api/vehicles', {
       method: 'POST',
       body: JSON.stringify(vehicle),
     });
@@ -57,7 +91,7 @@ export const vehiclesApi = {
     notes?: string;
     is_primary?: boolean;
   }) => {
-    return apiRequest<{ vehicle: Record<string, unknown> }>(`/api/vehicles/${vehicleId}`, {
+    return apiRequest<{ vehicle: VehicleDto }>(`/api/vehicles/${vehicleId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -70,7 +104,7 @@ export const vehiclesApi = {
   },
 
   search: async (plateNumber: string) => {
-    return apiRequest<{ vehicles: Record<string, unknown>[] }>(`/api/vehicles/search?plate=${encodeURIComponent(plateNumber)}`);
+    return apiRequest<{ vehicles: VehicleDto[] }>(`/api/vehicles/search?plate=${encodeURIComponent(plateNumber)}`);
   },
 };
 
@@ -78,12 +112,12 @@ export const vehiclesApi = {
 export const rentalsApi = {
   // Apartments
   getApartments: async () => {
-    return apiRequest<{ apartments: Record<string, unknown>[] }>('/api/rentals/apartments');
+    return apiRequest<{ apartments: RentalApartmentDto[] }>('/api/rentals/apartments');
   },
 
   // Get my apartments (for tenants/commercial_owners)
   getMyApartments: async () => {
-    return apiRequest<{ apartments: Record<string, unknown>[]; records: Record<string, unknown>[] }>('/api/rentals/my-apartments');
+    return apiRequest<{ apartments: RentalApartmentDto[]; records: RentalRecordDto[] }>('/api/rentals/my-apartments');
   },
 
   createApartment: async (data: {
@@ -97,7 +131,7 @@ export const rentalsApi = {
     ownerType?: 'tenant' | 'commercial_owner';
     existingUserId?: string;
   }) => {
-    return apiRequest<{ apartment: Record<string, unknown> }>('/api/rentals/apartments', {
+    return apiRequest<{ apartment: RentalApartmentDto }>('/api/rentals/apartments', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -119,7 +153,7 @@ export const rentalsApi = {
   // Records
   getRecords: async (apartmentId?: string) => {
     const url = apartmentId ? `/api/rentals/records?apartmentId=${apartmentId}` : '/api/rentals/records';
-    return apiRequest<{ records: Record<string, unknown>[] }>(url);
+    return apiRequest<{ records: RentalRecordDto[] }>(url);
   },
 
   createRecord: async (data: {
@@ -132,7 +166,7 @@ export const rentalsApi = {
     currency?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ record: Record<string, unknown> }>('/api/rentals/records', {
+    return apiRequest<{ record: RentalRecordDto }>('/api/rentals/records', {
       method: 'POST',
       body: JSON.stringify(data),
     });

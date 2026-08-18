@@ -1,6 +1,16 @@
 // Auth API
 
-import { apiRequest, transformUser, markLoggedIn } from './client';
+import { apiRequest, transformUser } from './client';
+import type { UserApiResponse } from './client';
+import type { DemoRole, User } from '../../types/auth';
+
+interface RegisteredUserDto {
+  id: string;
+  name: string;
+  login: string;
+  phone?: string;
+  specialization?: string;
+}
 
 /** A workspace candidate returned by the disambiguation flow. */
 export interface TenantPickEntry {
@@ -21,11 +31,11 @@ export interface TenantPickEntry {
  * Any 4xx/5xx throws via apiRequest.
  */
 export type LoginResult =
-  | { kind: 'success'; user: Record<string, unknown>; token: string }
+  | { kind: 'success'; user: unknown; token: string }
   | { kind: 'picker'; tenants: TenantPickEntry[] };
 
 interface LoginSuccessResponse {
-  user: Record<string, unknown>;
+  user: UserApiResponse;
   token: string;
 }
 
@@ -36,19 +46,50 @@ interface LoginPickerResponse {
 
 type LoginResponse = LoginSuccessResponse | LoginPickerResponse;
 
+interface DemoRolesResponse {
+  roles: DemoRole[];
+}
+
+interface DemoLoginResult {
+  user: User;
+  token: string;
+  demoSession: true;
+}
+
+interface DemoLoginResponse extends LoginSuccessResponse {
+  demoSession: true;
+}
+
 function isPickerResponse(r: LoginResponse): r is LoginPickerResponse {
-  return (r as LoginPickerResponse).needs_tenant_pick === true;
+  return 'needs_tenant_pick' in r && r.needs_tenant_pick === true;
 }
 
 export const authApi = {
+  getDemoRoles: async (): Promise<DemoRole[]> => {
+    const data = await apiRequest<DemoRolesResponse>('/api/auth/demo-roles', {
+      cache: 'no-store',
+    });
+    return data.roles;
+  },
+
+  demoLogin: async (roleKey: string): Promise<DemoLoginResult> => {
+    const data = await apiRequest<DemoLoginResponse>('/api/auth/demo-login', {
+      method: 'POST',
+      body: JSON.stringify({ roleKey }),
+    });
+    return {
+      user: { ...transformUser(data.user), demoSession: data.demoSession },
+      token: data.token,
+      demoSession: data.demoSession,
+    };
+  },
+
   /**
    * Log in with login + password. Pass `tenantSlug` on the re-submit
    * after the user picks a workspace from the picker.
    *
-   * The token is persisted (localStorage + markLoggedIn) ONLY on the
-   * success branch. The picker branch just hands the tenant list back
-   * to the caller — no session state is touched, so cancelling the
-   * picker leaves the app exactly as it was before submit.
+   * This module only returns data. Session installation belongs to the
+   * auth store so it can reset the previous tenant atomically first.
    */
   login: async (
     login: string,
@@ -70,8 +111,6 @@ export const authApi = {
       return { kind: 'picker', tenants: data.tenants ?? [] };
     }
 
-    localStorage.setItem('auth_token', data.token);
-    markLoggedIn(); // 10s grace period before 401s can force logout
     return {
       kind: 'success',
       user: transformUser(data.user),
@@ -98,7 +137,7 @@ export const authApi = {
     branch?: string;
     building?: string;
   }) => {
-    return apiRequest<{ user: Record<string, unknown> }>('/api/auth/register', {
+    return apiRequest<{ user: RegisteredUserDto }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });

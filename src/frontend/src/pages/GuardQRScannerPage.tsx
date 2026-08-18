@@ -34,6 +34,14 @@ type ScanResult = {
   message: string;
 };
 
+interface MediaTrackConstraintSetWithTorch extends MediaTrackConstraintSet {
+  torch?: boolean;
+}
+
+interface MediaTrackConstraintsWithTorch extends MediaTrackConstraints {
+  advanced?: MediaTrackConstraintSetWithTorch[];
+}
+
 export function GuardQRScannerPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -119,7 +127,7 @@ export function GuardQRScannerPage() {
       });
       if (!serverResult.valid) {
         const m = mapServerError(serverResult.error);
-        setScanResult({ status: m.status, code: serverResult.code || null, message: m.message });
+        setScanResult({ status: m.status, code: serverResult.code, message: m.message });
       } else {
         setScanResult({ status: 'success', code: serverResult.code, message: language === 'ru' ? 'Пропуск найден' : 'Ruxsatnoma topildi' });
       }
@@ -134,7 +142,7 @@ export function GuardQRScannerPage() {
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
         const body = err.body as { valid?: boolean; error?: string; code?: GuestAccessCode } | null;
         const m = mapServerError(body?.error);
-        setScanResult({ status: m.status, code: body?.code || null, message: m.message });
+        setScanResult({ status: m.status, code: body?.code, message: m.message });
         return;
       }
 
@@ -239,7 +247,8 @@ export function GuardQRScannerPage() {
   const toggleFlash = async () => {
     if (streamRef.current) {
       const track = streamRef.current.getVideoTracks()[0];
-      if (track) { try { await track.applyConstraints({ advanced: [{ torch: !flashOn }] } as MediaTrackConstraints); setFlashOn(!flashOn); } catch { /* torch may not be supported */ } }
+      const constraints: MediaTrackConstraintsWithTorch = { advanced: [{ torch: !flashOn }] };
+      if (track) { try { await track.applyConstraints(constraints); setFlashOn(!flashOn); } catch { /* torch may not be supported */ } }
     }
   };
 

@@ -12,6 +12,7 @@ export interface StaffPositionV2 {
   title: string;
   units: number;   // может быть дробным (0.5)
   salary: number;  // ежемес. оклад
+  vacation_days?: number; // дней отпуска (ТК РУз минимум 21)
 }
 
 export type ExpenseSection = 'production' | 'periodic';
@@ -24,29 +25,64 @@ export interface ExpenseLineV2 {
   unit?: ItemUnit;
   linked_to_staff?: boolean;
   legal_code?: string;
+  building_id?: string;            // scope: пусто = все дома ЖК, задано = адресная
 }
 
-export type IncomeType = 'commercial' | 'basement' | 'parking' | 'telecom' | 'other';
+export type IncomeType = 'commercial' | 'basement' | 'parking' | 'telecom' | 'advertising' | 'other';
 
 export interface IncomeStreamV2 {
   type: IncomeType;
   monthly: number;
+  building_id?: string;            // scope: пусто = весь ЖК, задано = адресный доход
+}
+
+// Пер-домовой результат сметы на ЖК.
+export interface BuildingTariffV2 {
+  building_id: string;
+  residential_area: number;
+  share: number;
+  self_expense: number;
+  self_cost_resident: number;
+  base_per_m2: number;
+  with_profit_per_m2: number;
+  telecom_comp_per_m2: number;
+  tariff_resident: number;
+  tariff_effective: number;
+  vat_per_m2: number;
+  tariff_with_vat: number;
+}
+
+export interface ComplexResultV2 {
+  model: EstimateModelV2;
+  buildings: BuildingTariffV2[];
+  fot_total: number;
+  total_expenses: number;
+  jami_tushum_year: number;
+  umumiy_year: number;
+  deficit_year: number;
+  resident_saving_year: number;
 }
 
 export interface EstimateResultV2 {
   model: EstimateModelV2;
-  staff_lines: Array<{ title: string; units: number; salary: number; monthly: number }>;
+  staff_lines: Array<{ title: string; units: number; salary: number; monthly: number; vacation_days?: number; vacation_monthly?: number }>;
+  fot_base?: number;
+  fot_vacation?: number;
   fot_gross: number;
   payroll_tax: number;
   fot_total: number;
   total_expenses: number;
-  income_breakdown: { commercial: number; basement: number; parking: number; telecom: number; other: number };
+  income_breakdown: { commercial: number; basement: number; parking: number; telecom: number; advertising?: number; other: number };
   before_profit_offset: number;
   self_cost_resident: number;
   base_per_m2: number;
   with_profit_per_m2: number;
   telecom_comp_per_m2: number;
   tariff_resident: number;
+  resident_saving_per_m2?: number;
+  resident_saving_year?: number;
+  vat_per_m2?: number;
+  tariff_with_vat?: number;
   tariff_effective: number;
   jami_tushum_year: number;
   umumiy_year: number;
@@ -54,7 +90,7 @@ export interface EstimateResultV2 {
 }
 
 export interface EstimateWarning {
-  code: 'BELOW_MIN_TARIFF' | 'MISSING_MANDATORY_SERVICE' | 'REQUIRES_ASSEMBLY_DECISION' | 'RISK_UNNECESSARY';
+  code: 'BELOW_MIN_TARIFF' | 'MISSING_MANDATORY_SERVICE' | 'REQUIRES_ASSEMBLY_DECISION' | 'RISK_UNNECESSARY' | 'MISSING_AREA';
   severity: 'error' | 'warning' | 'info';
   message_ru: string;
   message_uz: string;
@@ -69,22 +105,22 @@ function invalidateEstimates() {
 
 export const estimateV2Api = {
   create: (body: {
-    building_id: string;
+    building_id?: string;           // одиночная смета (scope_level='building')
     period: string;                 // YYYY-MM
     title?: string;
     model: EstimateModelV2;
     uk_profit_percent?: number;     // 7 → 7% (не 0.07)
     payroll_tax_rate?: number;      // 0.24 или 0.25
     residential_area?: number;
-    commercial_income?: number;
-    basement_income?: number;
-    parking_income?: number;
-    telecom_income?: number;
     tariff_approved?: number;
     effective_date?: string;
+    // Смета на ЖК:
+    scope_level?: 'building' | 'complex';
+    branch_code?: string;
+    buildings?: Array<{ building_id: string; residential_area?: number }>;
   }) => {
     invalidateEstimates();
-    return apiRequest<{ id: string; model: EstimateModelV2; status: string }>(
+    return apiRequest<{ id: string; model: EstimateModelV2; status: string; scope_level?: string }>(
       '/api/finance/estimates/v2',
       { method: 'POST', body: JSON.stringify(body) }
     );
@@ -106,6 +142,14 @@ export const estimateV2Api = {
     );
   },
 
+  putSettings: (estimateId: string, settings: { periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number; show_profit_to_residents?: boolean }) => {
+    invalidateEstimates();
+    return apiRequest<{ ok: boolean; updated: number }>(
+      `/api/finance/estimates/${estimateId}/settings`,
+      { method: 'PUT', body: JSON.stringify(settings) }
+    );
+  },
+
   putIncomes: (estimateId: string, items: IncomeStreamV2[]) => {
     invalidateEstimates();
     return apiRequest<{ ok: boolean; count: number; totals: Record<IncomeType, number> }>(
@@ -115,7 +159,7 @@ export const estimateV2Api = {
   },
 
   compute: (estimateId: string) =>
-    apiRequest<{ input: unknown; result: EstimateResultV2 }>(
+    apiRequest<{ input: unknown; result: EstimateResultV2; complexResult?: ComplexResultV2 | null; scopeLevel?: 'building' | 'complex' }>(
       `/api/finance/estimates/${estimateId}/compute`
     ),
 
@@ -132,6 +176,11 @@ export const estimateV2Api = {
       warnings: EstimateWarning[];
       building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean };
     }>(`/api/finance/estimates/${estimateId}/full`),
+
+  remove: (estimateId: string) => {
+    invalidateEstimates();
+    return apiRequest<{ ok: boolean }>(`/api/finance/estimates/${estimateId}`, { method: 'DELETE' });
+  },
 };
 
 // ── Resident-facing endpoints ────────────────────────────────────────

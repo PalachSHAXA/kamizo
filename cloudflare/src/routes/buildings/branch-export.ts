@@ -6,7 +6,7 @@ import { json, error, bilingualError } from '../../utils/helpers';
 
 // Sprint 72 P0/F2:
 //  - Was using `SELECT *` on users which includes password_hash, auth_token,
-//    plaintext password_plain — every export was effectively a credential
+//    reversible credentials — every export was effectively a credential
 //    dump. Switched to explicit safe column list.
 //  - On apex domain (tenantId === null) the users queries had NO tenant
 //    filter and would happily pull staff/residents from any tenant that

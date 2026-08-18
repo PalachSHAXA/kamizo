@@ -1,10 +1,9 @@
-// Team management routes: staff CRUD, colleagues, reset all passwords
+// Team management routes: staff CRUD and colleagues
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
 import { json, error, bilingualError, isAdminLevel, canActOnRole } from '../../utils/helpers';
-import { hashPassword, encryptPassword, decryptPassword } from '../../utils/crypto';
 
 export function registerTeamRoutes() {
 
@@ -37,12 +36,6 @@ route('GET', '/api/team', async (request, env) => {
     params.push(`%${search}%`, `%${search}%`);
   }
 
-  // Restored (per product owner): admin + director may view staff passwords
-  // of their own УК — same rule as before the Sprint-66 hardening. This is a
-  // deliberate, accepted trade-off (reversible password_plain is decrypted
-  // for these two roles only; everyone else still gets it stripped).
-  const canSeePasswords = user.role === 'admin' || user.role === 'director';
-
   const baseSelect = `u.id, u.login, u.name, u.phone, u.role, u.specialization, u.is_active, u.created_at`;
   const statsJoin = `
     LEFT JOIN (
@@ -64,45 +57,14 @@ route('GET', '/api/team', async (request, env) => {
       END, u.name LIMIT 500`;
   const bindings = [...(tenantId ? [tenantId] : []), ...params];
 
-  let staff: any[];
-  try {
-    // SELECT password_plain so admin/director can be shown the decrypted
-    // value below. The try/catch shape stays for compat with very old DBs
-    // that lack the column.
-    const res = await env.DB.prepare(`
-      SELECT ${baseSelect}, u.password_plain,
-        COALESCE(stats.completed_count, 0) as completed_count,
-        COALESCE(stats.active_count, 0) as active_count,
-        COALESCE(stats.avg_rating, 0) as avg_rating
-      FROM users u ${statsJoin} ${whereClause} ${orderBy}
-    `).bind(...bindings).all();
-    staff = res.results as any[];
-  } catch {
-    // Fallback: password_plain column doesn't exist yet
-    const res = await env.DB.prepare(`
-      SELECT ${baseSelect},
-        COALESCE(stats.completed_count, 0) as completed_count,
-        COALESCE(stats.active_count, 0) as active_count,
-        COALESCE(stats.avg_rating, 0) as avg_rating
-      FROM users u ${statsJoin} ${whereClause} ${orderBy}
-    `).bind(...bindings).all();
-    staff = res.results as any[];
-  }
-
-  // Decrypt the password for admin/director; strip the raw encrypted blob
-  // for everyone and the plaintext for everyone else.
-  for (const s of staff) {
-    if (canSeePasswords && s.password_plain && env.ENCRYPTION_KEY) {
-      try {
-        s.password = await decryptPassword(s.password_plain, env.ENCRYPTION_KEY);
-      } catch {
-        s.password = null;
-      }
-    } else {
-      delete s.password;
-    }
-    delete s.password_plain;
-  }
+  const res = await env.DB.prepare(`
+    SELECT ${baseSelect},
+      COALESCE(stats.completed_count, 0) as completed_count,
+      COALESCE(stats.active_count, 0) as active_count,
+      COALESCE(stats.avg_rating, 0) as avg_rating
+    FROM users u ${statsJoin} ${whereClause} ${orderBy}
+  `).bind(...bindings).all();
+  const staff = res.results as any[];
 
   const directors = staff.filter((s: any) => s.role === 'director');
   const admins = staff.filter((s: any) => s.role === 'admin');
@@ -127,28 +89,17 @@ route('GET', '/api/team/:id', async (request, env, params) => {
   if (!isAdminLevel(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const tenantId = getTenantId(request);
-  const canSeePasswords = user.role === 'admin' || user.role === 'director';
   const roleFilter = "AND role IN ('admin', 'manager', 'department_head', 'executor', 'director', 'advertiser')";
   const tenantFilter = tenantId ? 'AND tenant_id = ?' : '';
   const idBinds = [params.id, ...(tenantId ? [tenantId] : [])];
 
   const staff: any = await env.DB.prepare(
-    `SELECT id, login, name, phone, role, specialization, status, created_at${canSeePasswords ? ', password_plain' : ''} FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
+    `SELECT id, login, name, phone, role, specialization, status, created_at FROM users WHERE id = ? ${roleFilter} ${tenantFilter}`
   ).bind(...idBinds).first();
 
   if (!staff) {
     return error('Staff member not found', 404);
   }
-
-  // Decrypt the password for admin/director only; strip the encrypted blob.
-  if (canSeePasswords && staff.password_plain && env.ENCRYPTION_KEY) {
-    try {
-      staff.password = await decryptPassword(staff.password_plain, env.ENCRYPTION_KEY);
-    } catch {
-      staff.password = null;
-    }
-  }
-  delete staff.password_plain;
 
   return json({ user: staff });
 });
@@ -174,25 +125,15 @@ route('PATCH', '/api/team/:id', async (request, env, params) => {
   }
 
   const body = await request.json() as any;
+  if (Object.prototype.hasOwnProperty.call(body, 'password')) {
+    return error('Use /api/users/:id/password to change a password', 400);
+  }
   const updates: string[] = [];
   const values: any[] = [];
 
   if (body.name) { updates.push('name = ?'); values.push(body.name); }
   if (body.phone) { updates.push('phone = ?'); values.push(body.phone); }
   if (body.login) { updates.push('login = ?'); values.push(body.login); }
-  if (body.password) {
-    if (typeof body.password !== 'string' || body.password.trim().length < 6) {
-      return error('Password must be at least 6 characters', 400);
-    }
-    const hashedPassword = await hashPassword(body.password.trim());
-    updates.push('password_hash = ?');
-    values.push(hashedPassword);
-    if (env.ENCRYPTION_KEY) {
-      const encrypted = await encryptPassword(body.password.trim(), env.ENCRYPTION_KEY);
-      updates.push('password_plain = ?');
-      values.push(encrypted);
-    }
-  }
   if (body.specialization) { updates.push('specialization = ?'); values.push(body.specialization); }
   if (body.status) { updates.push('status = ?'); values.push(body.status); }
 
@@ -258,55 +199,6 @@ route('DELETE', '/api/team/:id', async (request, env, params) => {
   await invalidateOnChange('users', env.RATE_LIMITER);
 
   return json({ success: true });
-});
-
-// Team: Reset passwords for all staff members
-route('POST', '/api/team/reset-all-passwords', async (request, env) => {
-  const user = await getUser(request, env);
-  if (!user) return error('Unauthorized', 401);
-  if (user.role !== 'admin') return error('Only admin can perform this operation', 403);
-
-  const tenantId = getTenantId(request);
-
-  const staffRoles = ['manager', 'department_head', 'executor'];
-  const { results: staffMembers } = await env.DB.prepare(`
-    SELECT id, login, name, role FROM users
-    WHERE role IN (?, ?, ?)
-    ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(...staffRoles, ...(tenantId ? [tenantId] : [])).all();
-
-  if (!staffMembers || staffMembers.length === 0) {
-    return json({ message: 'No staff members found', updated: 0 });
-  }
-
-  const results: { id: string; login: string; name: string; password: string }[] = [];
-
-  for (const staff of staffMembers as any[]) {
-    const randomSuffix = Math.random().toString(36).substring(2, 6);
-    const newPassword = `${staff.login}${staff.role.charAt(0)}${randomSuffix}`;
-
-    const hashedPassword = await hashPassword(newPassword);
-    const encryptedPlain = env.ENCRYPTION_KEY ? await encryptPassword(newPassword, env.ENCRYPTION_KEY) : null;
-
-    await env.DB.prepare(`
-      UPDATE users SET password_hash = ?, password_plain = ? WHERE id = ?
-    `).bind(hashedPassword, encryptedPlain, staff.id).run();
-
-    results.push({
-      id: staff.id,
-      login: staff.login,
-      name: staff.name,
-      password: newPassword
-    });
-  }
-
-  await invalidateOnChange('users', env.RATE_LIMITER);
-
-  return json({
-    message: `Updated ${results.length} staff members with new passwords`,
-    updated: results.length,
-    staff: results
-  });
 });
 
 } // end registerTeamRoutes

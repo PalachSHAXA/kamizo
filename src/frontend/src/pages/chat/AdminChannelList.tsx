@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { Loader2, MessageSquare, Search, MapPin, Building2, Home } from 'lucide-react';
+import { Loader2, MessageSquare, Search, MapPin, Building2 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { EmptyState, ScrollArea } from '../../components/common';
 import { formatName } from '../../utils/formatName';

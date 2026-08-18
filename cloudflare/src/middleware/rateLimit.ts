@@ -11,8 +11,13 @@ import type { Env, RateLimitConfig, User } from '../types';
 export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Auth
   'POST:/api/auth/login': { maxRequests: 5, windowSeconds: 60 },
+  'GET:/api/auth/demo-roles': { maxRequests: 30, windowSeconds: 60 },
+  'POST:/api/auth/demo-login': { maxRequests: 5, windowSeconds: 60 },
+  'POST:/api/auth/impersonation-exchange': { maxRequests: 5, windowSeconds: 60 },
   'POST:/api/auth/register': { maxRequests: 60, windowSeconds: 60 },
   'POST:/api/auth/register-bulk': { maxRequests: 30, windowSeconds: 60 },
+  'POST:/api/super-admin/demo/provision': { maxRequests: 2, windowSeconds: 60 },
+  'GET:/api/super-admin/demo/status': { maxRequests: 30, windowSeconds: 60 },
 
   // Sprint 74 P0/F1: SMS / OTP — tightest of all (SMS-gateway cost +
   // victim-cooldown burn). Keyed per-caller via getClientIdentifier.
@@ -23,7 +28,6 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   'POST:/api/users/me/password': { maxRequests: 5, windowSeconds: 60 },
   'POST:/api/users/:id/password': { maxRequests: 10, windowSeconds: 60 },
   'POST:/api/users/:id/reset-password': { maxRequests: 10, windowSeconds: 60 },
-  'POST:/api/admin/reset-password': { maxRequests: 10, windowSeconds: 60 },
 
   // Sprint 74 P1/F6: plate-search staff-side enumeration cap.
   'GET:/api/vehicles/search': { maxRequests: 30, windowSeconds: 60 },
@@ -59,7 +63,6 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   'POST:/api/requests': { maxRequests: 20, windowSeconds: 60 },
   'GET:/api/users': { maxRequests: 30, windowSeconds: 60 },
   'GET:/api/announcements': { maxRequests: 30, windowSeconds: 60 },
-  'POST:/api/_emergency-reset': { maxRequests: 3, windowSeconds: 3600 },
   'default': { maxRequests: 100, windowSeconds: 60 }
 };
 
@@ -106,10 +109,48 @@ export async function checkRateLimit(
   }
 }
 
+function isValidIp(ip: string): boolean {
+  if (!ip || /[\s,]/.test(ip)) return false;
+
+  if (!ip.includes(':')) {
+    const octets = ip.split('.');
+    return octets.length === 4 && octets.every((octet) =>
+      /^(0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255
+    );
+  }
+
+  if (!/^[0-9a-f:.]+$/i.test(ip)) return false;
+  try {
+    new URL(`http://[${ip}]/`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getClientIdentifier(request: Request, user?: User | null): string {
   if (user?.id) return `user:${user.id}`;
-  const ip = request.headers.get('CF-Connecting-IP') ||
-             request.headers.get('X-Forwarded-For') ||
-             'unknown';
+
+  const realIp = request.headers.get('X-Real-IP');
+  const forwardedFor = request.headers.get('X-Forwarded-For');
+  const cloudflareIp = request.cf !== undefined
+    ? request.headers.get('CF-Connecting-IP')
+    : null;
+  const candidate = realIp !== null
+    ? realIp
+    : forwardedFor !== null
+      ? /[\r\n]/.test(forwardedFor)
+        ? ''
+        : forwardedFor.split(',', 1)[0].trim()
+      : cloudflareIp;
+  const ip = candidate !== null && isValidIp(candidate) ? candidate : 'unknown';
   return `ip:${ip}`;
+}
+
+export function getRateLimitIdentifier(
+  request: Request,
+  user: User | null,
+  endpoint: string,
+): string {
+  return getClientIdentifier(request, endpoint === 'POST:/api/auth/demo-login' ? null : user);
 }

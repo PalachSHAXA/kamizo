@@ -33,7 +33,7 @@ export function ThankModal({ employee, onClose, onSubmit }: {
 }) {
   const { language } = useLanguageStore();
   const thankReasons = THANK_REASONS[language as 'ru' | 'uz'] ?? THANK_REASONS.ru;
-  const [reason, setReason] = useState(thankReasons[0]);
+  const [reason, setReason] = useState<string>(thankReasons[0]);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   const handleSubmit = () => {
@@ -73,4 +73,3 @@ export function ThankModal({ employee, onClose, onSubmit }: {
     </Modal>
   );
 }
-

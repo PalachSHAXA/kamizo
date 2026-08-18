@@ -1,8 +1,37 @@
 import { create } from 'zustand';
-import type { Vehicle } from '../types';
+import { registerSessionStore } from './sessionRegistry';
+import type { Vehicle, VehicleOwnerType, VehicleType } from '../types';
+import type { VehicleDto } from '../services/api/vehicles';
 import { vehiclesApi } from '../services/api';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const isVehicleType = (value: string | undefined): value is VehicleType =>
+  value === 'car' || value === 'suv' || value === 'motorcycle' || value === 'truck' || value === 'other';
+
+const isVehicleOwnerType = (value: string | undefined): value is VehicleOwnerType =>
+  value === 'individual' || value === 'legal_entity' || value === 'service' || value === 'resident';
+
+const mapVehicle = (vehicle: VehicleDto): Vehicle => ({
+  id: vehicle.id,
+  ownerId: vehicle.user_id || vehicle.resident_id || '',
+  ownerName: vehicle.owner_name || '',
+  ownerPhone: vehicle.owner_phone || '',
+  apartment: vehicle.apartment || '',
+  address: vehicle.address || '',
+  plateNumber: vehicle.plate_number || '',
+  brand: vehicle.brand || '',
+  model: vehicle.model || '',
+  color: vehicle.color || '',
+  year: vehicle.year || undefined,
+  type: isVehicleType(vehicle.vehicle_type) ? vehicle.vehicle_type : 'car',
+  ownerType: isVehicleOwnerType(vehicle.owner_type) ? vehicle.owner_type : 'individual',
+  companyName: vehicle.company_name || undefined,
+  parkingSpot: vehicle.parking_spot || undefined,
+  notes: vehicle.notes || undefined,
+  createdAt: vehicle.created_at || '',
+  updatedAt: vehicle.updated_at || undefined,
+});
 
 interface VehicleState {
   vehicles: Vehicle[];
@@ -30,26 +59,7 @@ export const useVehicleStore = create<VehicleState>()(
           ? await vehiclesApi.getAll()  // /api/vehicles/all - all vehicles for staff
           : await vehiclesApi.getMyVehicles();  // /api/vehicles - only user's vehicles
         // Map API response to Vehicle type (API now returns all fields from DB + owner info)
-        const mappedVehicles: Vehicle[] = (response.vehicles || []).map((v: Record<string, unknown>) => ({
-          id: v.id,
-          ownerId: v.user_id,
-          ownerName: v.owner_name || '',
-          ownerPhone: v.owner_phone || '',
-          apartment: v.apartment || '',
-          address: v.address || '',
-          plateNumber: (v.plate_number as string) || '',
-          brand: v.brand || '',
-          model: v.model || '',
-          color: v.color || '',
-          year: v.year || undefined,
-          type: (v.vehicle_type || 'car') as Vehicle['type'],
-          ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
-          companyName: v.company_name || undefined,
-          parkingSpot: v.parking_spot || undefined,
-          notes: v.notes || undefined,
-          createdAt: v.created_at,
-          updatedAt: v.updated_at || undefined,
-        } as Vehicle));
+        const mappedVehicles = (response.vehicles || []).map(mapVehicle);
         set({ vehicles: mappedVehicles, isLoadingVehicles: false });
       } catch (error) {
         console.error('Failed to fetch vehicles:', error);
@@ -104,26 +114,15 @@ export const useVehicleStore = create<VehicleState>()(
 
         // Replace temp with real data from server
         const v = response.vehicle;
-        const realVehicle: Vehicle = {
-          id: v.id,
-          ownerId: v.user_id,
-          ownerName: v.owner_name || vehicleData.ownerName,
-          ownerPhone: v.owner_phone || vehicleData.ownerPhone,
+        const realVehicle = mapVehicle({
+          ...v,
+          user_id: v.user_id || vehicleData.ownerId,
+          owner_name: v.owner_name || vehicleData.ownerName,
+          owner_phone: v.owner_phone || vehicleData.ownerPhone,
           apartment: v.apartment || vehicleData.apartment,
           address: v.address || vehicleData.address,
-          plateNumber: v.plate_number,
-          brand: v.brand || '',
-          model: v.model || '',
-          color: v.color || '',
-          year: v.year || undefined,
-          type: (v.vehicle_type || 'car') as Vehicle['type'],
-          ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
-          companyName: v.company_name || undefined,
-          parkingSpot: v.parking_spot || undefined,
-          notes: v.notes || undefined,
-          createdAt: v.created_at || now,
-          updatedAt: v.updated_at || undefined,
-        };
+          created_at: v.created_at || now,
+        });
 
         // Replace optimistic with real
         set((state) => ({
@@ -212,27 +211,7 @@ export const useVehicleStore = create<VehicleState>()(
         // Call API to search vehicles (returns all fields + owner info)
         const response = await vehiclesApi.search(plateNumber);
         if (response.vehicles && response.vehicles.length > 0) {
-          const v = response.vehicles[0];
-          return {
-            id: v.id,
-            ownerId: v.user_id,
-            ownerName: v.owner_name || '',
-            ownerPhone: v.owner_phone || '',
-            apartment: v.apartment || '',
-            address: v.address || '',
-            plateNumber: v.plate_number,
-            brand: v.brand || '',
-            model: v.model || '',
-            color: v.color || '',
-            year: v.year || undefined,
-            type: (v.vehicle_type || 'car') as Vehicle['type'],
-            ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
-            companyName: v.company_name || undefined,
-            parkingSpot: v.parking_spot || undefined,
-            notes: v.notes || undefined,
-            createdAt: v.created_at,
-            updatedAt: v.updated_at || undefined,
-          } as Vehicle;
+          return mapVehicle(response.vehicles[0]);
         }
         return undefined;
       } catch (error) {
@@ -249,26 +228,7 @@ export const useVehicleStore = create<VehicleState>()(
       try {
         const response = await vehiclesApi.search(plateNumber);
         if (response.vehicles && response.vehicles.length > 0) {
-          return response.vehicles.map((v: Record<string, unknown>) => ({
-            id: v.id as string,
-            ownerId: v.user_id as string,
-            ownerName: (v.owner_name as string) || '',
-            ownerPhone: (v.owner_phone as string) || '',
-            apartment: (v.apartment as string) || '',
-            address: (v.address as string) || '',
-            plateNumber: v.plate_number as string,
-            brand: (v.brand as string) || '',
-            model: (v.model as string) || '',
-            color: (v.color as string) || '',
-            year: v.year || undefined,
-            type: (v.vehicle_type || 'car') as Vehicle['type'],
-            ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
-            companyName: v.company_name || undefined,
-            parkingSpot: v.parking_spot || undefined,
-            notes: v.notes || undefined,
-            createdAt: v.created_at,
-            updatedAt: v.updated_at || undefined,
-          } as Vehicle));
+          return response.vehicles.map(mapVehicle);
         }
         return [];
       } catch (error) {
@@ -278,3 +238,5 @@ export const useVehicleStore = create<VehicleState>()(
     },
   })
 );
+
+registerSessionStore(useVehicleStore);

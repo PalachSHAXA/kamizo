@@ -1,4 +1,4 @@
-// Password encryption, hashing, and JWT utilities
+// Password hashing and JWT utilities
 // Framework-agnostic — uses Web Crypto API (works in Workers, Node 20+, Bun, Deno)
 
 // ── JWT (HMAC-SHA256 via Web Crypto API) ─────────────────────────────
@@ -7,6 +7,9 @@ export interface JwtPayload {
   userId: string;
   role: string;
   tenantId?: string;
+  demo_session?: true;
+  imp?: true;
+  imp_by?: string;
 }
 
 function base64urlEncode(data: Uint8Array | string): string {
@@ -73,51 +76,23 @@ export async function verifyJWT(token: string, secret: string | undefined): Prom
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) return null;
 
-    return {
+    const verifiedPayload: JwtPayload = {
       userId: payload.userId,
       role: payload.role,
       tenantId: payload.tenantId,
     };
+    if (payload.demo_session === true) verifiedPayload.demo_session = true;
+    if (payload.imp === true && typeof payload.imp_by === 'string') {
+      verifiedPayload.imp = true;
+      verifiedPayload.imp_by = payload.imp_by;
+    }
+    return verifiedPayload;
   } catch {
     return null;
   }
 }
 
-// ── Password encryption and hashing ──────────────────────────────────
-
-export async function encryptPassword(plainText: string, keyString: string): Promise<string> {
-  if (!keyString) throw new Error('ENCRYPTION_KEY is required — set it in .dev.vars or wrangler secrets');
-  const enc = new TextEncoder();
-  if (new TextEncoder().encode(keyString).length < 32) throw new Error('ENCRYPTION_KEY must be at least 32 bytes');
-  const keyData = enc.encode(keyString.slice(0, 32));
-  const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt']);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plainText));
-  const ivB64 = btoa(String.fromCharCode(...iv));
-  const encB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-  return `enc:${ivB64}:${encB64}`;
-}
-
-export async function decryptPassword(stored: string | null, keyString: string): Promise<string | null> {
-  if (!stored) return null;
-  if (!stored.startsWith('enc:')) return stored;
-  try {
-    const parts = stored.split(':');
-    const ivB64 = parts[1];
-    const encB64 = parts[2];
-    const enc = new TextEncoder();
-    if (!keyString) throw new Error('ENCRYPTION_KEY is required — set it in .dev.vars or wrangler secrets');
-    if (new TextEncoder().encode(keyString).length < 32) throw new Error('ENCRYPTION_KEY must be at least 32 bytes');
-  const keyData = enc.encode(keyString.slice(0, 32));
-    const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['decrypt']);
-    const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
-    const encrypted = Uint8Array.from(atob(encB64), c => c.charCodeAt(0));
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
-    return new TextDecoder().decode(decrypted);
-  } catch {
-    return stored;
-  }
-}
+// ── Password hashing ─────────────────────────────────────────────────
 
 // Workers CPU limit: 100k iterations causes timeout on free plan (~50ms CPU).
 // 50,000 iterations ~25ms — safe margin for Workers. Stored in hash for auto-migration.

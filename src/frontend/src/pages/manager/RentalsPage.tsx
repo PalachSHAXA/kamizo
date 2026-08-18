@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Phone, FileText, Calendar, CheckCircle, AlertCircle, Loader2, GitBranch, Building2, ChevronRight, Banknote, Home } from 'lucide-react';
-import { EmptyState, StatusBadge } from '../../components/common';
+import { EmptyState } from '../../components/common';
 import { pluralWithCount } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useRentalStore } from '../../stores/dataStore';
@@ -29,6 +29,25 @@ interface Resident {
   apartment: string;
   login?: string;
 }
+
+const isBranch = (value: Record<string, unknown>): value is Record<string, unknown> & Branch =>
+  typeof value.code === 'string' && typeof value.name === 'string';
+
+const isBuilding = (value: Record<string, unknown>): value is Record<string, unknown> & Building =>
+  typeof value.id === 'string' && typeof value.name === 'string' &&
+  typeof value.address === 'string' && typeof value.branch_code === 'string';
+
+const toResident = (value: Record<string, unknown>): Resident | null => {
+  if (typeof value.id !== 'string' || typeof value.name !== 'string') return null;
+  return {
+    id: value.id,
+    name: value.name,
+    phone: typeof value.phone === 'string' ? value.phone : '',
+    address: typeof value.address === 'string' ? value.address : '',
+    apartment: typeof value.apartment === 'string' ? value.apartment : '',
+    login: typeof value.login === 'string' ? value.login : undefined,
+  };
+};
 
 export function RentalsPage() {
   const { user } = useAuthStore();
@@ -115,7 +134,7 @@ export function RentalsPage() {
       setLoadingBranches(true);
       try {
         const data = await branchesApi.getAll();
-        setBranches(data.branches || []);
+        setBranches((data.branches || []).filter(isBranch));
       } catch (error) {
         console.error('Failed to load branches:', error);
       } finally {
@@ -142,9 +161,9 @@ export function RentalsPage() {
       setSelectedResident(null);
       try {
         const data = await buildingsApi.getAll();
-        const filteredBuildings = (data.buildings || []).filter(
-          (b: Building) => b.branch_code === selectedBranch
-        );
+        const filteredBuildings = (data.buildings || [])
+          .filter(isBuilding)
+          .filter(b => b.branch_code === selectedBranch);
         setBuildings(filteredBuildings);
       } catch (error) {
         console.error('Failed to load buildings:', error);
@@ -168,7 +187,7 @@ export function RentalsPage() {
       setSelectedResident(null);
       try {
         const data = await usersApi.getAll({ role: 'resident', building_id: selectedBuilding, limit: 500 });
-        setResidents(data.users || []);
+        setResidents((data.users || []).map(toResident).filter((resident): resident is Resident => resident !== null));
       } catch (error) {
         console.error('Failed to load residents:', error);
       } finally {

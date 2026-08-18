@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
-import { CreditCard, Plus, Search, Filter, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { CreditCard, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePaymentsStore } from '../stores/paymentsStore';
 import { useLanguageStore } from '../stores/languageStore';
-import { useToastStore } from '../stores/toastStore';
 import { PageSkeleton } from '../components/PageSkeleton';
 import { EmptyState } from '../components/common/EmptyState';
 
@@ -20,21 +19,10 @@ interface Payment {
 
 export function PaymentsPage() {
   const { language } = useLanguageStore();
-  const { addToast } = useToastStore();
   const {
     payments, isLoading, filters, pagination,
-    fetchPayments, createPayment, setFilters,
+    fetchPayments, setFilters,
   } = usePaymentsStore();
-
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    apartment_id: '',
-    amount: '',
-    payment_type: 'cash',
-    period: '',
-    description: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
 
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
 
@@ -57,27 +45,6 @@ export function PaymentsPage() {
 
   const handleSearch = () => {
     fetchPayments();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.apartment_id || !form.amount) {
-      addToast('error', t('Заполните обязательные поля', 'Majburiy maydonlarni to\'ldiring'));
-      return;
-    }
-    setSubmitting(true);
-    const ok = await createPayment({
-      apartment_id: form.apartment_id,
-      amount: parseFloat(form.amount),
-      payment_type: form.payment_type,
-      period: form.period || undefined,
-      description: form.description || undefined,
-    });
-    setSubmitting(false);
-    if (ok) {
-      setShowModal(false);
-      setForm({ apartment_id: '', amount: '', payment_type: 'cash', period: '', description: '' });
-    }
   };
 
   const statusLabel = (status: string) => {
@@ -116,13 +83,6 @@ export function PaymentsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl font-medium shadow-sm active:scale-[0.97] transition-transform"
-        >
-          <Plus className="w-4 h-4" />
-          {t('Добавить платёж', "To'lov qo'shish")}
-        </button>
       </div>
 
       {/* Filters */}
@@ -169,8 +129,7 @@ export function PaymentsPage() {
         <EmptyState
           icon={<CreditCard className="w-12 h-12 text-gray-300" />}
           title={t('Нет платежей', 'To\'lovlar yo\'q')}
-          description={t('Платежи появятся здесь после создания', 'To\'lovlar yaratilgandan keyin bu yerda ko\'rinadi')}
-          action={{ label: t('Добавить платёж', 'To\'lov qo\'shish'), onClick: () => setShowModal(true) }}
+          description={t('Новые платежи учитываются в разделе «Начисления»', 'Yangi to\'lovlar «Hisob-kitob» bo\'limida yuritiladi')}
         />
       ) : (
         <div className="bg-white/60 rounded-xl border border-gray-100 overflow-hidden">
@@ -258,94 +217,6 @@ export function PaymentsPage() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Create Payment Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
-              <h2 className="text-lg font-semibold">{t('Новый платёж', 'Yangi to\'lov')}</h2>
-              <button onClick={() => setShowModal(false)} className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('ID квартиры *', 'Kvartira ID *')}</label>
-                <input
-                  type="text"
-                  value={form.apartment_id}
-                  onChange={(e) => setForm({ ...form, apartment_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
-                  placeholder={t('UUID квартиры', 'Kvartira UUID')}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Сумма *', 'Summa *')}</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  pattern="[0-9]*"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9.]/g, '') })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
-                  placeholder={t('Сумма в сумах', 'So\'m miqdori')}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Тип оплаты', 'To\'lov turi')}</label>
-                <select
-                  value={form.payment_type}
-                  onChange={(e) => setForm({ ...form, payment_type: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
-                >
-                  <option value="cash">{t('Наличные', 'Naqd')}</option>
-                  <option value="card">{t('Карта', 'Karta')}</option>
-                  <option value="transfer">{t('Перевод', 'O\'tkazma')}</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Период', 'Davr')}</label>
-                <input
-                  type="month"
-                  value={form.period}
-                  onChange={(e) => setForm({ ...form, period: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Описание', 'Tavsif')}</label>
-                <input
-                  type="text"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 outline-none"
-                  placeholder={t('Комментарий к платежу', 'To\'lov sharhi')}
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  {t('Отмена', 'Bekor qilish')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {t('Создать', 'Yaratish')}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>

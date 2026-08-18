@@ -26,9 +26,11 @@ vi.mock('../toastStore', () => ({
 }))
 
 import { useFinanceStore } from '../financeStore'
+import { financeApi } from '../../services/api/finance'
 
 describe('financeStore', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     // Reset store to initial state
     useFinanceStore.setState({
       estimates: [],
@@ -88,5 +90,30 @@ describe('financeStore', () => {
     expect(state.filters.status).toBe('active')
     expect(state.filters.buildingId).toBe('')
     expect(state.filters.period).toBe('')
+  })
+
+  it('forwards the payment idempotency key to the API', async () => {
+    vi.mocked(financeApi.createPayment).mockResolvedValueOnce({ payment: { receipt_number: 'R-1' } })
+    vi.mocked(financeApi.getPayments).mockResolvedValueOnce({ data: [], pagination: {} })
+    const payment = { apartment_id: 'apartment-1', amount: 125000, payment_type: 'cash' }
+
+    await expect(useFinanceStore.getState().createPayment(payment, 'payment-attempt-123')).resolves.toBe(true)
+
+    expect(financeApi.createPayment).toHaveBeenCalledWith(payment, 'payment-attempt-123')
+  })
+
+  it('returns false on API rejection and accepts a retry with the same caller key', async () => {
+    vi.mocked(financeApi.createPayment)
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce({ payment: { receipt_number: 'R-2' } })
+    vi.mocked(financeApi.getPayments).mockResolvedValue({ data: [], pagination: {} })
+    const payment = { apartment_id: 'apartment-1', amount: 125000, payment_type: 'cash' }
+    const key = 'payment-attempt-456'
+
+    await expect(useFinanceStore.getState().createPayment(payment, key)).resolves.toBe(false)
+    await expect(useFinanceStore.getState().createPayment(payment, key)).resolves.toBe(true)
+
+    expect(financeApi.createPayment).toHaveBeenNthCalledWith(1, payment, key)
+    expect(financeApi.createPayment).toHaveBeenNthCalledWith(2, payment, key)
   })
 })

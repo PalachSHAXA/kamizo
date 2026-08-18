@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { apiLogin, apiCall, loginAs } from './helpers/auth';
+import { test, expect } from './fixtures';
+import { API, apiLogin, apiCall, loginAs } from './helpers/auth';
 
 test('api: director can list meetings (200)', async () => {
   const { token } = await apiLogin('director');
@@ -32,18 +32,24 @@ test('rbac: register cannot escalate to super_admin (privilege escalation gate)'
 });
 
 test('rbac: GET /api/executors requires auth', async ({ request }) => {
-  const res = await request.get('http://localhost:8787/api/executors');
+  const res = await request.get(`${API}/api/executors`);
   expect([401, 403]).toContain(res.status());
 });
 
+test('api: manager can list executors against the production rating contract', async () => {
+  const { token } = await apiLogin('manager');
+  const res = await apiCall(token, 'GET', '/api/executors');
+  expect(res.status).toBe(200);
+});
+
 test('rbac: emergency-reset rejects old hardcoded secret', async ({ request }) => {
-  const res = await request.post('http://localhost:8787/api/_emergency-reset', {
+  const res = await request.post(`${API}/api/_emergency-reset`, {
     data: { secret: 'kamizo-emergency-2026', user_id: 'sa-001', password: 'x' },
     headers: { 'content-type': 'application/json' },
   });
-  // 503 (disabled), 403 (forbidden — wrong secret), or 429 (rate-limited from prior test runs)
+  // 503 (disabled), 404 (route removed), 403 (wrong secret), or 429 (rate-limited)
   // are ALL valid — they prove the old hardcoded secret no longer works
-  expect([403, 429, 503]).toContain(res.status());
+  expect([403, 404, 429, 503]).toContain(res.status());
 });
 
 test('ui: director navigates to meetings page', async ({ page }) => {

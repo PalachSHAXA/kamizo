@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type { Request, ChartData, CancelledBy, RescheduleRequest, RescheduleReason, RescheduleInitiator } from '../types';
 import { computeChartData, computeExecutorStats, computeOverallStats } from './requestStats';
 import { useAuthStore } from './authStore';
@@ -10,6 +11,17 @@ import { useToastStore } from './toastStore';
 import { pushNotifications } from '../services/pushNotifications';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+export const parseRequestPhotos = (value: unknown, fallback?: string[]): string[] | undefined => {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value !== 'string') return fallback;
+
+  try {
+    return JSON.parse(value) as string[];
+  } catch {
+    return fallback;
+  }
+};
 
 interface RequestState {
   requests: Request[];
@@ -84,10 +96,10 @@ export const useRequestStore = create<RequestState>()(
         const response = await requestsApi.getAll(status, category);
         // Map API response to Request type
         const requests = response.requests || [];
-        const mappedRequests: Request[] = requests.map((r: Record<string, unknown>) => ({
+        const mappedRequests: Request[] = requests.map((r) => ({
           id: r.id,
           // Use prefixed request_number first, then number, then generate from id
-          number: r.request_number || r.number || `#${r.id?.substring(0, 6).toUpperCase() || '000000'}`,
+          number: r.request_number || r.number || `#${typeof r.id === 'string' ? r.id.substring(0, 6).toUpperCase() : '000000'}`,
           title: r.title,
           description: r.description || '',
           category: r.category_id,
@@ -102,8 +114,8 @@ export const useRequestStore = create<RequestState>()(
           executorName: r.executor_name,
           executorPhone: r.executor_phone,
           accessInfo: r.access_info,
-          scheduledDate: r.scheduled_at ? r.scheduled_at.split('T')[0] : undefined,
-          scheduledTime: r.scheduled_at ? r.scheduled_at.split('T')[1]?.substring(0, 5) : undefined,
+          scheduledDate: typeof r.scheduled_at === 'string' ? r.scheduled_at.split('T')[0] : undefined,
+          scheduledTime: typeof r.scheduled_at === 'string' ? r.scheduled_at.split('T')[1]?.substring(0, 5) : undefined,
           createdAt: r.created_at,
           assignedAt: r.assigned_at,
           acceptedAt: r.accepted_at,
@@ -115,13 +127,8 @@ export const useRequestStore = create<RequestState>()(
           workDuration: r.work_duration,
           buildingId: r.building_id,
           buildingName: r.building_name,
-          photos: (() => {
-            // photos column is TEXT (JSON-encoded array of data-URLs).
-            // Tolerate both string and already-parsed array.
-            if (!r.photos) return undefined;
-            if (Array.isArray(r.photos)) return r.photos;
-            try { return JSON.parse(r.photos); } catch { return undefined; }
-          })(),
+          // photos is TEXT in SQLite but can already be decoded by an API adapter.
+          photos: parseRequestPhotos(r.photos),
           // Pause fields from DB
           isPaused: r.is_paused === 1 || r.is_paused === true,
           pausedAt: r.paused_at,
@@ -215,7 +222,7 @@ export const useRequestStore = create<RequestState>()(
         }
         const realRequest: Request = {
           id: apiRequest.id,
-          number: apiRequest.request_number || apiRequest.number,
+          number: apiRequest.request_number || apiRequest.number || `#${apiRequest.id.substring(0, 6).toUpperCase()}`,
           title: apiRequest.title,
           description: apiRequest.description,
           category: apiRequest.category_id,
@@ -226,33 +233,13 @@ export const useRequestStore = create<RequestState>()(
           residentPhone: apiRequest.resident_phone,
           address: apiRequest.address,
           apartment: apiRequest.apartment,
-          // v118.100 — photos were silently dropped on the optimistic→
-          // real swap. The list-fetch path parses requests.photos (TEXT,
-          // JSON-encoded array of data-URLs) at line 118, but this
-          // create-path realRequest omitted the field entirely, so the
-          // request detail view showed no photo immediately after
-          // creation even though the row was persisted correctly
-          // server-side. Mirror the list-fetch parser; fall back to the
-          // optimistic payload if the server-echoed photos can't be
-          // parsed (rare — defensive).
-          photos: (() => {
-            const p = apiRequest.photos;
-            if (!p) return requestData.photos;
-            if (Array.isArray(p)) return p as string[];
-            try { return JSON.parse(p as string) as string[]; } catch { return requestData.photos; }
-          })(),
           createdAt: apiRequest.created_at,
           // Keep the photos. The server returns them (r.* → photos JSON), but
           // they were missing from this mapping — so the optimistic request
           // (which HAD the photos) got replaced by a photo-less one and the
           // photo "disappeared a split second after creation". Parse the
           // server value; fall back to what we just attached.
-          photos: (() => {
-            const p = (apiRequest as { photos?: unknown }).photos;
-            if (Array.isArray(p)) return p as string[];
-            if (typeof p === 'string') { try { return JSON.parse(p); } catch { /* fall through */ } }
-            return requestData.photos;
-          })(),
+          photos: parseRequestPhotos(apiRequest.photos, requestData.photos),
         };
 
         // Replace optimistic with real
@@ -965,10 +952,10 @@ export const useRequestStore = create<RequestState>()(
         const reschedules = response.reschedules || [];
 
         // Map API response to RescheduleRequest type
-        const mappedReschedules: RescheduleRequest[] = reschedules.map((r: Record<string, unknown>) => ({
+        const mappedReschedules: RescheduleRequest[] = reschedules.map((r) => ({
           id: r.id,
           requestId: r.request_id,
-          requestNumber: r.request_number || r.request_title || `#${r.request_id?.substring(0, 6)}`,
+          requestNumber: r.request_number || r.request_title || `#${typeof r.request_id === 'string' ? r.request_id.substring(0, 6) : ''}`,
           initiator: r.initiator as RescheduleInitiator,
           initiatorId: r.initiator_id,
           initiatorName: r.initiator_name,
@@ -1130,3 +1117,5 @@ export const useRequestStore = create<RequestState>()(
     },
   })
 );
+
+registerSessionStore(useRequestStore);

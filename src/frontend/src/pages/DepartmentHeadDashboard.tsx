@@ -18,6 +18,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useFeatureFetch } from '../stores/useFeatureFetch';
 import { SPECIALIZATION_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../types';
 import type { ExecutorSpecialization } from '../types';
+import type { PieLabelRenderProps } from 'recharts';
 
 export function DepartmentHeadDashboard() {
   const { user } = useAuthStore();
@@ -176,7 +177,7 @@ export function DepartmentHeadDashboard() {
                         outerRadius={80}
                         paddingAngle={5}
                         dataKey="value"
-                        label={({ name, value }: { name: string; value: number }) => `${name}: ${value}`}
+                        label={({ name, value }: PieLabelRenderProps) => `${name ?? ''}: ${value ?? 0}`}
                       >
                         {statusData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />

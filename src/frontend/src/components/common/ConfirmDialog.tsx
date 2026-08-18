@@ -1,5 +1,6 @@
 import { AlertTriangle, LogOut } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Modal } from '../ui/Modal';
 
 type Tone = 'danger' | 'warning' | 'primary';
 
@@ -53,49 +54,41 @@ export function ConfirmDialog({
   confirmDisabled,
   children,
 }: ConfirmDialogProps) {
-  if (!isOpen) return null;
   const cfg = TONE_CONFIG[tone];
   const iconNode = icon ?? cfg.defaultIcon;
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4 anim-backdrop-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
-      onClick={onClose}
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      ariaLabel={title}
+      size="sm"
+      hideCloseButton
+      backdropClassName="!items-center !p-4"
+      panelClassName="!max-w-sm !rounded-2xl p-6 anim-modal-in"
     >
-      <div
-        className="bg-white rounded-2xl p-6 max-w-sm w-full max-h-[90dvh] overflow-y-auto anim-modal-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={`flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4 ${cfg.iconBg} ${cfg.iconFg}`}>
-          {iconNode}
-        </div>
-        <h3 id="confirm-dialog-title" className="text-lg font-bold text-center mb-2">
-          {title}
-        </h3>
-        {description && (
-          <div className="text-gray-500 text-center text-sm mb-4">
-            {description}
-          </div>
-        )}
-        {children && <div className="mb-4">{children}</div>}
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 px-4 min-h-[44px] rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={confirmDisabled}
-            className={`flex-1 py-3 px-4 min-h-[44px] rounded-xl font-semibold transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${cfg.confirmBg}`}
-          >
-            {confirmLabel}
-          </button>
-        </div>
+      <div className={`flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4 ${cfg.iconBg} ${cfg.iconFg}`}>
+        {iconNode}
       </div>
-    </div>
+      <h3 className="text-lg font-bold text-center mb-2">{title}</h3>
+      {description && <div className="text-gray-500 text-center text-sm mb-4">{description}</div>}
+      {children && <div className="mb-4">{children}</div>}
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 py-3 px-4 min-h-[44px] rounded-xl font-medium bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={confirmDisabled}
+          className={`flex-1 py-3 px-4 min-h-[44px] rounded-xl font-semibold transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${cfg.confirmBg}`}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
   );
 }

@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  UserCog, Wrench, X, Plus,
+  UserCog, Wrench, Plus,
   Loader2, RefreshCw,
   Shield, Search, Filter,
-  Key,
   Download, Upload,
 } from 'lucide-react';
 import { StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
-import { teamApi, apiRequest } from '../../services/api';
+import { teamApi, usersApi, apiRequest } from '../../services/api';
 import { pluralWithCount } from '../../utils/plural';
 import { downloadBlob } from '../../utils/downloadFile';
 import { CredentialsModal } from './team/CredentialsModal';
@@ -22,7 +21,7 @@ import { useTenantStore } from '../../stores/tenantStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { SPECIALIZATION_LABELS } from '../../types';
-import type { ExecutorSpecialization } from '../../types';
+import type { ExecutorSpecialization, UserRole } from '../../types';
 
 
 const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
@@ -40,26 +39,54 @@ const SPECIALIZATION_LABELS_UZ: Record<string, string> = {
   other: 'Boshqa',
 };
 
+const STAFF_ROLE_RANK: Partial<Record<UserRole, number>> = {
+  admin: 80,
+  director: 80,
+  department_head: 60,
+  manager: 50,
+  advertiser: 50,
+  dispatcher: 40,
+  executor: 30,
+  security: 30,
+};
+
+function canResetStaffPassword(
+  caller: { id: string; role: UserRole } | null | undefined,
+  target: StaffMember | null,
+) {
+  if (!caller || !target || (caller.role !== 'admin' && caller.role !== 'director')) return false;
+  if (caller.id === target.id) return true;
+  return (STAFF_ROLE_RANK[caller.role] ?? 0) > (STAFF_ROLE_RANK[target.role] ?? 0);
+}
+
 export function TeamPage() {
-  const { user: currentUser } = useAuthStore();
+  const currentUser = useAuthStore(s => s.user);
   const { hasFeature } = useTenantStore();
   const { language } = useLanguageStore();
   const addToast = useToastStore(s => s.addToast);
   const isDirector = currentUser?.role === 'director';
+  const isDemoSession = currentUser?.demoSession === true;
   const [directors, setDirectors] = useState<StaffMember[]>([]);
   const [admins, setAdmins] = useState<StaffMember[]>([]);
   const [managers, setManagers] = useState<StaffMember[]>([]);
   const [departmentHeads, setDepartmentHeads] = useState<StaffMember[]>([]);
   const [executors, setExecutors] = useState<StaffMember[]>([]);
+  const [teamTotal, setTeamTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // UI State
   const [selectedMember, setSelectedMember] = useState<StaffMember | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [showCredentialsModal, setShowCredentialsModal] = useState<{ login: string; password: string } | null>(null);
+  const [showCredentialsModal, setShowCredentialsModal] = useState<{
+    login: string;
+    password: string;
+    mode: 'create' | 'reset';
+  } | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const resetInFlightRef = useRef(false);
+  const resetFocusRef = useRef<HTMLButtonElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [specializationFilter, setSpecializationFilter] = useState<ExecutorSpecialization | 'all'>('all');
   const [expandedSections, setExpandedSections] = useState({
@@ -75,10 +102,8 @@ export function TeamPage() {
     name: '',
     phone: '',
     login: '',
-    password: '',
     specialization: '' as ExecutorSpecialization | '',
   });
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // Add new member modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -112,12 +137,13 @@ export function TeamPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await teamApi.getAll() as { directors?: StaffMember[]; admins?: StaffMember[]; managers?: StaffMember[]; departmentHeads?: StaffMember[]; executors?: StaffMember[] };
+      const data = await teamApi.getAll();
       setDirectors(data.directors || []);
       setAdmins(data.admins || []);
       setManagers(data.managers || []);
       setDepartmentHeads(data.departmentHeads || []);
       setExecutors(data.executors || []);
+      setTeamTotal(data.total);
     } catch (err: unknown) {
       setError((err instanceof Error ? err.message : '') || (language === 'ru' ? 'Ошибка загрузки данных' : 'Ma\'lumotlarni yuklashda xatolik'));
     } finally {
@@ -171,16 +197,13 @@ export function TeamPage() {
     setSelectedMember(member);
     setEditForm({
       name: member.name,
-      phone: member.phone,
+      phone: member.phone || '',
       login: member.login,
-      password: '',
       specialization: member.specialization || '',
     });
     setIsEditing(false);
-    setShowPassword(false);
 
-    // Then fetch fresh data from API (including password)
-    setIsLoadingDetails(true);
+    // Then fetch fresh profile data from API.
     try {
       const response = await teamApi.getById(member.id);
       if (response.user) {
@@ -191,23 +214,19 @@ export function TeamPage() {
         setSelectedMember(freshData);
         setEditForm({
           name: freshData.name,
-          phone: freshData.phone,
+          phone: freshData.phone || '',
           login: freshData.login,
-          password: '',
           specialization: freshData.specialization || '',
         });
       }
     } catch (err) {
       console.error('Failed to fetch staff details:', err);
-    } finally {
-      setIsLoadingDetails(false);
     }
   };
 
   const handleCloseDetails = () => {
     setSelectedMember(null);
     setIsEditing(false);
-    setShowPassword(false);
   };
 
   const handleCopy = (text: string, field: string) => {
@@ -217,14 +236,13 @@ export function TeamPage() {
   };
 
   const handleSaveChanges = async () => {
-    if (!selectedMember) return;
+    if (!selectedMember || isDemoSession) return;
 
     try {
       const updates: Record<string, string> = {};
       if (editForm.name !== selectedMember.name) updates.name = editForm.name;
-      if (editForm.phone !== selectedMember.phone) updates.phone = editForm.phone;
+      if (editForm.phone !== (selectedMember.phone || '')) updates.phone = editForm.phone;
       if (editForm.login !== selectedMember.login) updates.login = editForm.login;
-      if (editForm.password) updates.password = editForm.password;
       if (editForm.specialization !== selectedMember.specialization) {
         updates.specialization = editForm.specialization;
       }
@@ -235,7 +253,7 @@ export function TeamPage() {
         // Refresh data from server
         await fetchTeam();
 
-        // Update selected member with response data (includes password from server)
+        // Update selected member with the saved profile data.
         if (response.user) {
           setSelectedMember({
             ...selectedMember,
@@ -245,7 +263,6 @@ export function TeamPage() {
       }
 
       setIsEditing(false);
-      setEditForm(prev => ({ ...prev, password: '' })); // Clear password field
     } catch (err: unknown) {
       addToast('error', (language === 'ru' ? 'Ошибка сохранения: ' : 'Saqlashda xatolik: ') + (err instanceof Error ? err.message : ''));
     }
@@ -292,6 +309,7 @@ export function TeamPage() {
 
   // Handle add new member
   const handleAddMember = async () => {
+    if (isDemoSession) return;
     setAddError(null);
 
     // Validation
@@ -316,7 +334,7 @@ export function TeamPage() {
     try {
       // For managers, use managerType as the actual role (manager/advertiser)
       const actualRole = addForm.role === 'manager' ? addForm.managerType : addForm.role;
-      const result = await teamApi.create({
+      await teamApi.create({
         login: addForm.login,
         password: addForm.password,
         name: addForm.name,
@@ -325,10 +343,11 @@ export function TeamPage() {
         specialization: addForm.specialization || undefined,
       });
 
-      // Show credentials modal (password comes from server response or use submitted)
+      // The submitted password is available only for this one-time confirmation.
       setShowCredentialsModal({
         login: addForm.login,
-        password: result.user?.password || addForm.password,
+        password: addForm.password,
+        mode: 'create',
       });
 
       // Reset form and close modal
@@ -368,6 +387,7 @@ export function TeamPage() {
 
   // Handle delete member
   const handleDeleteMember = async (member: StaffMember) => {
+    if (isDemoSession) return;
     if (!confirm(language === 'ru'
       ? `Удалить сотрудника "${member.name}"? Это действие необратимо.`
       : `"${member.name}" xodimni o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.`
@@ -388,50 +408,25 @@ export function TeamPage() {
     }
   };
 
-  // Handle reset all passwords for staff without password_plain
-  const handleResetAllPasswords = async () => {
-    // Count staff without passwords
-    const staffWithoutPassword = [
-      ...managers.filter(m => !m.password),
-      ...departmentHeads.filter(m => !m.password),
-      ...executors.filter(m => !m.password),
-    ];
+  const handleResetPassword = async (trigger: HTMLButtonElement) => {
+    if (isDemoSession || resetInFlightRef.current || !selectedMember || !canResetStaffPassword(currentUser, selectedMember)) return;
+    if (!confirm(language === 'ru'
+      ? `Сбросить пароль сотрудника «${selectedMember.name}»? Текущий пароль перестанет работать.`
+      : `«${selectedMember.name}» xodimining parolini tiklaysizmi? Joriy parol ishlamay qoladi.`
+    )) return;
 
-    if (staffWithoutPassword.length === 0) {
-      addToast('info', language === 'ru' ? 'Все сотрудники уже имеют пароли' : 'Barcha xodimlarning parollari mavjud');
-      return;
-    }
-
-    // Require typed confirmation — plain OK click too easy to trigger accidentally
-    // on mobile with an icon-only button.
-    const confirmWord = language === 'ru' ? 'СБРОСИТЬ' : 'TIKLASH';
-    const typed = prompt(language === 'ru'
-      ? `Сбросить пароли для ${staffWithoutPassword.length} сотрудников?\n\nЭто сгенерирует новые пароли для всех сотрудников, у которых не отображается пароль.\n\nВведите "${confirmWord}" для подтверждения:`
-      : `${staffWithoutPassword.length} ta xodim uchun parollarni tiklash?\n\nBu paroli ko'rinmaydigan xodimlar uchun yangi parollar yaratadi.\n\nTasdiqlash uchun "${confirmWord}" ni kiriting:`
-    );
-    if (typed?.trim().toUpperCase() !== confirmWord) {
-      if (typed !== null) {
-        addToast('info', language === 'ru' ? 'Сброс отменён' : 'Bekor qilindi');
-      }
-      return;
-    }
-
+    resetFocusRef.current = trigger;
+    resetInFlightRef.current = true;
+    setIsResettingPassword(true);
     try {
-      setLoading(true);
-      const result = await teamApi.resetAllPasswords();
-
-      if (result.updated > 0) {
-        addToast('success', language === 'ru' ? `Обновлено ${result.updated} сотрудников` : `${result.updated} xodim yangilandi`);
-      } else {
-        addToast('info', result.message);
-      }
-
-      // Refresh data
-      await fetchTeam();
+      const result = await usersApi.resetUserPassword(selectedMember.id);
+      const login = typeof result.user.login === 'string' ? result.user.login : selectedMember.login;
+      setShowCredentialsModal({ login, password: result.temporaryPassword, mode: 'reset' });
     } catch (err: unknown) {
-      addToast('error', (language === 'ru' ? 'Ошибка сброса паролей: ' : 'Parollarni tiklashda xatolik: ') + (err instanceof Error ? err.message : ''));
+      addToast('error', (language === 'ru' ? 'Ошибка сброса пароля: ' : 'Parolni tiklashda xatolik: ') + (err instanceof Error ? err.message : ''));
     } finally {
-      setLoading(false);
+      resetInFlightRef.current = false;
+      setIsResettingPassword(false);
     }
   };
 
@@ -453,7 +448,7 @@ export function TeamPage() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(m =>
         m.name.toLowerCase().includes(query) ||
-        m.phone.includes(query) ||
+        m.phone?.includes(query) ||
         m.login.toLowerCase().includes(query) ||
         (m.specialization && SPECIALIZATION_LABELS[m.specialization]?.toLowerCase().includes(query))
       );
@@ -474,7 +469,7 @@ export function TeamPage() {
   const filteredDepartmentHeads = filterMembers(departmentHeads);
   const filteredExecutors = filterMembers(executors);
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = (status?: string | null) => {
     const tone: StatusTone | null =
       status === 'available' ? 'active'
       : status === 'busy' ? 'pending'
@@ -513,10 +508,10 @@ export function TeamPage() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
+    <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-clip pb-24 sm:space-y-6 md:pb-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-col justify-between gap-3 sm:gap-4 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
             <UserCog className="w-5 h-5 text-white" />
           </div>
@@ -525,28 +520,28 @@ export function TeamPage() {
             <p className="text-xs text-gray-500 mt-0.5">
               {pluralWithCount(
                 language === 'ru' ? 'ru' : 'uz',
-                directors.length + (isDirector ? 0 : admins.length) + managers.length + departmentHeads.length + executors.length,
+                teamTotal,
                 { one: 'сотрудник', few: 'сотрудника', many: 'сотрудников' },
                 { one: 'xodim', other: 'xodim' },
               )}
             </p>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:gap-3 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+          <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto lg:shrink-0">
             {/* Search */}
-            <div className="relative flex-1 sm:flex-none min-w-0">
+            <div className="relative min-w-0 flex-1 lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 placeholder={language === 'ru' ? 'Поиск...' : 'Qidirish...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-auto pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent lg:w-auto"
               />
             </div>
             {/* Specialization Filter */}
-            <div className="relative flex-1 sm:flex-none min-w-0">
+            <div className="relative min-w-0 flex-1 lg:flex-none">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <select
                 value={specializationFilter}
@@ -571,51 +566,56 @@ export function TeamPage() {
           <div className="flex items-center gap-2 sm:shrink-0">
             <button
               onClick={fetchTeam}
-              className="btn-secondary p-2"
+              className="staff-primary-control btn-secondary min-w-[44px] min-h-[44px] p-2"
               title={language === 'ru' ? 'Обновить' : 'Yangilash'}
               aria-label={language === 'ru' ? 'Обновить' : 'Yangilash'}
             >
               <RefreshCw className="w-5 h-5" />
             </button>
-            {/* Show reset passwords button only if there are staff without passwords */}
-            {[...admins, ...managers, ...departmentHeads, ...executors].some(m => !m.password) && (
-              <button
-                onClick={handleResetAllPasswords}
-                className="btn-secondary flex items-center gap-2 text-orange-600 hover:bg-orange-50 whitespace-nowrap"
-                title={language === 'ru' ? 'Сбросить пароли для сотрудников без паролей' : 'Parolsiz xodimlarning parollarini tiklash'}
-                aria-label={language === 'ru' ? 'Массовый сброс паролей сотрудников' : 'Xodimlar parollarini ommaviy tiklash'}
-              >
-                <Key className="w-5 h-5" />
-                <span className="hidden sm:inline">{language === 'ru' ? 'Сбросить пароли' : 'Parollarni tiklash'}</span>
-              </button>
-            )}
             <button
               onClick={handleExportStaff}
               disabled={exportLoading}
-              className="btn-secondary flex items-center gap-2 text-green-600 hover:bg-green-50 disabled:opacity-50 whitespace-nowrap"
+              className="staff-primary-control btn-secondary min-w-[44px] min-h-[44px] flex items-center justify-center gap-2 text-green-600 hover:bg-green-50 disabled:opacity-50 whitespace-nowrap"
               title={language === 'ru' ? 'Экспорт персонала' : 'Xodimlarni eksport qilish'}
+              aria-label={language === 'ru' ? 'Экспорт персонала' : 'Xodimlarni eksport qilish'}
             >
               {exportLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
               <span className="hidden sm:inline">{language === 'ru' ? 'Экспорт' : 'Eksport'}</span>
             </button>
-            <button
-              onClick={() => { setImportFile(null); setImportResult(null); setShowImportModal(true); }}
-              className="btn-secondary flex items-center gap-2 text-blue-600 hover:bg-blue-50 whitespace-nowrap"
-              title={language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
-            >
-              <Upload className="w-5 h-5" />
-              <span className="hidden sm:inline">{language === 'ru' ? 'Импорт' : 'Import'}</span>
-            </button>
-            <button
-              onClick={() => openAddModal('executor')}
-              className="btn-primary flex items-center gap-2 whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</span>
-            </button>
+            {!isDemoSession && (
+              <>
+                <button
+                  onClick={() => { setImportFile(null); setImportResult(null); setShowImportModal(true); }}
+                  className="staff-primary-control btn-secondary min-w-[44px] min-h-[44px] flex items-center justify-center gap-2 text-blue-600 hover:bg-blue-50 whitespace-nowrap"
+                  title={language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
+                  aria-label={language === 'ru' ? 'Импорт персонала' : 'Xodimlarni import qilish'}
+                >
+                  <Upload className="w-5 h-5" />
+                  <span className="hidden sm:inline">{language === 'ru' ? 'Импорт' : 'Import'}</span>
+                </button>
+                <button
+                  onClick={() => openAddModal('executor')}
+                  className="staff-primary-control btn-primary min-w-[44px] min-h-[44px] flex items-center justify-center gap-2 whitespace-nowrap"
+                  title={language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}
+                  aria-label={language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="hidden sm:inline">{language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish'}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      {isDemoSession && (
+        <div className="flex min-h-[44px] items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-800" role="status">
+          <Shield className="h-4 w-4 shrink-0" />
+          {language === 'ru'
+            ? 'Демо-режим: персонал доступен только для просмотра'
+            : 'Demo rejim: xodimlar faqat ko\'rish uchun mavjud'}
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
@@ -681,7 +681,7 @@ export function TeamPage() {
       </div>
 
       {/* Sections */}
-      <div className="space-y-3 sm:space-y-4">
+      <div className="team-table-container min-w-0 max-w-full space-y-3 overflow-x-hidden sm:space-y-4">
         {filteredDirectors.length > 0 && (
           <StaffSection
             title={language === 'ru' ? 'Директора' : 'Direktorlar'}
@@ -691,6 +691,7 @@ export function TeamPage() {
             onToggle={() => toggleSection('directors')}
             onOpenMember={handleOpenDetails}
             onDeleteMember={handleDeleteMember}
+            allowDelete={!isDemoSession}
             getSpecLabel={getSpecLabel}
             getStatusBadge={getStatusBadge}
           />
@@ -704,6 +705,7 @@ export function TeamPage() {
             onToggle={() => toggleSection('admins')}
             onOpenMember={handleOpenDetails}
             onDeleteMember={handleDeleteMember}
+            allowDelete={!isDemoSession}
             getSpecLabel={getSpecLabel}
             getStatusBadge={getStatusBadge}
           />
@@ -716,6 +718,7 @@ export function TeamPage() {
           onToggle={() => toggleSection('managers')}
           onOpenMember={handleOpenDetails}
           onDeleteMember={handleDeleteMember}
+          allowDelete={!isDemoSession}
           getSpecLabel={getSpecLabel}
           getStatusBadge={getStatusBadge}
         />
@@ -727,6 +730,7 @@ export function TeamPage() {
           onToggle={() => toggleSection('departmentHeads')}
           onOpenMember={handleOpenDetails}
           onDeleteMember={handleDeleteMember}
+          allowDelete={!isDemoSession}
           getSpecLabel={getSpecLabel}
           getStatusBadge={getStatusBadge}
         />
@@ -738,12 +742,13 @@ export function TeamPage() {
           onToggle={() => toggleSection('executors')}
           onOpenMember={handleOpenDetails}
           onDeleteMember={handleDeleteMember}
+          allowDelete={!isDemoSession}
           getSpecLabel={getSpecLabel}
           getStatusBadge={getStatusBadge}
         />
       </div>
 
-      {showAddModal && (
+      {showAddModal && !isDemoSession && (
         <AddStaffModal
           language={language}
           hasAdvertiserFeature={hasFeature('advertiser')}
@@ -766,8 +771,6 @@ export function TeamPage() {
           member={selectedMember}
           language={language}
           isEditing={isEditing}
-          isLoadingDetails={isLoadingDetails}
-          showPassword={showPassword}
           editForm={editForm}
           setEditForm={setEditForm}
           copiedField={copiedField}
@@ -777,17 +780,25 @@ export function TeamPage() {
           statusBadge={getStatusBadge(selectedMember.status)}
           onClose={handleCloseDetails}
           onToggleEditing={setIsEditing}
-          onTogglePassword={() => setShowPassword(!showPassword)}
           onSave={handleSaveChanges}
           onCopy={handleCopy}
+          onResetPassword={handleResetPassword}
+          isResettingPassword={isResettingPassword}
+          canResetPassword={!isDemoSession && canResetStaffPassword(currentUser, selectedMember)}
+          canEdit={!isDemoSession}
         />
       )}
 
       {showCredentialsModal && (
         <CredentialsModal
           credentials={showCredentialsModal}
+          mode={showCredentialsModal.mode}
           language={language}
-          onClose={() => setShowCredentialsModal(null)}
+          returnFocus={showCredentialsModal.mode === 'reset' ? resetFocusRef.current : undefined}
+          onClose={() => {
+            setShowCredentialsModal(null);
+            setCopiedField(null);
+          }}
           copiedField={copiedField}
           onCopy={(field, value) => {
             navigator.clipboard.writeText(value);
@@ -797,7 +808,7 @@ export function TeamPage() {
         />
       )}
 
-      {showImportModal && (
+      {showImportModal && !isDemoSession && (
         <StaffImportModal
           language={language}
           onClose={() => setShowImportModal(false)}

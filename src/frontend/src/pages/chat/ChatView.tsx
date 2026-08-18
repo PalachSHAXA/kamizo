@@ -7,10 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
-import { EmptyState } from '../../components/common';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
-import { formatName } from '../../utils/formatName';
-import { plural } from '../../utils/plural';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
@@ -24,7 +21,7 @@ import { MessageList } from './MessageList';
 import { DialogHeader } from './DialogHeader';
 import { ActiveRequestBanner, type ActiveRequest } from './ActiveRequestBanner';
 import { AssignStaffModal } from './AssignStaffModal';
-import { type ChatChannel, type ChatMessage } from './chatUtils';
+import { mapChatMessage, type ChatChannel, type ChatMessage } from './chatUtils';
 
 export function ChatView({
   channelId,
@@ -223,7 +220,7 @@ export function ChatView({
     }
     try {
       const response = await chatApi.getMessages(channelId);
-      setMessages(response.messages || []);
+      setMessages((response.messages || []).map(mapChatMessage));
       // v118.132 — success path clears any prior error so a transient
       // failure followed by a poll-recovery doesn't keep the retry CTA up.
       setFetchError(false);
@@ -273,29 +270,31 @@ export function ChatView({
     // include markAsRead's identity (see markAsReadRef declaration).
     markAsReadRef.current();
 
-    const unsubscribe = subscribeToChatMessages((message: ChatMessage & { type?: string; message_id?: string; user_id?: string; user_role?: string }) => {
-      if (message.channel_id === channelId) {
+    const unsubscribe = subscribeToChatMessages((message: Record<string, unknown>) => {
+      const messageChannelId = String(message.channel_id ?? '');
+      if (messageChannelId === channelId) {
         if (message.type === 'read') {
           // Sprint 11: hide colleague IDs from read_by entirely; only
           // non-management readers (residents) get added by ID. For a
           // management reader, flip the aggregated management_read flag
           // so the resident's checkmark goes ✓✓ without leaking which
           // specific manager opened it.
-          const readerRole = message.user_role || '';
+          const readerRole = String(message.user_role ?? '');
           const isMgmtReader = ['admin', 'director', 'manager', 'department_head', 'super_admin'].includes(readerRole);
           setMessages(prev => prev.map(m => {
-            if (m.id !== message.message_id) return m;
+            if (m.id !== String(message.message_id ?? '')) return m;
             if (isMgmtReader) {
               return { ...m, management_read: true };
             }
-            return { ...m, read_by: [...(m.read_by || []), message.user_id ?? ''] };
+            return { ...m, read_by: [...(m.read_by || []), String(message.user_id ?? '')] };
           }));
           return;
         }
+        const chatMessage = mapChatMessage(message);
         setMessages(prev => {
-          const exists = prev.some(m => m.id === message.id);
+          const exists = prev.some(m => m.id === chatMessage.id);
           if (exists) return prev;
-          return [...prev, message as ChatMessage];
+          return [...prev, chatMessage];
         });
         markAsRead();
       }
@@ -476,8 +475,9 @@ export function ChatView({
     try {
       const response = await chatApi.sendMessage(channelId, messageToSend);
       if (response.message) {
+        const sentMessage = mapChatMessage(response.message);
         setMessages(prev =>
-          prev.map(m => m.id === tempId ? { ...response.message, status: 'sent' as const } : m)
+          prev.map(m => m.id === tempId ? { ...sentMessage, status: 'sent' as const } : m)
         );
       } else {
         setMessages(prev =>
@@ -503,8 +503,9 @@ export function ChatView({
     try {
       const response = await chatApi.sendMessage(channelId, failedMsg.content);
       if (response.message) {
+        const sentMessage = mapChatMessage(response.message);
         setMessages(prev =>
-          prev.map(m => m.id === failedMsg.id ? { ...response.message, status: 'sent' as const } : m)
+          prev.map(m => m.id === failedMsg.id ? { ...sentMessage, status: 'sent' as const } : m)
         );
       } else {
         setMessages(prev =>

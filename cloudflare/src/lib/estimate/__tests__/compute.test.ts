@@ -273,3 +273,198 @@ describe('round0', () => {
     expect(round0(2196000.0)).toBe(2196000);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Фаза 1: периодические расходы опциональны (periodic_enabled)
+// ────────────────────────────────────────────────────────────────────────
+
+describe('periodic_enabled', () => {
+  const base: EstimateInput = {
+    model: 'TARIFF_CALCULATED',
+    object: { residential_area: 1000, profit_rate: 0, payroll_tax_rate: 0 },
+    staff: [],
+    expenses: [
+      { name: 'Производственная', monthly: 100000, section: 'production' },
+      { name: 'Периодическая', monthly: 40000, section: 'periodic' },
+    ],
+    incomes: [],
+  };
+
+  it('по умолчанию (undefined) периодика ВХОДИТ в total_expenses', () => {
+    const r = computeEstimate(base);
+    expect(r.total_expenses).toBe(140000);
+  });
+
+  it('periodic_enabled=true — периодика входит', () => {
+    const r = computeEstimate({ ...base, object: { ...base.object, periodic_enabled: true } });
+    expect(r.total_expenses).toBe(140000);
+  });
+
+  it('periodic_enabled=false — периодика ИСКЛЮЧЕНА', () => {
+    const r = computeEstimate({ ...base, object: { ...base.object, periodic_enabled: false } });
+    expect(r.total_expenses).toBe(100000);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Фаза 2: отпускные (vacation_days) входят в ФОТ и облагаются налогом
+// ────────────────────────────────────────────────────────────────────────
+
+describe('vacation_days (отпускные)', () => {
+  const mk = (vacation_days?: number): EstimateInput => ({
+    model: 'TARIFF_CALCULATED',
+    object: { residential_area: 1000, profit_rate: 0, payroll_tax_rate: 0.24 },
+    staff: [{ title: 'Дворник', units: 1, salary: 252000, vacation_days }],
+    expenses: [],
+    incomes: [],
+  });
+
+  it('без vacation_days (undefined) — отпускных нет', () => {
+    const r = computeEstimate(mk(undefined));
+    expect(r.fot_vacation).toBe(0);
+    expect(r.fot_gross).toBe(252000);
+  });
+
+  it('21 день ≈ 1 оклад/год: резерв = salary/12', () => {
+    const r = computeEstimate(mk(21));
+    expect(r.fot_vacation).toBe(21000);
+    expect(r.fot_gross).toBe(273000);
+    expect(r.payroll_tax).toBe(Math.round(273000 * 0.24));
+  });
+
+  it('0 дней — отпускных нет', () => {
+    expect(computeEstimate(mk(0)).fot_vacation).toBe(0);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Фаза 3: доход «реклама» удешевляет тариф (BEFORE_PROFIT) + экономия жителям
+// ────────────────────────────────────────────────────────────────────────
+
+describe('advertising income + resident_saving', () => {
+  const base: EstimateInput = {
+    model: 'TARIFF_CALCULATED',
+    object: { residential_area: 1000, profit_rate: 0, payroll_tax_rate: 0 },
+    staff: [],
+    expenses: [{ name: 'Расход', monthly: 1000000, section: 'production' }],
+    incomes: [],
+  };
+
+  it('реклама уменьшает себестоимость (BEFORE_PROFIT)', () => {
+    const withAd = computeEstimate({ ...base, incomes: [{ type: 'advertising', monthly: 200000 }] });
+    // self_cost = 1000000 - 200000 = 800000; base/m² = 800
+    expect(withAd.self_cost_resident).toBe(800000);
+    expect(withAd.base_per_m2).toBe(800);
+  });
+
+  it('resident_saving = сумма доходов, снижающих платёж', () => {
+    const r = computeEstimate({ ...base, incomes: [
+      { type: 'advertising', monthly: 200000 },
+      { type: 'telecom', monthly: 100000 },
+    ] });
+    // before_profit(adv 200000) + telecom 100000 = 300000/мес; /1000 = 300/м²
+    expect(r.resident_saving_per_m2).toBe(300);
+    expect(r.resident_saving_year).toBe(3600000);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Фаза 4: НДС на тариф жителю
+// ────────────────────────────────────────────────────────────────────────
+
+describe('НДС (vat)', () => {
+  const base: EstimateInput = {
+    model: 'TARIFF_CALCULATED',
+    object: { residential_area: 1000, profit_rate: 0, payroll_tax_rate: 0 },
+    staff: [],
+    expenses: [{ name: 'Расход', monthly: 1000000, section: 'production' }],
+    incomes: [],
+  };
+
+  it('vat выключен — vat_per_m2=0, tariff_with_vat=tariff', () => {
+    const r = computeEstimate(base);
+    expect(r.vat_per_m2).toBe(0);
+    expect(r.tariff_with_vat).toBe(r.tariff_resident);
+  });
+
+  it('vat 12% включён — +12% на тариф', () => {
+    const r = computeEstimate({ ...base, object: { ...base.object, vat_enabled: true, vat_rate: 0.12 } });
+    // tariff = 1000; vat = 120; with_vat = 1120
+    expect(r.vat_per_m2).toBe(120);
+    expect(r.tariff_with_vat).toBe(1120);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Смета на ЖК → разбивка на дома (computeComplexEstimate)
+// ────────────────────────────────────────────────────────────────────────
+import { computeComplexEstimate, type ComplexEstimateInput } from '../compute';
+
+describe('computeComplexEstimate', () => {
+  it('1 дом, все статьи shared = совпадает с одиночным расчётом', () => {
+    const single = computeEstimate({
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 1000, profit_rate: 0, payroll_tax_rate: 0 },
+      staff: [], expenses: [{ name: 'Р', monthly: 1000000, section: 'production' }], incomes: [],
+    });
+    const cx = computeComplexEstimate({
+      model: 'TARIFF_CALCULATED',
+      object: { profit_rate: 0, payroll_tax_rate: 0 },
+      buildings: [{ building_id: 'A', residential_area: 1000 }],
+      staff: [], expenses: [{ name: 'Р', monthly: 1000000, section: 'production' }], incomes: [],
+    });
+    expect(cx.buildings[0].tariff_resident).toBe(single.tariff_resident); // 1000
+    expect(cx.total_expenses).toBe(single.total_expenses);
+  });
+
+  it('общий расход делится по жилой площади', () => {
+    // 2 дома: 1000 и 3000 м²; общий расход 4 000 000 → база 1000/м² у обоих
+    const cx = computeComplexEstimate({
+      model: 'TARIFF_CALCULATED',
+      object: { profit_rate: 0, payroll_tax_rate: 0 },
+      buildings: [{ building_id: 'A', residential_area: 1000 }, { building_id: 'B', residential_area: 3000 }],
+      staff: [], expenses: [{ name: 'Мусор', monthly: 4000000, section: 'production' }], incomes: [],
+    });
+    const A = cx.buildings.find(b => b.building_id === 'A')!;
+    const B = cx.buildings.find(b => b.building_id === 'B')!;
+    expect(A.self_expense).toBe(1000000); // 4M × 1000/4000
+    expect(B.self_expense).toBe(3000000); // 4M × 3000/4000
+    expect(A.tariff_resident).toBe(1000);
+    expect(B.tariff_resident).toBe(1000);
+    expect(cx.total_expenses).toBe(4000000);
+  });
+
+  it('адресный расход поднимает тариф только своего дома', () => {
+    // общий 0; ремонт крыши 900 000 только дому B (площадь 900) → +1000/м² у B
+    const cx = computeComplexEstimate({
+      model: 'TARIFF_CALCULATED',
+      object: { profit_rate: 0, payroll_tax_rate: 0 },
+      buildings: [{ building_id: 'A', residential_area: 900 }, { building_id: 'B', residential_area: 900 }],
+      staff: [],
+      expenses: [{ name: 'Крыша', monthly: 900000, section: 'production', building_id: 'B' }],
+      incomes: [],
+    });
+    const A = cx.buildings.find(b => b.building_id === 'A')!;
+    const B = cx.buildings.find(b => b.building_id === 'B')!;
+    expect(A.tariff_resident).toBe(0);
+    expect(B.tariff_resident).toBe(1000);
+    // инвариант: сумма пер-домовых расходов = total_expenses
+    expect(A.self_expense + B.self_expense).toBe(cx.total_expenses);
+  });
+
+  it('адресный доход снижает тариф только своего дома', () => {
+    // дом B получает доход-парковку 900 000 (before-profit) → тариф B ниже на 1000/м²
+    const cx = computeComplexEstimate({
+      model: 'TARIFF_CALCULATED',
+      object: { profit_rate: 0, payroll_tax_rate: 0 },
+      buildings: [{ building_id: 'A', residential_area: 900 }, { building_id: 'B', residential_area: 900 }],
+      staff: [],
+      expenses: [{ name: 'Общий', monthly: 1800000, section: 'production' }],
+      incomes: [{ type: 'parking', monthly: 900000, building_id: 'B' }],
+    });
+    const A = cx.buildings.find(b => b.building_id === 'A')!;
+    const B = cx.buildings.find(b => b.building_id === 'B')!;
+    expect(A.tariff_resident).toBe(1000); // 900k / 900
+    expect(B.tariff_resident).toBe(0);    // (900k − 900k) / 900
+  });
+});

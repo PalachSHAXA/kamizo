@@ -18,6 +18,49 @@ import { formatName } from '../../utils/formatName';
 import { SPECIALIZATION_LABELS } from '../../types';
 import type { CompanyStats, TeamData, BuildingStat, DepartmentStat, ChartData } from './types';
 import { getStatusColor, getRequestStatusLabels } from './translations';
+import type { PieLabelRenderProps } from 'recharts';
+
+interface RecentRequestDto {
+  id: string;
+  title: string;
+  address: string;
+  apartment?: string;
+  createdAt: string;
+  status: string;
+  executorName?: string;
+}
+
+interface ExecutorOverviewDto {
+  id: string;
+  name: string;
+  specialization?: string;
+  status?: string;
+  avg_rating?: number;
+  rating?: number;
+  completed_count?: number;
+}
+
+interface BuildingOverviewDto {
+  id: string;
+  name: string;
+  address: string;
+  totalApartments?: number;
+}
+
+interface MeetingOverviewDto {
+  id: string;
+  number: number;
+  buildingAddress: string;
+  status: string;
+}
+
+interface AnnouncementOverviewDto {
+  id: string;
+  title: string;
+  content: string;
+  priority: string;
+  isActive: boolean;
+}
 
 // Modal component for details
 function DetailModal({
@@ -47,12 +90,12 @@ interface OverviewTabProps {
   buildingStats: BuildingStat[];
   departmentStats: DepartmentStat[];
   topExecutors: Array<{ id: string; name: string; rating?: number }>;
-  recentRequests: Array<Record<string, unknown>>;
+  recentRequests: RecentRequestDto[];
   teamData: TeamData | null;
-  executors: Array<Record<string, unknown>>;
-  buildings: Array<Record<string, unknown>>;
-  meetings: Array<Record<string, unknown>>;
-  announcements: Array<Record<string, unknown>>;
+  executors: ExecutorOverviewDto[];
+  buildings: BuildingOverviewDto[];
+  meetings: MeetingOverviewDto[];
+  announcements: AnnouncementOverviewDto[];
   t: (key: string) => string;
 }
 
@@ -74,6 +117,7 @@ export function OverviewTab({
   const navigate = useNavigate();
   const [activeModal, setActiveModal] = useState<'requests' | 'staff' | 'buildings' | 'activity' | null>(null);
   const REQUEST_STATUS_LABELS = getRequestStatusLabels(language);
+  const displayedExecutors: ExecutorOverviewDto[] = teamData?.executors ?? executors;
   // Sprint 85 commit 2 — director-side tenant contract widget. Reads
   // contract metadata from /api/tenant/config (already shaped by the
   // server-side join). Re-fetches the config after upload so the
@@ -269,7 +313,7 @@ export function OverviewTab({
                 labelLine={false}
                 outerRadius={80}
                 dataKey="value"
-                label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }: PieLabelRenderProps) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
               >
                 {chartData.statusData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -299,7 +343,7 @@ export function OverviewTab({
                 labelLine={false}
                 outerRadius={80}
                 dataKey="value"
-                label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }: PieLabelRenderProps) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
               >
                 {chartData.staffData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -473,7 +517,7 @@ export function OverviewTab({
         title={t('director.recentRequests')}
       >
         <div className="space-y-3">
-          {recentRequests.map((req: Record<string, unknown>) => (
+          {recentRequests.map((req) => (
             <div key={req.id} className="p-3 bg-gray-50 rounded-xl">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -576,8 +620,9 @@ export function OverviewTab({
               {language === 'ru' ? 'Исполнители' : 'Ijrochilar'} ({teamData?.executors.length || executors.length})
             </h4>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {(teamData?.executors || executors).slice(0, 10).map((member: Record<string, unknown>) => (
-                <div key={member.id} className="p-3 bg-green-50 rounded-xl flex items-center gap-3">
+              {displayedExecutors.slice(0, 10).map((member) => {
+                const rating = member.avg_rating || member.rating || 0;
+                return <div key={member.id} className="p-3 bg-green-50 rounded-xl flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
                     member.status === 'available' ? 'bg-green-500' :
                     member.status === 'busy' ? 'bg-orange-500' : 'bg-gray-400'
@@ -591,18 +636,18 @@ export function OverviewTab({
                     </div>
                   </div>
                   <div className="text-right">
-                    {(member.avg_rating || member.rating) && (
+                    {rating > 0 && (
                       <div className="flex items-center gap-1 text-yellow-600">
                         <Star className="w-4 h-4" />
-                        {(member.avg_rating || member.rating || 0).toFixed(1)}
+                        {rating.toFixed(1)}
                       </div>
                     )}
                     <div className="text-xs text-gray-500">
                       {member.completed_count || 0} {language === 'ru' ? 'вып.' : 'baj.'}
                     </div>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           </div>
 
@@ -622,7 +667,7 @@ export function OverviewTab({
         title={t('director.buildingsList')}
       >
         <div className="space-y-3">
-          {buildings.slice(0, 15).map((building: Record<string, unknown>) => (
+          {buildings.slice(0, 15).map((building) => (
             <div key={building.id} className="p-3 bg-gray-50 rounded-xl">
               <div className="flex items-start gap-3">
                 <Building2 className="w-8 h-8 text-teal-500 flex-shrink-0" />
@@ -664,7 +709,7 @@ export function OverviewTab({
               {t('director.meetings')} ({companyStats.activeMeetings})
             </h4>
             <div className="space-y-2">
-              {meetings.filter((m: Record<string, unknown>) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).slice(0, 5).map((meeting: Record<string, unknown>) => (
+              {meetings.filter((m) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).slice(0, 5).map((meeting) => (
                 <div key={meeting.id} className="p-3 bg-gray-50 rounded-xl">
                   <div className="font-medium text-sm">#{meeting.number}</div>
                   <div className="text-xs text-gray-500">{meeting.buildingAddress}</div>
@@ -677,7 +722,7 @@ export function OverviewTab({
                   </div>
                 </div>
               ))}
-              {meetings.filter((m: Record<string, unknown>) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).length === 0 && (
+              {meetings.filter((m) => ['schedule_poll_open', 'schedule_confirmed', 'voting_open'].includes(m.status)).length === 0 && (
                 <div className="text-gray-400 text-sm text-center py-4">
                   {language === 'ru' ? 'Нет активных собраний' : 'Faol yig\'ilishlar yo\'q'}
                 </div>
@@ -698,7 +743,7 @@ export function OverviewTab({
               {t('director.announcements')} ({companyStats.activeAnnouncements})
             </h4>
             <div className="space-y-2">
-              {announcements.filter((a: Record<string, unknown>) => a.isActive).slice(0, 5).map((announcement: Record<string, unknown>) => (
+              {announcements.filter((a) => a.isActive).slice(0, 5).map((announcement) => (
                 <div key={announcement.id} className="p-3 bg-gray-50 rounded-xl">
                   <div className="font-medium text-sm">{announcement.title}</div>
                   <div className="text-xs text-gray-500 line-clamp-2 mt-1">{announcement.content}</div>
@@ -713,7 +758,7 @@ export function OverviewTab({
                   </div>
                 </div>
               ))}
-              {announcements.filter((a: Record<string, unknown>) => a.isActive).length === 0 && (
+              {announcements.filter((a) => a.isActive).length === 0 && (
                 <div className="text-gray-400 text-sm text-center py-4">
                   {language === 'ru' ? 'Нет активных объявлений' : 'Faol e\'lonlar yo\'q'}
                 </div>
@@ -731,4 +776,3 @@ export function OverviewTab({
     </>
   );
 }
-

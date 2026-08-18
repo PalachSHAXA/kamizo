@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { useToastStore } from './toastStore';
 import type {
   PersonalAccount,
@@ -159,3 +160,5 @@ export const useAccountStore = create<AccountState>()(
     },
   })
 );
+
+registerSessionStore(useAccountStore);

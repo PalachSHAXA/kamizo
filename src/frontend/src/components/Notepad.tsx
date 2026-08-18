@@ -14,9 +14,10 @@ interface Note {
 
 interface NotepadProps {
   userId: string;
+  readOnly?: boolean;
 }
 
-export function Notepad({ userId }: NotepadProps) {
+export function Notepad({ userId, readOnly = false }: NotepadProps) {
   const { language } = useLanguageStore();
   const [notes, setNotes] = useState<Note[]>([]);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -147,13 +148,13 @@ export function Notepad({ userId }: NotepadProps) {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        <button
+        {!readOnly && <button
           onClick={() => setShowNoteEditor(true)}
           className="btn-primary flex items-center gap-2 py-2 px-3 text-sm"
         >
           <Plus className="w-4 h-4" />
           {language === 'ru' ? 'Добавить' : 'Qo\'shish'}
-        </button>
+        </button>}
       </div>
 
       {/* Migration indicator */}
@@ -181,7 +182,7 @@ export function Notepad({ userId }: NotepadProps) {
             >
               <div className="flex items-start justify-between gap-2">
                 <h4 className="font-semibold text-gray-900 line-clamp-1">{note.title}</h4>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {!readOnly && <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => setEditingNote(note)}
                     className="p-1.5 hover:bg-white/50 rounded-lg text-gray-500 hover:text-blue-600"
@@ -198,7 +199,7 @@ export function Notepad({ userId }: NotepadProps) {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                </div>
+                </div>}
               </div>
               <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap line-clamp-4">
                 {note.content || <span className="italic text-gray-400">{language === 'ru' ? 'Нет содержимого' : 'Mazmun yo\'q'}</span>}
@@ -222,7 +223,7 @@ export function Notepad({ userId }: NotepadProps) {
           icon={<StickyNote className="w-12 h-12" />}
           title={language === 'ru' ? 'Нет заметок' : 'Yozuvlar yo\'q'}
           description={language === 'ru' ? 'Создавайте заметки для планирования задач и важных записей' : 'Vazifalarni rejalashtirish va muhim yozuvlar uchun yozuvlar yarating'}
-          action={{
+          action={readOnly ? undefined : {
             label: language === 'ru' ? 'Создать первую заметку' : 'Birinchi yozuvni yaratish',
             onClick: () => setShowNoteEditor(true),
           }}

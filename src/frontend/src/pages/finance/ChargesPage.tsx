@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Receipt,
   Building2,
@@ -22,6 +22,7 @@ import { financeApi } from '../../services/api/finance';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import { ResidentFinancePage } from './ResidentFinancePage';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 /* ─── helpers ──────────────────────────────────────────── */
 
@@ -43,6 +44,24 @@ const paymentTypeIcon: Record<string, React.ReactNode> = {
   transfer: <Landmark className="w-4 h-4" />,
   online: <Globe className="w-4 h-4" />,
 };
+
+interface PaymentAttempt {
+  key: string;
+  targetId: string;
+  fingerprint: string;
+}
+
+function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'));
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
+}
 
 /* ─── component ────────────────────────────────────────── */
 
@@ -77,6 +96,7 @@ function StaffChargesPage() {
 
   const user = useAuthStore((s) => s.user);
   const isResident = user?.role === 'resident' || user?.role === 'tenant';
+  const isDemoSession = user?.demoSession === true;
 
   /* building statuses for residents */
   const [buildingStatuses, setBuildingStatuses] = useState<{ apartment_number: string; status: string }[]>([]);
@@ -99,6 +119,10 @@ function StaffChargesPage() {
   const [payType, setPayType] = useState('cash');
   const [payDesc, setPayDesc] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const paymentAttemptRef = useRef<PaymentAttempt | null>(null);
+  const paymentTargetRef = useRef<string | null>(null);
+  const paymentModalContentRef = useRef<HTMLDivElement>(null);
 
   /* ── mount: load buildings ── */
   useEffect(() => {
@@ -135,6 +159,13 @@ function StaffChargesPage() {
         .catch(() => setBuildingStatuses([]));
     }
   }, [isResident, user?.buildingId]);  
+
+  useEffect(() => {
+    const dialog = paymentModalContentRef.current?.closest('[role="dialog"]');
+    if (!dialog) return;
+    dialog.setAttribute('aria-busy', String(submitting));
+    return () => dialog.removeAttribute('aria-busy');
+  }, [selected, submitting]);
 
   const applyFilters = useCallback(() => {
     setFilters({ buildingId: localBuilding, period: localPeriod, status: localStatus });
@@ -207,26 +238,69 @@ function StaffChargesPage() {
     [language],
   );
 
+  const openPaymentTarget = useCallback((charge: Record<string, unknown>) => {
+    if (isDemoSession || submittingRef.current) return;
+    const targetId = charge.apartment_id as string;
+    if (paymentTargetRef.current !== targetId) {
+      paymentTargetRef.current = targetId;
+      paymentAttemptRef.current = null;
+    }
+    setSelected(charge);
+  }, [isDemoSession]);
+
+  const resetPaymentTarget = useCallback(() => {
+    paymentAttemptRef.current = null;
+    paymentTargetRef.current = null;
+    setSelected(null);
+    setPayAmount('');
+    setPayType('cash');
+    setPayDesc('');
+  }, []);
+
+  const closePaymentTarget = useCallback(() => {
+    if (submittingRef.current) return;
+    resetPaymentTarget();
+  }, [resetPaymentTarget]);
+
+  const activateChargeFromKeyboard = useCallback((event: React.KeyboardEvent, charge: Record<string, unknown>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openPaymentTarget(charge);
+  }, [openPaymentTarget]);
+
   /* ── payment submit ── */
   const handlePay = useCallback(async () => {
-    if (!selected || !payAmount) return;
+    if (isDemoSession || submittingRef.current || !selected || !payAmount) return;
+    submittingRef.current = true;
     setSubmitting(true);
-    const ok = await createPayment({
+    const normalizedDescription = payDesc.trim() || undefined;
+    const payload = {
       apartment_id: selected.apartment_id as string,
       amount: Number(payAmount),
       payment_type: payType,
-      description: payDesc || undefined,
-    } as Parameters<typeof createPayment>[0]);
-    setSubmitting(false);
-    if (ok) {
-      setSelected(null);
-      setPayAmount('');
-      setPayType('cash');
-      setPayDesc('');
-      fetchCharges(currentPage);
-      if (filters.buildingId) fetchChargesSummary(filters.buildingId, filters.period || undefined);
+      description: normalizedDescription,
+    } as Parameters<typeof createPayment>[0];
+    const targetId = payload.apartment_id;
+    const fingerprint = JSON.stringify(payload);
+    let attempt = paymentAttemptRef.current;
+    if (!attempt || attempt.targetId !== targetId || attempt.fingerprint !== fingerprint) {
+      attempt = { key: createIdempotencyKey(), targetId, fingerprint };
+      paymentAttemptRef.current = attempt;
     }
-  }, [selected, payAmount, payType, payDesc, createPayment, fetchCharges, currentPage, filters, fetchChargesSummary]);
+    try {
+      const ok = await createPayment(payload, attempt.key);
+      if (ok && paymentAttemptRef.current === attempt && paymentTargetRef.current === targetId) {
+        resetPaymentTarget();
+        fetchCharges(currentPage);
+        if (filters.buildingId) fetchChargesSummary(filters.buildingId, filters.period || undefined);
+      }
+    } catch {
+      // The store normally converts API failures to false after showing its toast.
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }, [isDemoSession, selected, payAmount, payType, payDesc, createPayment, resetPaymentTarget, fetchCharges, currentPage, filters, fetchChargesSummary]);
 
   /* ── render ── */
   if (chargesLoading && charges.length === 0) return <PageSkeleton variant="list" />;
@@ -263,23 +337,25 @@ function StaffChargesPage() {
   ];
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
+    <div className="admin-form-controls w-full min-w-0 space-y-6 pb-24 md:pb-0">
       {/* Header — Sprint 40: brand-orange avatar */}
-      <div className="flex items-center gap-3 px-1">
+      <div className="flex min-w-0 flex-col items-stretch gap-3 px-1 min-[360px]:flex-row min-[360px]:items-center">
         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
           <Receipt className="w-5 h-5 text-white" />
         </div>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">{t('Начисления', "Hisob-kitob")}</h1>
           <p className="text-xs text-gray-500 mt-0.5">{t('Учёт коммунальных платежей', "Kommunal to'lovlar")}</p>
         </div>
       </div>
 
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
+
       {/* ── Filter bar ── */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col items-stretch gap-3 min-[360px]:flex-row min-[360px]:flex-wrap min-[360px]:items-end">
           {/* Building */}
-          <div className="flex flex-col gap-1 min-w-[180px]">
+          <div className="flex w-full min-w-0 flex-col gap-1 min-[360px]:w-auto min-[360px]:min-w-[180px]">
             <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
               <Building2 className="w-3.5 h-3.5" />
               {t('Комплекс', 'Kompleks')}
@@ -287,7 +363,7 @@ function StaffChargesPage() {
             <select
               value={localBuilding}
               onChange={(e) => setLocalBuilding(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+              className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             >
               <option value="">{t('Все комплексы', 'Barcha komplekslar')}</option>
               {buildings.map((b) => (
@@ -299,7 +375,7 @@ function StaffChargesPage() {
           </div>
 
           {/* Period */}
-          <div className="flex flex-col gap-1 min-w-[160px]">
+          <div className="flex w-full min-w-0 flex-col gap-1 min-[360px]:w-auto min-[360px]:min-w-[160px]">
             <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {t('Период', 'Davr')}
@@ -308,12 +384,12 @@ function StaffChargesPage() {
               type="month"
               value={localPeriod}
               onChange={(e) => setLocalPeriod(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+              className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             />
           </div>
 
           {/* Status */}
-          <div className="flex flex-col gap-1 min-w-[160px]">
+          <div className="flex w-full min-w-0 flex-col gap-1 min-[360px]:w-auto min-[360px]:min-w-[160px]">
             <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
               <Filter className="w-3.5 h-3.5" />
               {t('Статус', 'Holat')}
@@ -321,7 +397,7 @@ function StaffChargesPage() {
             <select
               value={localStatus}
               onChange={(e) => setLocalStatus(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+              className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
             >
               <option value="">{t('Все', 'Barchasi')}</option>
               <option value="pending">{t('Ожидает', 'Kutilmoqda')}</option>
@@ -334,7 +410,7 @@ function StaffChargesPage() {
           {/* Apply */}
           <button
             onClick={applyFilters}
-            className="h-10 px-5 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors flex items-center gap-2"
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-5 text-sm font-medium text-white transition-colors hover:bg-primary-600 min-[360px]:w-auto"
           >
             <Filter className="w-4 h-4" />
             {t('Применить', 'Qo\'llash')}
@@ -343,18 +419,18 @@ function StaffChargesPage() {
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="charges-kpi-grid grid gap-3 sm:gap-4">
         {summaryCards.map((c) => (
           <div
             key={c.label}
-            className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3"
+            className="min-w-0 bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3"
           >
-            <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center ${c.color}`}>
+            <div className={`w-10 h-10 shrink-0 rounded-lg ${c.bg} flex items-center justify-center ${c.color}`}>
               {c.icon}
             </div>
-            <div>
-              <p className="text-xs text-gray-500">{c.label}</p>
-              <p className={`text-lg font-semibold ${c.color}`}>{c.value}</p>
+            <div className="min-w-0">
+              <p className="break-words text-xs text-gray-500">{c.label}</p>
+              <p className={`break-words text-base min-[375px]:text-lg font-semibold ${c.color}`}>{c.value}</p>
             </div>
           </div>
         ))}
@@ -391,8 +467,13 @@ function StaffChargesPage() {
               const st = (ch.status as string) || 'pending';
               const sc = statusColor[st] || statusColor.pending;
               return (
-                <div key={ch.id as string} onClick={() => setSelected(ch)}
-                  className="p-4 hover:bg-primary-50/40 cursor-pointer transition-colors">
+                <div key={ch.id as string}
+                  role={isDemoSession ? undefined : 'button'}
+                  tabIndex={isDemoSession ? undefined : 0}
+                  aria-label={isDemoSession ? undefined : `${t('Открыть оплату квартиры', 'Xonadon to\'lovini ochish')} ${ch.apartment_number as string}`}
+                  onClick={isDemoSession ? undefined : () => openPaymentTarget(ch)}
+                  onKeyDown={isDemoSession ? undefined : (event) => activateChargeFromKeyboard(event, ch)}
+                  className={`p-4 transition-colors ${isDemoSession ? '' : 'hover:bg-primary-50/40 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40'}`}>
                   <div className="flex items-start justify-between mb-2">
                     <span className="font-semibold text-gray-800">{t('Кв.', 'Xon.')} {ch.apartment_number as string}</span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${sc.bg} ${sc.text}`}>{statusLabel(st)}</span>
@@ -443,13 +524,26 @@ function StaffChargesPage() {
                   return (
                     <tr
                       key={ch.id as string}
-                      onClick={() => setSelected(ch)}
-                      className="border-b border-gray-50 hover:bg-primary-50/40 cursor-pointer transition-colors"
+                      onClick={isDemoSession ? undefined : () => openPaymentTarget(ch)}
+                      className={`border-b border-gray-50 transition-colors ${isDemoSession ? '' : 'hover:bg-primary-50/40 cursor-pointer'}`}
                     >
-                      <td className="px-4 py-3 font-medium text-gray-800">
-                        {ch.apartment_number as string}
+                      <td className="px-4 py-0 font-medium text-gray-800">
+                        {isDemoSession ? (
+                          <span>{ch.apartment_number as string}</span>
+                        ) : <button
+                          type="button"
+                          aria-label={`${t('Открыть оплату квартиры', 'Xonadon to\'lovini ochish')} ${ch.apartment_number as string}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPaymentTarget(ch);
+                          }}
+                          onKeyDown={(event) => activateChargeFromKeyboard(event, ch)}
+                          className="inline-flex min-w-[44px] min-h-[44px] -ml-2 px-2 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+                        >
+                          {ch.apartment_number as string}
+                        </button>}
                       </td>
-                      <td className="px-4 py-3">{typeBadge(ch.apartment_type)}</td>
+                      <td className="px-4 py-3">{typeBadge(ch.property_type)}</td>
                       <td className="px-4 py-3 text-right text-gray-600">
                         {ch.area ? `${ch.area} ${t('м²', 'm²')}` : '—'}
                       </td>
@@ -482,7 +576,7 @@ function StaffChargesPage() {
               <button
                 disabled={!(pag?.hasPrev)}
                 onClick={() => goPage(currentPage - 1)}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex min-h-[44px] min-w-[44px] items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 {t('Назад', 'Orqaga')}
@@ -493,7 +587,7 @@ function StaffChargesPage() {
               <button
                 disabled={!(pag?.hasNext)}
                 onClick={() => goPage(currentPage + 1)}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex min-h-[44px] min-w-[44px] items-center gap-1 text-sm text-gray-600 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {t('Вперёд', 'Oldinga')}
                 <ChevronRight className="w-4 h-4" />
@@ -533,17 +627,13 @@ function StaffChargesPage() {
       {/* ── Detail Modal ── */}
       <Modal
         isOpen={!!selected}
-        onClose={() => {
-          setSelected(null);
-          setPayAmount('');
-          setPayType('cash');
-          setPayDesc('');
-        }}
+        onClose={closePaymentTarget}
         title={`${t('Квартира', 'Xonadon')} ${selected?.apartment_number ?? ''}`}
         size="lg"
+        showClose={!submitting}
       >
         {selected && (
-          <div className="space-y-6">
+          <div ref={paymentModalContentRef} className="space-y-6">
             {/* top info */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
@@ -592,24 +682,28 @@ function StaffChargesPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* amount */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500">{t('Сумма', 'Summa')}</label>
+                  <label htmlFor="payment-amount" className="text-xs text-gray-500">{t('Сумма', 'Summa')}</label>
                   <input
+                    id="payment-amount"
                     type="number"
                     min={0}
                     value={payAmount}
+                    disabled={submitting}
                     onChange={(e) => setPayAmount(e.target.value)}
                     placeholder="0"
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+                    className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                   />
                 </div>
 
                 {/* type */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-gray-500">{t('Тип оплаты', 'To\'lov turi')}</label>
+                  <label htmlFor="payment-type" className="text-xs text-gray-500">{t('Тип оплаты', 'To\'lov turi')}</label>
                   <select
+                    id="payment-type"
                     value={payType}
+                    disabled={submitting}
                     onChange={(e) => setPayType(e.target.value)}
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
+                    className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
                   >
                     <option value="cash">{t('Наличные', 'Naqd')}</option>
                     <option value="card">{t('Карта', 'Karta')}</option>
@@ -620,9 +714,11 @@ function StaffChargesPage() {
 
                 {/* description */}
                 <div className="flex flex-col gap-1 sm:col-span-2">
-                  <label className="text-xs text-gray-500">{t('Комментарий', 'Izoh')}</label>
+                  <label htmlFor="payment-description" className="text-xs text-gray-500">{t('Комментарий', 'Izoh')}</label>
                   <textarea
+                    id="payment-description"
                     value={payDesc}
+                    disabled={submitting}
                     onChange={(e) => setPayDesc(e.target.value)}
                     rows={2}
                     placeholder={t('Необязательно', 'Ixtiyoriy')}
@@ -634,12 +730,14 @@ function StaffChargesPage() {
               <button
                 onClick={handlePay}
                 disabled={submitting || !payAmount || Number(payAmount) <= 0}
-                className="mt-3 w-full h-10 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                className="mt-3 w-full h-11 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {paymentTypeIcon[payType]}
-                {submitting
-                  ? t('Обработка...', 'Qayta ishlanmoqda...')
-                  : t('Принять оплату', 'To\'lovni qabul qilish')}
+                <span role="status" aria-live="polite">
+                  {submitting
+                    ? t('Обработка...', 'Qayta ishlanmoqda...')
+                    : t('Принять оплату', 'To\'lovni qabul qilish')}
+                </span>
               </button>
             </div>
           </div>

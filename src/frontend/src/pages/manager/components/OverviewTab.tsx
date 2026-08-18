@@ -11,7 +11,29 @@ import { useTenantStore } from '../../../stores/tenantStore';
 import { ContractUploader } from '../../../components/contracts/ContractUploader';
 import { RequestCard } from './RequestCard';
 import { RescheduleRequestCard, RescheduleHistoryCard } from './RescheduleCards';
-import type { OverviewTabProps } from './types';
+import type { PieLabelRenderProps } from 'recharts';
+import type { Request, RescheduleRequest } from '../../../types';
+
+interface OverviewTabProps {
+  stats: {
+    totalRequests: number;
+    newRequests: number;
+    inProgress: number;
+    pendingApproval: number;
+    completedToday: number;
+    completedWeek: number;
+    avgCompletionTime: number;
+    executorsOnline: number;
+    executorsTotal: number;
+  };
+  chartData: Array<{ date: string; name: string; created: number; completed: number }>;
+  categoryData: Array<{ name: string; value: number; color: string }>;
+  pendingReschedules: RescheduleRequest[];
+  recentReschedules: RescheduleRequest[];
+  requests: Request[];
+  onAssignRequest: (request: Request) => void;
+  onSelectReschedule: (reschedule: RescheduleRequest) => void;
+}
 
 export function OverviewTab({
   stats,
@@ -141,7 +163,7 @@ export function OverviewTab({
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }: { name?: string; percent?: number }) => `${(name || '').slice(0, 6)}... ${((percent || 0) * 100).toFixed(0)}%`}
+                  label={({ name, percent }: PieLabelRenderProps) => `${String(name ?? '').slice(0, 6)}... ${((percent ?? 0) * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"

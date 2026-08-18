@@ -24,11 +24,20 @@ route('POST', '/api/buildings/:buildingId/apartments/bulk', async (request, env,
     const batch = apartments.slice(i, i + 50);
     const stmts = batch.map((apt: any) => {
       const id = generateId();
+      // Флаги типа ячейки: жилая (все 0) / парковка / подвал / нежилая.
+      // ВНИМАНИЕ: property_type НЕ ставим 'non_commercial' для жилых — иначе в
+      // finance-v2 ветка property_type='non_commercial' сработает раньше
+      // residential и жильё посчитается по нежилому тарифу. Тип ячейки для
+      // расчёта детектится по булевым флагам; property_type по умолчанию
+      // 'commercial' (schema default), меняем только если явно передан.
       return env.DB.prepare(`
-        INSERT OR IGNORE INTO apartments (id, building_id, entrance_id, number, floor, status, is_commercial, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO apartments (id, building_id, entrance_id, number, floor, status, is_commercial, is_basement, is_parking, property_type, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(id, params.buildingId, apt.entrance_id || null, String(apt.number), apt.floor || null,
-        apt.status || 'occupied', apt.is_commercial ? 1 : 0, tenantId);
+        apt.status || 'occupied',
+        apt.is_commercial ? 1 : 0, apt.is_basement ? 1 : 0, apt.is_parking ? 1 : 0,
+        apt.property_type || 'commercial',
+        tenantId);
     });
     try {
       const results = await env.DB.batch(stmts);

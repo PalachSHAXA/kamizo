@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Kamizo verified daily SQLite backup at 03:30 Asia/Tashkent
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Tashkent
+Persistent=true
+AccuracySec=1s
+Unit=kamizo-backup-daily.service
+
+[Install]
+WantedBy=timers.target

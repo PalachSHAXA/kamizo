@@ -2,15 +2,20 @@
 // Contains: banners CRUD, super-admin ads, tenants CRUD, impersonation, analytics
 
 import { route } from '../router';
-import { getUser } from '../middleware/auth';
+import { getAuditAttribution, getUser } from '../middleware/auth';
 import { getTenantId, clearFeatureCache } from '../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement, sanitizeInput, sanitizeUrl, sanitizeAttachmentUrl } from '../utils/helpers';
-import { hashPassword, createJWT, encryptPassword } from '../utils/crypto';
+import { hashPassword, createJWT } from '../utils/crypto';
 import { isSuperAdmin } from '../index';
 import { createRequestLogger } from '../utils/logger';
-import { validateBody } from '../validation/validate';
-import { createPaymentSchema } from '../validation/schemas';
 import type { Env } from '../types';
+
+function legacyPaymentsResponse(data: unknown, status = 200) {
+  const response = json(data, status);
+  response.headers.set('Deprecation', '@1786752000');
+  response.headers.set('Link', '</api/finance/payments>; rel="successor-version"');
+  return response;
+}
 
 // ──────────────────────────────────────────────────────────────────
 // Bug 2 (2026-06-18) — D1 dual-write mirror.
@@ -478,13 +483,10 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.director_login && body.director_password && body.director_name) {
     const directorId = generateId();
     const passwordHash = await hashPassword(body.director_password);
-    // Store the reversible password too so admin/director can view it in the
-    // team page (canSeePasswords). Falls back to null if no ENCRYPTION_KEY.
-    const directorPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.director_password, env.ENCRYPTION_KEY) : null;
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
-    `).bind(directorId, body.director_login, passwordHash, directorPlain, body.director_name, id).run();
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'director', 1, ?, datetime('now'), datetime('now'))
+    `).bind(directorId, body.director_login, passwordHash, body.director_name, id).run();
     directorCreated = true;
   }
 
@@ -493,11 +495,10 @@ route('POST', '/api/tenants', async (request, env) => {
   if (body.admin_login && body.admin_password && body.admin_name) {
     const adminId = generateId();
     const adminPasswordHash = await hashPassword(body.admin_password);
-    const adminPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.admin_password, env.ENCRYPTION_KEY) : null;
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
-    `).bind(adminId, body.admin_login, adminPasswordHash, adminPlain, body.admin_name, id).run();
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(adminId, body.admin_login, adminPasswordHash, body.admin_name, id).run();
     adminCreated = true;
   }
 
@@ -511,11 +512,10 @@ route('POST', '/api/tenants', async (request, env) => {
   if (directorCreated && !adminCreated) {
     const autoAdminId = generateId();
     const autoAdminHash = await hashPassword(body.director_password);
-    const autoAdminPlain = env.ENCRYPTION_KEY ? await encryptPassword(body.director_password, env.ENCRYPTION_KEY) : null;
     await env.DB.prepare(`
-      INSERT INTO users (id, login, password_hash, password_plain, name, role, is_active, tenant_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
-    `).bind(autoAdminId, `${body.director_login}-admin`, autoAdminHash, autoAdminPlain, 'Администратор', id).run();
+      INSERT INTO users (id, login, password_hash, name, role, is_active, tenant_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'admin', 1, ?, datetime('now'), datetime('now'))
+    `).bind(autoAdminId, `${body.director_login}-admin`, autoAdminHash, 'Администратор', id).run();
     adminCreated = true;
   }
 
@@ -604,10 +604,11 @@ route('DELETE', '/api/tenants/:id', async (request, env, params) => {
   await mirrorTenantWriteToD1(env, request, softDeleteSql, [params.id]);
 
   try {
+    const audit = getAuditAttribution(user!, { slug: existing.slug });
     await env.DB.prepare(`
       INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, details, tenant_id, created_at)
       VALUES (?, ?, 'tenant.deactivate', 'tenant', ?, ?, ?, datetime('now'))
-    `).bind(generateId(), user!.id, params.id, JSON.stringify({ slug: existing.slug }), params.id).run();
+    `).bind(generateId(), audit.actorId, params.id, JSON.stringify(audit.details), params.id).run();
   } catch {/* ignore if audit_log missing */}
 
   return json({ success: true, softDeleted: true });
@@ -676,11 +677,11 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
 
     if (tab === 'requests') {
       tabData = await safeQuery(`
-        SELECT r.id, r.title, r.status, r.priority, r.category, r.created_at,
+        SELECT r.id, r.title, r.status, r.priority, r.category_id AS category, r.created_at,
                u.name as creator_name, e.name as executor_name
         FROM requests r
-        LEFT JOIN users u ON r.user_id = u.id
-        LEFT JOIN users e ON r.assigned_to = e.id
+        LEFT JOIN users u ON r.resident_id = u.id AND u.tenant_id = r.tenant_id
+        LEFT JOIN users e ON r.executor_id = e.id AND e.tenant_id = r.tenant_id
         WHERE r.tenant_id = ?
         ORDER BY r.created_at DESC
         LIMIT 50
@@ -753,7 +754,7 @@ route('GET', '/api/super-admin/tenants/:id/details', async (request, env, params
   }
 });
 
-// POST /api/super-admin/impersonate/:tenantId - get admin credentials for auto-login
+// POST /api/super-admin/impersonate/:tenantId - create a one-time admin exchange
 route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
@@ -772,35 +773,72 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
 
   if (!adminUser) return bilingualError('В выбранной компании нет активных сотрудников', 'Tanlangan kompaniyada faol xodimlar mavjud emas', 404);
 
-  // Sprint 71 P0/F1: impersonation hardening.
-  //   - TTL dropped from 7 days to 30 minutes (was a full session, no
-  //     way to revoke if the SA's machine is stolen mid-impersonation).
-  //   - `imp: true` + `imp_by: caller.id` claims so downstream handlers
-  //     (when we add audit checks) can recognise impersonated sessions.
-  //   - audit_log row written so there's a permanent record of which
-  //     super-admin assumed which tenant admin's identity, when.
-  const IMP_TTL_SEC = 30 * 60;
+  const IMP_SESSION_TTL_SEC = 30 * 60;
+  const EXCHANGE_TTL_SEC = 60;
   const impersonateToken = await createJWT(
     {
       userId: adminUser.id,
       role: adminUser.role,
       tenantId: adminUser.tenant_id || undefined,
-      // Extra claims surfaced via JWT for audit trail. JwtPayload type
-      // doesn't list them but `createJWT` serialises the full object.
       imp: true,
       imp_by: user!.id,
-    } as any,
+    },
     env.JWT_SECRET,
-    IMP_TTL_SEC,
+    IMP_SESSION_TTL_SEC,
   );
 
+  let originUrl = request.headers.get('Origin') || '';
   try {
+    const body = await request.json() as { originUrl?: unknown };
+    if (typeof body.originUrl === 'string') {
+      const parsedOriginUrl = new URL(body.originUrl);
+      if (parsedOriginUrl.protocol === 'https:' || parsedOriginUrl.protocol === 'http:') {
+        originUrl = parsedOriginUrl.toString();
+      }
+    }
+  } catch {
+    // The origin header remains the safe fallback for clients without a body.
+  }
+
+  const exchangeBytes = new Uint8Array(16);
+  crypto.getRandomValues(exchangeBytes);
+  const exchangeCode = Array.from(exchangeBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  const expiresAt = Date.now() + EXCHANGE_TTL_SEC * 1000;
+  try {
+    await env.RATE_LIMITER.put(
+      `impersonation-exchange:${exchangeCode}`,
+      JSON.stringify({
+        token: impersonateToken,
+        user: adminUser,
+        tenantId,
+        tenantName: tenant.name,
+        originUrl,
+        expiresAt,
+      }),
+      { expirationTtl: EXCHANGE_TTL_SEC },
+    );
+  } catch {
+    return bilingualError(
+      'Сервис входа в компанию временно недоступен',
+      'Kompaniyaga kirish xizmati vaqtincha ishlamayapti',
+      503,
+    );
+  }
+
+  try {
+    const audit = getAuditAttribution(user!, {
+      tenant_id: tenantId,
+      tenant_slug: tenant.slug,
+      target_role: adminUser.role,
+      session_ttl_sec: IMP_SESSION_TTL_SEC,
+      exchange_ttl_sec: EXCHANGE_TTL_SEC,
+    });
     await env.DB.prepare(`
       INSERT INTO audit_log (id, actor_id, action, resource_type, resource_id, details, tenant_id, created_at)
       VALUES (?, ?, 'impersonate.start', 'user', ?, ?, ?, datetime('now'))
     `).bind(
-      generateId(), user!.id, adminUser.id,
-      JSON.stringify({ tenant_id: tenantId, tenant_slug: tenant.slug, target_role: adminUser.role, ttl_sec: IMP_TTL_SEC }),
+      generateId(), audit.actorId, adminUser.id,
+      JSON.stringify(audit.details),
       tenantId,
     ).run();
   } catch {
@@ -809,7 +847,7 @@ route('POST', '/api/super-admin/impersonate/:id', async (request, env, params) =
     createRequestLogger(request).warn('impersonate audit_log insert failed', { actor: user!.id, target: adminUser.id });
   }
 
-  return json({ user: adminUser, token: impersonateToken, tenantUrl: tenant.url, tenantName: tenant.name, ttlSec: IMP_TTL_SEC });
+  return json({ exchangeCode, tenantUrl: tenant.url, ttlSec: EXCHANGE_TTL_SEC });
 });
 
 // PATCH /api/super-admin/tenants/:id/banners - toggle coming soon banners
@@ -974,44 +1012,14 @@ route('GET', '/api/super-admin/analytics', async (request, env) => {
 
 // ==================== PAYMENTS MODULE ====================
 
-// POST /api/payments — create a payment (admin/manager only)
-route('POST', '/api/payments', async (request, env) => {
-  const authUser = await getUser(request, env);
-  if (!isManagement(authUser)) return error('Manager access required', 403);
-
-  const tenantId = getTenantId(request);
-  const { data: body, errors: validationErrors } = await validateBody(request, createPaymentSchema);
-  if (validationErrors) return error(validationErrors, 400);
-
-  const id = generateId();
-
-  // Generate receipt number: PAY-YYYY-NNNN
-  const year = new Date().getFullYear();
-  const countResult = await env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM payments WHERE receipt_number LIKE ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(`PAY-${year}-%`, ...(tenantId ? [tenantId] : [])).first() as any;
-  const seq = (Number(countResult?.cnt || 0) + 1).toString().padStart(4, '0');
-  const receiptNumber = `PAY-${year}-${seq}`;
-
-  await env.DB.prepare(`
-    INSERT INTO payments (id, apartment_id, resident_id, amount, payment_type, period, description, receipt_number, paid_by, created_by, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id,
-    body.apartment_id || null,
-    body.resident_id || null,
-    body.amount,
-    body.payment_type || 'cash',
-    body.period || null,
-    body.description || null,
-    receiptNumber,
-    body.paid_by || null,
-    authUser!.id,
-    tenantId || ''
-  ).run();
-
-  const created = await env.DB.prepare('SELECT * FROM payments WHERE id = ?').bind(id).first();
-  return json({ payment: created }, 201);
+// POST /api/payments — retired legacy writer; reads remain compatible below.
+route('POST', '/api/payments', async () => {
+  return legacyPaymentsResponse({
+    error: 'Legacy payments write endpoint retired',
+    message_ru: 'Используйте /api/finance/payments для создания платежей',
+    message_uz: "To'lov yaratish uchun /api/finance/payments dan foydalaning",
+    canonical_endpoint: '/api/finance/payments',
+  }, 410);
 });
 
 // GET /api/payments — list payments with filters and pagination
@@ -1020,6 +1028,7 @@ route('GET', '/api/payments', async (request, env) => {
   if (!authUser) return error('Unauthorized', 401);
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const url = new URL(request.url);
   const apartmentId = url.searchParams.get('apartment_id');
   const residentIdParam = url.searchParams.get('resident_id');
@@ -1033,14 +1042,13 @@ route('GET', '/api/payments', async (request, env) => {
   // Now: management sees everything in the tenant; residents only their
   // own payments (their apartments + their resident_id).
   const isMgmt = isManagement(authUser);
-  let where = 'WHERE 1=1';
-  const params: any[] = [];
+  let where = 'WHERE tenant_id = ?';
+  const params: any[] = [tenantId];
 
-  if (tenantId) { where += ' AND tenant_id = ?'; params.push(tenantId); }
   if (!isMgmt) {
     // Restrict residents/tenants to their own apartments and resident_id.
-    where += ' AND (resident_id = ? OR apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ?))';
-    params.push(authUser.id, authUser.id);
+    where += ' AND (resident_id = ? OR apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ? AND tenant_id = ?))';
+    params.push(authUser.id, authUser.id, tenantId);
   }
   if (apartmentId) { where += ' AND apartment_id = ?'; params.push(apartmentId); }
   if (residentIdParam) {
@@ -1059,7 +1067,7 @@ route('GET', '/api/payments', async (request, env) => {
   ).bind(...params, limit, offset);
   const { results } = await dataStmt.all();
 
-  return json({
+  return legacyPaymentsResponse({
     payments: results || [],
     pagination: {
       page, limit, total,

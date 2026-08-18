@@ -71,9 +71,11 @@ export const financeApi = {
   // ── Payments ─────────────────────────────────
   createPayment: async (data: {
     apartment_id: string; amount: number; payment_type?: string; receipt_number?: string; description?: string;
-  }) => {
+  }, idempotencyKey: string) => {
     const res = await apiRequest<{ payment: Record<string, unknown> }>('/api/finance/payments', {
-      method: 'POST', body: JSON.stringify(data),
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(data),
     });
     invalidateFinance();
     return res;

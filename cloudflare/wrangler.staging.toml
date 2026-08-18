@@ -13,7 +13,6 @@
 #      → Скопируйте id в поле ниже
 #
 #   3. Секреты:
-#      wrangler secret put ENCRYPTION_KEY --config wrangler.staging.toml
 #      wrangler secret put JWT_SECRET --config wrangler.staging.toml
 #
 #   4. Применить миграции:
@@ -40,7 +39,6 @@ VAPID_EMAIL = "admin@kamizo.uz"
 
 # Секреты хранятся в Cloudflare Secrets (не в коде!)
 # Установить:
-#   wrangler secret put ENCRYPTION_KEY --config wrangler.staging.toml
 #   wrangler secret put JWT_SECRET --config wrangler.staging.toml
 
 [[d1_databases]]
@@ -53,10 +51,6 @@ migrations_dir = "migrations"
 binding = "RATE_LIMITER"
 id = ""  # ← Вставьте ID после: wrangler kv namespace create RATE_LIMITER
 
-[[durable_objects.bindings]]
-name = "CONNECTION_MANAGER"
-class_name = "ConnectionManager"
-
 [[migrations]]
-tag = "v1"
-new_sqlite_classes = ["ConnectionManager"]
+tag = "v2"
+deleted_classes = ["ConnectionManager"]

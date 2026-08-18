@@ -7,6 +7,10 @@ import { json, error, bilingualError, generateId } from '../../utils/helpers';
 import { createRequestLogger } from '../../utils/logger';
 import { isMarketplaceAdmin } from './helpers';
 
+declare const Buffer: {
+  from(data: ArrayBuffer): { toString(encoding: 'base64'): string };
+};
+
 export function registerAdminProductRoutes() {
 
 route('GET', '/api/marketplace/admin/products', async (request, env) => {

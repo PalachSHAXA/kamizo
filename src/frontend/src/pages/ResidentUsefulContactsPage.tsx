@@ -40,7 +40,6 @@ const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
 const BRAND_TINT = '#FFF3EA';
 const INK = '#1C1917';
-const TEXT_ON_DARK = '#F4F0E8';
 const SHADOW_SM = '0 1px 2px rgba(28,25,23,0.04)';
 const SHADOW_BRAND = '0 8px 22px rgba(249,115,22,0.26)';
 

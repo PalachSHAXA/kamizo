@@ -1,8 +1,82 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type { Announcement } from '../types';
+import type { AnnouncementApiRecord } from '../services/api/announcements';
 import { useToastStore } from './toastStore';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const parseJson = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const mapAttachments = (value: unknown): Announcement['attachments'] => {
+  const parsed = parseJson(value);
+  if (!Array.isArray(parsed)) return undefined;
+  return parsed.filter((item): item is NonNullable<Announcement['attachments']>[number] => {
+    if (!item || typeof item !== 'object') return false;
+    const record = item as Record<string, unknown>;
+    return typeof record.name === 'string'
+      && typeof record.url === 'string'
+      && typeof record.type === 'string'
+      && typeof record.size === 'number';
+  });
+};
+
+const mapPersonalizedData = (value: unknown): Announcement['personalizedData'] => {
+  const parsed = parseJson(value);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+
+  const result: NonNullable<Announcement['personalizedData']> = {};
+  for (const [login, item] of Object.entries(parsed)) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.name === 'string' && typeof record.debt === 'number') {
+      result[login] = { name: record.name, debt: record.debt };
+    }
+  }
+  return result;
+};
+
+const mapAnnouncement = (
+  record: AnnouncementApiRecord,
+  userId: string | undefined,
+  localReadAnnouncements: string[],
+): Announcement => {
+  const viewedByUser = record.viewed_by_user === true || record.viewed_by_user === 1;
+  const viewedBy = userId && (viewedByUser || localReadAnnouncements.includes(record.id)) ? [userId] : [];
+
+  return {
+    id: record.id,
+    title: record.title,
+    content: record.content,
+    type: record.type === 'staff' ? 'employees' : record.type,
+    priority: record.priority || 'normal',
+    authorId: record.created_by || '',
+    authorName: record.author_name || 'Администрация',
+    authorRole: 'manager',
+    createdAt: record.created_at,
+    expiresAt: record.expires_at,
+    isActive: record.is_active === 1 || record.is_active === true,
+    viewedBy,
+    viewCount: record.view_count || 0,
+    attachments: mapAttachments(record.attachments),
+    personalizedData: mapPersonalizedData(record.personalized_data),
+    target: record.target_type ? {
+      type: record.target_type,
+      branchId: record.target_branch,
+      buildingId: record.target_building_id,
+      entrance: record.target_entrance,
+      floor: record.target_floor,
+      customLogins: record.target_logins?.split(',').map((login) => login.trim()).filter(Boolean),
+    } : undefined,
+  };
+};
 
 interface AnnouncementState {
   announcements: Announcement[];
@@ -219,73 +293,8 @@ export const useAnnouncementStore = create<AnnouncementState>()(
           } catch { localReadAnnouncements = []; }
         }
 
-        const announcements: Announcement[] = (result.announcements || []).map((a: Record<string, unknown>) => {
-          // Use API view_count and viewed_by_user if available
-          const viewedByUser = a.viewed_by_user === true || a.viewed_by_user === 1;
-
-          // Build viewedBy array - include current user if they viewed
-          const viewedBy: string[] = [];
-          if (viewedByUser && userId) {
-            viewedBy.push(userId);
-          }
-
-          // Also check localStorage as fallback
-          if (userId && localReadAnnouncements.includes(a.id) && !viewedBy.includes(userId)) {
-            viewedBy.push(userId);
-          }
-
-          // Parse attachments from JSON string
-          let attachments = undefined;
-          if (a.attachments) {
-            try {
-              attachments = typeof a.attachments === 'string'
-                ? JSON.parse(a.attachments)
-                : a.attachments;
-            } catch {
-              attachments = undefined;
-            }
-          }
-
-          // Parse personalized data
-          let personalizedData = undefined;
-          if (a.personalized_data) {
-            try {
-              personalizedData = typeof a.personalized_data === 'string'
-                ? JSON.parse(a.personalized_data)
-                : a.personalized_data;
-            } catch {
-              personalizedData = undefined;
-            }
-          }
-
-          // Map 'staff' from API back to 'employees' for UI compatibility
-          const typeForUI = a.type === 'staff' ? 'employees' : a.type;
-          return {
-            id: a.id,
-            title: a.title,
-            content: a.content,
-            type: typeForUI as 'residents' | 'employees' | 'all',
-            priority: a.priority || 'normal',
-            authorId: a.created_by || '',
-            authorName: a.author_name || 'Администрация',
-            authorRole: 'manager' as const,
-            createdAt: a.created_at,
-            expiresAt: a.expires_at,
-            isActive: a.is_active === 1,
-            viewedBy,
-            viewCount: a.view_count || 0, // Total view count from API
-            attachments, // File attachments
-            personalizedData,
-            target: a.target_type ? {
-              type: a.target_type,
-              branchId: a.target_branch,
-              buildingId: a.target_building_id,
-              entrance: a.target_entrance,
-              floor: a.target_floor,
-              customLogins: (a.target_logins as string)?.split(',').map((l: string) => l.trim()).filter(Boolean),
-            } : undefined,
-          } as Announcement;
-        });
+        const announcements = (result.announcements || []).map((record) =>
+          mapAnnouncement(record, userId, localReadAnnouncements));
 
         set({ announcements });
       } catch (error) {
@@ -295,3 +304,5 @@ export const useAnnouncementStore = create<AnnouncementState>()(
     },
   })
 );
+
+registerSessionStore(useAnnouncementStore);

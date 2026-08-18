@@ -24,6 +24,8 @@ import { useToastStore } from '../stores/toastStore';
 import { useTenantStore } from '../stores/tenantStore';
 // ExcelJS loaded dynamically in exportMarketplaceReport to reduce initial bundle
 import type { Style } from 'exceljs';
+import type { PieLabelRenderProps } from 'recharts';
+import type { Formatter, NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 
 interface MarketplaceReport {
   period: { start_date: string; end_date: string };
@@ -76,6 +78,36 @@ interface MarketplaceReport {
 
 type TabType = 'overview' | 'marketplace' | 'platform_ads';
 
+interface PlatformAdDto {
+  id: string;
+  title: string;
+  category_name?: string;
+  description?: string;
+  logo_url?: string;
+  discount_percent: number;
+  views_count: number;
+  expires_at?: string;
+  tenant_enabled: number;
+  target_type?: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isPlatformAdDto = (value: unknown): value is PlatformAdDto => {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'string'
+    && typeof value.title === 'string'
+    && typeof value.discount_percent === 'number'
+    && typeof value.views_count === 'number'
+    && typeof value.tenant_enabled === 'number'
+    && (value.category_name === undefined || typeof value.category_name === 'string')
+    && (value.description === undefined || typeof value.description === 'string')
+    && (value.logo_url === undefined || typeof value.logo_url === 'string')
+    && (value.expires_at === undefined || typeof value.expires_at === 'string')
+    && (value.target_type === undefined || typeof value.target_type === 'string');
+};
+
 export function AdminDashboard() {
   const { user } = useAuthStore();
   const requests = useRequestStore(s => s.requests);
@@ -87,6 +119,18 @@ export function AdminDashboard() {
   const addToast = useToastStore(s => s.addToast);
 
   const stats = getStats();
+  const formatSalesTooltip: Formatter<ValueType, NameType> = (value, name) => {
+    const numericValue = typeof value === 'number' ? value : Number(Array.isArray(value) ? value[0] : value ?? 0);
+    const seriesName = String(name ?? '');
+    return [
+      seriesName === 'revenue'
+        ? `${numericValue.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}`
+        : numericValue,
+      seriesName === 'revenue'
+        ? (language === 'ru' ? 'Выручка' : 'Tushum')
+        : (language === 'ru' ? 'Заказов' : 'Buyurtmalar'),
+    ];
+  };
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
 
@@ -104,7 +148,7 @@ export function AdminDashboard() {
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Platform ads state
-  const [platformAds, setPlatformAds] = useState<Record<string, unknown>[]>([]);
+  const [platformAds, setPlatformAds] = useState<PlatformAdDto[]>([]);
   const [isLoadingPlatformAds, setIsLoadingPlatformAds] = useState(false);
   const [togglingAdId, setTogglingAdId] = useState<string | null>(null);
 
@@ -139,8 +183,8 @@ export function AdminDashboard() {
   const loadPlatformAds = async () => {
     setIsLoadingPlatformAds(true);
     try {
-      const res = await apiRequest<{ ads: Record<string, unknown>[] }>('/api/ads/assigned');
-      setPlatformAds(res.ads || []);
+      const res = await apiRequest<{ ads?: unknown }>('/api/ads/assigned');
+      setPlatformAds(Array.isArray(res.ads) ? res.ads.filter(isPlatformAdDto) : []);
     } catch {
       setPlatformAds([]);
     } finally {
@@ -918,10 +962,7 @@ export function AdminDashboard() {
                     />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip
-                      formatter={(value: number, name: string) => [
-                        name === 'revenue' ? `${value.toLocaleString()} ${language === 'ru' ? 'сум' : 'so\'m'}` : value,
-                        name === 'revenue' ? (language === 'ru' ? 'Выручка' : 'Tushum') : (language === 'ru' ? 'Заказов' : 'Buyurtmalar')
-                      ]}
+                      formatter={formatSalesTooltip}
                       labelFormatter={(label: string) => new Date(label).toLocaleDateString('ru-RU')}
                     />
                     <Legend />
@@ -1120,7 +1161,7 @@ export function AdminDashboard() {
                       labelLine={false}
                       outerRadius={80}
                       dataKey="value"
-                      label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: PieLabelRenderProps) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     >
                       {marketplaceReport.orders_by_status.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={{

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { apiLogin, apiCall } from './helpers/auth';
 
 // Director creates a building, then a meeting on that building.
@@ -14,6 +14,18 @@ test('api: director creates a building and a meeting on it', async () => {
   expect([200, 201]).toContain(buildingRes.status);
   const buildingId = buildingRes.body?.id || buildingRes.body?.building?.id;
   expect(buildingId, `no building id: ${JSON.stringify(buildingRes.body)}`).toBeTruthy();
+
+  // Production rejects meetings for buildings with no active residents.
+  const residentRes = await apiCall(token, 'POST', '/api/auth/register', {
+    login: `meeting_resident_${Date.now()}`,
+    password: 'meeting-resident-e2e',
+    name: 'Meeting Resident E2E',
+    role: 'resident',
+    building_id: buildingId,
+    address: 'ул. Тестовая, 1',
+    apartment: '1',
+  });
+  expect([200, 201]).toContain(residentRes.status);
 
   const meetingRes = await apiCall(token, 'POST', '/api/meetings', {
     building_id: buildingId,

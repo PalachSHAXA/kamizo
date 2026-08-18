@@ -11,13 +11,14 @@ import type { EstimateInput, EstimateResult } from './compute';
 import {
   MANDATORY_SERVICES,
   SERVICE_STATUS_FLAGS,
+  LEGACY_SERVICE_CODE_MAP,
   getMinTariff,
 } from './legal-constants';
 
 export type WarningSeverity = 'error' | 'warning' | 'info';
 
 export interface EstimateWarning {
-  code: 'BELOW_MIN_TARIFF' | 'MISSING_MANDATORY_SERVICE' | 'REQUIRES_ASSEMBLY_DECISION' | 'RISK_UNNECESSARY';
+  code: 'BELOW_MIN_TARIFF' | 'MISSING_MANDATORY_SERVICE' | 'REQUIRES_ASSEMBLY_DECISION' | 'RISK_UNNECESSARY' | 'MISSING_AREA';
   severity: WarningSeverity;
   message_ru: string;
   message_uz: string;
@@ -41,6 +42,19 @@ export function validate(
 ): EstimateWarning[] {
   const warnings: EstimateWarning[] = [];
 
+  // 0) Жилая площадь не заполнена — тариф считать не от чего (делим на ~0),
+  // получаются нули или абсурдные суммы. Явно предупреждаем.
+  const area = input.object.residential_area;
+  if (!area || area <= 0) {
+    warnings.push({
+      code: 'MISSING_AREA',
+      severity: 'error',
+      message_ru: 'Не заполнена жилая площадь дома — тариф рассчитать невозможно. Укажите площадь в разделе «Комплексы».',
+      message_uz: 'Uyning turar joy maydoni kiritilmagan — tarifni hisoblab bo\'lmaydi. «Komplekslar» bo\'limida maydonni kiriting.',
+      meta: { residential_area: area },
+    });
+  }
+
   // 1) Минимальный тариф по этажности
   const minTariff = getMinTariff(building.floors);
   if (result.tariff_effective > 0 && result.tariff_effective < minTariff) {
@@ -53,17 +67,23 @@ export function validate(
     });
   }
 
-  // 2) Обязательные 16 услуг — проверяем по legal_code в статьях расходов
-  const expenseCodes = new Set(
-    input.expenses
-      .map(e => e.legal_code)
-      .filter((c): c is string => !!c)
-  );
+  // 2) Обязательные услуги — проверяем по legal_code в статьях расходов.
+  // Старый объединённый код facades_entrances разворачиваем в новые
+  // facades+entrances для обратной совместимости.
+  const expenseCodes = new Set<string>();
+  for (const e of input.expenses) {
+    if (!e.legal_code) continue;
+    expenseCodes.add(e.legal_code);
+    const mapped = LEGACY_SERVICE_CODE_MAP[e.legal_code];
+    if (mapped) mapped.forEach(c => expenseCodes.add(c));
+  }
 
   for (const svc of MANDATORY_SERVICES) {
     // Пропускаем условные (лифт/насосы) если соответствующий факт зданию false
     if (svc.conditional === 'has_elevator' && !building.has_elevator) continue;
     if (svc.conditional === 'has_pumps' && !building.has_pumps) continue;
+    // Опциональные (гидроизоляция и т.п.) не обязательны — не ругаемся, если нет.
+    if (svc.optional) continue;
 
     if (!expenseCodes.has(svc.code)) {
       warnings.push({

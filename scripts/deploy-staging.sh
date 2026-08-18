@@ -1,26 +1,7 @@
-#!/bin/bash
-# Deploy Kamizo to Staging environment
-# Usage: bash scripts/deploy-staging.sh
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
-
-echo "🚀 Deploying to STAGING..."
-
-# Build frontend
-echo "📦 Building frontend..."
-cd src/frontend
-npm run build
-cd ../..
-
-# Copy to cloudflare public
-rm -rf cloudflare/public
-cp -r src/frontend/dist cloudflare/public
-
-# Deploy with staging config
-echo "☁️  Deploying to Cloudflare Workers (staging)..."
-cd cloudflare
-wrangler deploy --config wrangler.staging.toml
-
-echo ""
-echo "✅ Staging deployment complete!"
-echo "🌐 https://kamizo-staging.workers.dev"
+printf '%s\n' \
+  'Local staging deployment is disabled.' \
+  'Use GitHub Actions manual dispatch from develop with staging_config_verified=true and approve the protected staging environment.' >&2
+exit 1

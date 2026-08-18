@@ -19,132 +19,6 @@ import { NotificationsDropdown } from '../../../components/NotificationsDropdown
 
 const ru = (language: string, r: string, u: string) => (language === 'ru' ? r : u);
 
-// v118.25 — Tashkent skyline silhouette (inline SVG).
-//
-// The design §01-glavnaya handoff references raster PNGs
-// (screens/skyline-light.png + screens/skyline-dark.png) of an
-// actual Tashkent skyline. DesignSync.get_file capped both files
-// at 256 KiB (server-side limit) and returned `truncated: true`,
-// so the persisted base64 was incomplete and decoded to broken
-// PNGs. Per the user's Q3 fallback rule we ship a hand-built
-// SVG of the real Tashkent silhouette instead — recognisable
-// landmarks left-to-right:
-//
-//   1. Hotel Uzbekistan       (Soviet-era twin-curve tower)
-//   2. International Hotel    (modern slim tower)
-//   3. Khast Imam mosque dome (cental dome + 2 minarets)
-//   4. Hazrati Imam complex   (smaller dome cluster)
-//   5. Tashkent TV Tower      (375 m — the city's tallest)
-//   6. Markaziy Bank tower    (modernist box, antenna)
-//   7. Magic City group       (cluster of 3 modern towers)
-//   8. Plaza Tower            (slim residential tower)
-//   9. Trade Centre block     (low rectangular slab)
-//
-// Theme-aware:
-//   • DARK hero  → silhouette painted cream (#FAFAF9), warm amber
-//                  window dots — silhouette glows against the dark
-//                  brown sky.
-//   • LIGHT hero → silhouette painted deep warm brown (#4A3B30),
-//                  pale-cream window dots — a backlit city against
-//                  the warm beige sky.
-// preserveAspectRatio xMidYMax meet so the skyline always anchors
-// to the BOTTOM edge of the hero across iPhone SE → 17 Pro Max
-// widths (the design's PNGs do the same).
-function TashkentSkyline({ theme }: { theme: 'light' | 'dark' }) {
-  const buildingFill = theme === 'dark' ? '#FAFAF9' : '#4A3B30';
-  const windowFill = theme === 'dark' ? 'rgba(255,231,194,0.78)' : 'rgba(255,231,194,0.85)';
-  const opacity = theme === 'dark' ? 0.55 : 0.4;
-  return (
-    <svg
-      viewBox="0 0 400 140"
-      preserveAspectRatio="xMidYMax meet"
-      aria-hidden
-      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '75%', opacity, pointerEvents: 'none' }}
-    >
-      <g fill={buildingFill}>
-        {/* 1. Hotel Uzbekistan — distinctive twin-curve tower */}
-        <path d="M2 88 L2 138 L46 138 L46 88 Q46 60 38 56 L38 50 L34 50 L34 56 Q30 58 30 64 L18 64 Q18 58 14 56 L14 50 L10 50 L10 56 Q2 60 2 88 Z" />
-        {/* 2. International Hotel — slim modern tower */}
-        <rect x="52" y="42" width="22" height="96" />
-        <rect x="60" y="32" width="6" height="10" />
-        <polygon points="63,28 60,32 66,32" />
-        {/* 3. Khast Imam mosque — central dome + two minarets */}
-        <rect x="80" y="106" width="48" height="32" />
-        <path d="M104 106 Q104 80 96 78 Q104 76 104 60 Q104 76 112 78 Q104 80 104 106 Z" />
-        <circle cx="104" cy="78" r="14" />
-        <rect x="82" y="62" width="5" height="44" />
-        <circle cx="84.5" cy="60" r="3" />
-        <polygon points="84.5,52 82,60 87,60" />
-        <rect x="121" y="62" width="5" height="44" />
-        <circle cx="123.5" cy="60" r="3" />
-        <polygon points="123.5,52 121,60 126,60" />
-        {/* 4. Hazrati Imam smaller dome cluster */}
-        <rect x="134" y="110" width="30" height="28" />
-        <path d="M149 110 Q149 96 144 95 Q149 94 149 86 Q149 94 154 95 Q149 96 149 110 Z" />
-        <circle cx="149" cy="95" r="8" />
-        {/* 5. Tashkent TV Tower — 375 m, three-leg base, observation pod */}
-        <polygon points="180,138 188,82 198,138" />
-        <polygon points="184,138 188,82 192,138" />
-        <rect x="184" y="74" width="8" height="14" rx="1.5" />
-        <rect x="180" y="66" width="16" height="9" rx="2" />
-        <rect x="186" y="50" width="4" height="16" />
-        <rect x="184" y="42" width="8" height="9" rx="1.5" />
-        <rect x="187" y="22" width="2" height="20" />
-        <circle cx="188" cy="20" r="2.2" />
-        {/* 6. Markaziy Bank tower — modernist with antenna */}
-        <rect x="208" y="58" width="28" height="80" />
-        <rect x="220" y="44" width="4" height="14" />
-        <polygon points="222,38 220,44 224,44" />
-        {/* 7. Magic City — cluster of 3 modern towers (stepped heights) */}
-        <rect x="244" y="72" width="20" height="66" />
-        <rect x="266" y="52" width="22" height="86" />
-        <rect x="290" y="64" width="18" height="74" />
-        {/* 7b. roof crowns */}
-        <polygon points="254,72 244,76 264,76" />
-        <polygon points="277,52 266,58 288,58" />
-        {/* 8. Plaza Tower — slim residential */}
-        <rect x="316" y="46" width="14" height="92" />
-        <rect x="321" y="40" width="4" height="6" />
-        {/* 9. Trade Centre block — low slab */}
-        <rect x="336" y="96" width="62" height="42" />
-        <rect x="336" y="90" width="62" height="6" />
-      </g>
-      <g fill={windowFill}>
-        {/* Hotel Uzbekistan windows */}
-        {[0,1,2,3,4].map(r => [6,12,18,24,30,36].map((x, i) => (
-          <rect key={`hu-${r}-${i}`} x={x} y={94 + r*9} width={3.5} height={4} rx={0.4} />
-        ))).flat()}
-        {/* International Hotel windows */}
-        {[0,1,2,3,4,5,6,7,8,9].map(r => [54, 60, 67].map((x, i) => (
-          <rect key={`ih-${r}-${i}`} x={x} y={48 + r*9} width={2.6} height={3.5} rx={0.4} />
-        ))).flat()}
-        {/* Markaziy Bank windows */}
-        {[0,1,2,3,4,5,6,7].map(r => [210, 216, 222, 228, 233].map((x, i) => (
-          <rect key={`mb-${r}-${i}`} x={x} y={64 + r*9} width={2.6} height={3.5} rx={0.4} />
-        ))).flat()}
-        {/* Magic City windows */}
-        {[0,1,2,3,4,5,6].map(r => [246, 251, 257, 262].map((x, i) => (
-          <rect key={`mc1-${r}-${i}`} x={x} y={78 + r*8} width={2.4} height={3} rx={0.3} />
-        ))).flat()}
-        {[0,1,2,3,4,5,6,7,8].map(r => [268, 273, 279, 284].map((x, i) => (
-          <rect key={`mc2-${r}-${i}`} x={x} y={60 + r*8} width={2.4} height={3} rx={0.3} />
-        ))).flat()}
-        {[0,1,2,3,4,5,6,7].map(r => [292, 297, 302].map((x, i) => (
-          <rect key={`mc3-${r}-${i}`} x={x} y={70 + r*8} width={2.4} height={3} rx={0.3} />
-        ))).flat()}
-        {/* Plaza Tower */}
-        {[0,1,2,3,4,5,6,7,8,9,10].map(r => [318, 323, 327].map((x, i) => (
-          <rect key={`pt-${r}-${i}`} x={x} y={52 + r*8} width={2.2} height={3} rx={0.3} />
-        ))).flat()}
-        {/* Trade Centre */}
-        {[0,1,2,3].map(r => [340, 348, 356, 364, 372, 380, 388].map((x, i) => (
-          <rect key={`tc-${r}-${i}`} x={x} y={102 + r*9} width={3} height={3.5} rx={0.4} />
-        ))).flat()}
-      </g>
-    </svg>
-  );
-}
-
 // v118.25 — 14-star twinkle field for the dark hero sky.
 // Coordinates are %, sizes are px. Animation keyframes
 // (kzTwinkle) live in index.css.
@@ -308,9 +182,7 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
           bleed absolute, anchored to the hero's bottom edge,
           objectPosition:bottom + width:100%/height:auto so the
           aspect ratio is preserved at every viewport from SE to
-          17 Pro Max. The TashkentSkyline SVG component stays
-          defined in this file as a safety net in case the PNGs
-          ever fail to load on a particular device. */}
+          17 Pro Max. */}
       <img
         src={isLight ? '/screens/skyline-light.png' : '/screens/skyline-dark.png'}
         alt=""

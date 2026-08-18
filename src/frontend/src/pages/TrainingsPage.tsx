@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   GraduationCap,
   Plus,
@@ -13,6 +13,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { DemoReadOnlyBanner } from '../components/demo/DemoReadOnlyBanner';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import {
@@ -34,13 +35,14 @@ import { AdminPanel } from './trainings/AdminPanel';
 
 // Главный компонент страницы
 export default function TrainingsPage() {
-  const { user } = useAuthStore();
-  const {
-    proposals,
-    getProposalsByStatus,
-    hasVoted,
-    getStats,
-  } = useTrainingStore();
+  const user = useAuthStore((state) => state.user);
+  const proposals = useTrainingStore((state) => state.proposals);
+  const getProposalsByStatus = useTrainingStore((state) => state.getProposalsByStatus);
+  const hasVoted = useTrainingStore((state) => state.hasVoted);
+  const getStats = useTrainingStore((state) => state.getStats);
+  const fetchPartners = useTrainingStore((state) => state.fetchPartners);
+  const fetchProposals = useTrainingStore((state) => state.fetchProposals);
+  const fetchSettings = useTrainingStore((state) => state.fetchSettings);
   const { language } = useLanguageStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -53,7 +55,12 @@ export default function TrainingsPage() {
     TrainingProposalStatus | 'all'
   >('all');
 
+  useEffect(() => {
+    void Promise.all([fetchPartners(true), fetchProposals(), fetchSettings()]);
+  }, [fetchPartners, fetchProposals, fetchSettings]);
+
   const isAdmin = user?.role === 'admin';
+  const isDemoSession = user?.demoSession === true;
   const stats = getStats();
 
   const filteredProposals =
@@ -91,7 +98,7 @@ export default function TrainingsPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          {isAdmin && (
+          {isAdmin && !isDemoSession && (
             <button
               onClick={() => setShowAdminPanel(true)}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -100,15 +107,17 @@ export default function TrainingsPage() {
               {language === 'ru' ? 'Управление' : 'Boshqarish'}
             </button>
           )}
-          <button
+          {!isDemoSession && <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             {language === 'ru' ? 'Предложить тренинг' : 'Trening taklif qilish'}
-          </button>
+          </button>}
         </div>
       </div>
+
+      {isDemoSession && <DemoReadOnlyBanner />}
 
       {/* Статистика */}
       <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -230,7 +239,7 @@ export default function TrainingsPage() {
                       <Eye className="w-5 h-5" />
                     </button>
 
-                    {proposal.status === 'voting' && user && !userHasVoted && (
+                    {proposal.status === 'voting' && user && !userHasVoted && !isDemoSession && (
                       <button
                         onClick={() => handleVote(proposal)}
                         className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"

@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Trash2, Eye, Clock, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText, Download } from 'lucide-react';
-import { EmptyState, StatusBadge } from '../components/common';
-import { plural } from '../utils/plural';
+import { Plus, Megaphone, Users, Briefcase, X, AlertTriangle, AlertCircle, Info, Building2, Upload, FileSpreadsheet, Target, Filter, Paperclip, File, Image, FileText } from 'lucide-react';
+import { EmptyState } from '../components/common';
 import type { StatusTone } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
@@ -10,6 +9,20 @@ import { buildingsApi, uploadApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import type { Announcement, AnnouncementType, AnnouncementPriority, AnnouncementTargetType, AnnouncementTarget, FileAttachment } from '../types';
 import { AnnouncementCard } from './announcements/AnnouncementCard';
+
+interface BuildingOption {
+  id: string;
+  name: string;
+  address: string;
+  branchCode: string;
+}
+
+const mapBuildingOption = (building: Record<string, unknown>): BuildingOption => ({
+  id: String(building.id ?? ''),
+  name: String(building.name ?? ''),
+  address: String(building.address ?? ''),
+  branchCode: String(building.branch_code ?? building.branchCode ?? 'default'),
+});
 
 export function AnnouncementsPage() {
   const { user } = useAuthStore();
@@ -61,7 +74,7 @@ export function AnnouncementsPage() {
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   // Real buildings from API
-  const [buildings, setBuildings] = useState<Record<string, unknown>[]>([]);
+  const [buildings, setBuildings] = useState<BuildingOption[]>([]);
 
   // Update debt template when language changes
   useEffect(() => {
@@ -77,7 +90,7 @@ export function AnnouncementsPage() {
     const loadBuildings = async () => {
       try {
         const result = await buildingsApi.getAll();
-        setBuildings(result.buildings || []);
+        setBuildings((result.buildings || []).map(mapBuildingOption));
       } catch (error) {
         console.error('Failed to load buildings:', error);
       }
@@ -90,7 +103,7 @@ export function AnnouncementsPage() {
   const branches = useMemo(() => {
     const branchMap = new Map<string, { id: string; name: string; buildingCount: number }>();
     buildings.forEach(b => {
-      const branchCode = b.branch_code || b.branchCode || 'default';
+      const branchCode = b.branchCode;
       if (!branchMap.has(branchCode)) {
         branchMap.set(branchCode, {
           id: branchCode,
@@ -1126,4 +1139,3 @@ export function AnnouncementsPage() {
     </div>
   );
 }
-

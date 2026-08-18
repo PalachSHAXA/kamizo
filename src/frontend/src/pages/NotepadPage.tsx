@@ -2,6 +2,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { Notepad } from '../components/Notepad';
 import { StickyNote } from 'lucide-react';
+import { DemoReadOnlyBanner } from '../components/demo/DemoReadOnlyBanner';
 
 export function NotepadPage() {
   const { user } = useAuthStore();
@@ -27,7 +28,8 @@ export function NotepadPage() {
           <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Ваши личные заметки и напоминания' : 'Shaxsiy eslatmalar va eslatmalaringiz'}</p>
         </div>
       </div>
-      <Notepad userId={user.id} />
+      {user.demoSession === true && <DemoReadOnlyBanner />}
+      <Notepad userId={user.id} readOnly={user.demoSession === true} />
     </div>
   );
 }

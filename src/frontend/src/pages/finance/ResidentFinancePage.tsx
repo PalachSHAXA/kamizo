@@ -20,6 +20,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { financeApi } from '../../services/api/finance';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 // ── tokens
 // Theme-adaptive tokens flow through CSS vars declared in index.css
@@ -88,6 +89,31 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const chargeStatus = (value: unknown): ChargeStatus =>
+  value === 'paid' || value === 'partial' || value === 'overdue' ? value : 'pending';
+
+const toCharge = (row: Record<string, unknown>): Charge => ({
+  id: String(row.id ?? ''),
+  apartment_id: typeof row.apartment_id === 'string' ? row.apartment_id : undefined,
+  period: typeof row.period === 'string' ? row.period : undefined,
+  amount: num(row.amount),
+  paid_amount: num(row.paid_amount),
+  status: chargeStatus(row.status),
+  description: typeof row.description === 'string' ? row.description : undefined,
+  estimate_item_name: typeof row.estimate_item_name === 'string' ? row.estimate_item_name : undefined,
+  generated_at: typeof row.generated_at === 'string' ? row.generated_at : undefined,
+  due_date: typeof row.due_date === 'string' ? row.due_date : undefined,
+});
+
+const toPayment = (row: Record<string, unknown>): Payment => ({
+  id: String(row.id ?? ''),
+  payment_date: typeof row.payment_date === 'string' ? row.payment_date : undefined,
+  amount: num(row.amount),
+  payment_type: typeof row.payment_type === 'string' ? row.payment_type : undefined,
+  description: typeof row.description === 'string' ? row.description : undefined,
+  receipt_number: typeof row.receipt_number === 'string' ? row.receipt_number : undefined,
+});
+
 const fmtSum = (n: number): string =>
   n.toLocaleString('ru-RU', { maximumFractionDigits: 0 }).replace(/,/g, ' ');
 
@@ -145,6 +171,7 @@ export function ResidentFinancePage() {
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
   const addToast = useToastStore(s => s.addToast);
+  const isDemoSession = user?.demoSession === true;
 
   const fetchBuildingById = useBuildingStore(s => s.fetchBuildingById);
   const residentBuilding = useBuildingStore(s =>
@@ -168,12 +195,7 @@ export function ResidentFinancePage() {
       try {
         const resp = await financeApi.getCharges({ limit: 50 });
         if (cancelled) return;
-        const rows = ((resp.data || []) as Charge[]).map(c => ({
-          ...c,
-          amount: num(c.amount),
-          paid_amount: num(c.paid_amount),
-          status: (c.status as ChargeStatus) || 'pending',
-        }));
+        const rows = (resp.data || []).map(toCharge);
         setCharges(rows);
       } catch {
         if (!cancelled) setCharges([]);
@@ -194,10 +216,7 @@ export function ResidentFinancePage() {
     setLoadingPayments(true);
     try {
       const resp = await financeApi.getPayments({ limit: 10 });
-      const rows = ((resp.data || []) as Payment[]).map(p => ({
-        ...p,
-        amount: num(p.amount),
-      }));
+      const rows = (resp.data || []).map(toPayment);
       setPayments(rows);
     } catch {
       setPayments([]);
@@ -273,6 +292,8 @@ export function ResidentFinancePage() {
         </div>
       </div>
 
+      {isDemoSession && <div style={{ padding: '8px 16px 0' }}><FinanceDemoReadOnlyBanner /></div>}
+
       {/* Balance card */}
       <div style={{ padding: '8px 16px 0' }}>
         <BalanceCard
@@ -285,6 +306,7 @@ export function ResidentFinancePage() {
           currentMonthDue={currentMonthDue}
           hasAnyOverdue={hasAnyOverdue}
           paymentsOpen={paymentsOpen}
+          readOnly={isDemoSession}
           onPay={handlePay}
           onTogglePayments={loadPayments}
         />
@@ -313,7 +335,7 @@ export function ResidentFinancePage() {
           }}>
             {lang === 'ru' ? 'Начисления' : 'Hisob-kitoblar'}
           </span>
-          <button
+          {!isDemoSession && <button
             type="button"
             onClick={handleReconciliation}
             style={{
@@ -325,7 +347,7 @@ export function ResidentFinancePage() {
             <Download size={14} />
             {lang === 'ru' ? 'Акт сверки' : 'Solishtirish'}
             <Info size={11} style={{ color: TEXT_MUTED }} />
-          </button>
+          </button>}
         </div>
 
         {loadingCharges ? (
@@ -356,7 +378,7 @@ export function ResidentFinancePage() {
 
 function BalanceCard({
   state, balance, monthLabel, dueDate, lang, loading,
-  currentMonthDue, hasAnyOverdue, paymentsOpen, onPay, onTogglePayments,
+  currentMonthDue, hasAnyOverdue, paymentsOpen, readOnly, onPay, onTogglePayments,
 }: {
   state: BalanceState;
   balance: number;
@@ -367,6 +389,7 @@ function BalanceCard({
   currentMonthDue: number;
   hasAnyOverdue: boolean;
   paymentsOpen: boolean;
+  readOnly: boolean;
   onPay: () => void;
   onTogglePayments: () => void;
 }) {
@@ -471,7 +494,7 @@ function BalanceCard({
               ? (paymentsOpen ? 'Скрыть историю' : 'История платежей')
               : (paymentsOpen ? 'Yashirish' : 'To\'lov tarixi')}
           </button>
-        ) : (
+        ) : readOnly ? null : (
           <button
             type="button"
             onClick={onPay}

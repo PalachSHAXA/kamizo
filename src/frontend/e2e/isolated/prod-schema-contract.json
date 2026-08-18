@@ -1,0 +1,162 @@
+{
+  "source": "Checked-in relevant-column snapshot derived from documented read-only production PRAGMAs in migration 0007 plus applied migrations 029, 049, 051 and 058.",
+  "tables": {
+    "users": {
+      "exact": true,
+      "columns": [
+        { "name": "id", "type": "TEXT" },
+        { "name": "login", "type": "TEXT" },
+        { "name": "phone", "type": "TEXT" },
+        { "name": "password_hash", "type": "TEXT" },
+        { "name": "name", "type": "TEXT" },
+        { "name": "role", "type": "TEXT" },
+        { "name": "specialization", "type": "TEXT" },
+        { "name": "email", "type": "TEXT" },
+        { "name": "avatar_url", "type": "TEXT" },
+        { "name": "address", "type": "TEXT" },
+        { "name": "apartment", "type": "TEXT" },
+        { "name": "building_id", "type": "TEXT" },
+        { "name": "entrance", "type": "TEXT" },
+        { "name": "floor", "type": "TEXT" },
+        { "name": "branch", "type": "TEXT" },
+        { "name": "building", "type": "TEXT" },
+        { "name": "language", "type": "TEXT" },
+        { "name": "is_active", "type": "INTEGER" },
+        { "name": "qr_code", "type": "TEXT" },
+        { "name": "contract_signed_at", "type": "TEXT" },
+        { "name": "agreed_to_terms_at", "type": "TEXT" },
+        { "name": "contract_number", "type": "TEXT" },
+        { "name": "contract_start_date", "type": "TEXT" },
+        { "name": "contract_end_date", "type": "TEXT" },
+        { "name": "contract_type", "type": "TEXT" },
+        { "name": "total_area", "type": "REAL" },
+        { "name": "password_changed_at", "type": "TEXT" },
+        { "name": "account_type", "type": "TEXT" },
+        { "name": "status", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" },
+        { "name": "created_at", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT" },
+        { "name": "last_login_at", "type": "TEXT" },
+        { "name": "personal_account", "type": "TEXT" }
+      ]
+    },
+    "tenants": {
+      "exact": true,
+      "columns": [
+        { "name": "id", "type": "TEXT" },
+        { "name": "name", "type": "TEXT" },
+        { "name": "slug", "type": "TEXT" },
+        { "name": "url", "type": "TEXT" },
+        { "name": "admin_url", "type": "TEXT" },
+        { "name": "color", "type": "TEXT" },
+        { "name": "color_secondary", "type": "TEXT" },
+        { "name": "plan", "type": "TEXT" },
+        { "name": "features", "type": "TEXT" },
+        { "name": "admin_email", "type": "TEXT" },
+        { "name": "admin_phone", "type": "TEXT" },
+        { "name": "logo", "type": "TEXT" },
+        { "name": "users_count", "type": "INTEGER" },
+        { "name": "requests_count", "type": "INTEGER" },
+        { "name": "votes_count", "type": "INTEGER" },
+        { "name": "qr_count", "type": "INTEGER" },
+        { "name": "revenue", "type": "REAL" },
+        { "name": "is_active", "type": "INTEGER" },
+        { "name": "created_at", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT" },
+        { "name": "is_demo", "type": "INTEGER" },
+        { "name": "contract_template", "type": "TEXT" },
+        { "name": "contract_r2_key", "type": "TEXT" },
+        { "name": "contract_filename", "type": "TEXT" },
+        { "name": "contract_uploaded_at", "type": "TEXT" },
+        { "name": "contract_uploaded_by", "type": "TEXT" }
+      ]
+    },
+    "buildings": {
+      "exact": false,
+      "columns": [
+        { "name": "id", "type": "TEXT" },
+        { "name": "address", "type": "TEXT" },
+        { "name": "total_area", "type": "REAL" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "apartments": {
+      "exact": false,
+      "columns": [
+        { "name": "id", "type": "TEXT" },
+        { "name": "building_id", "type": "TEXT" },
+        { "name": "primary_owner_id", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "announcements": {
+      "exact": false,
+      "columns": [
+        { "name": "target_branch", "type": "TEXT" },
+        { "name": "personalized_data", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "finance_charges": {
+      "exact": false,
+      "columns": [
+        { "name": "apartment_id", "type": "TEXT" },
+        { "name": "paid_amount", "type": "REAL" },
+        { "name": "due_date", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "finance_access": {
+      "exact": false,
+      "columns": [
+        { "name": "user_id", "type": "TEXT" },
+        { "name": "access_level", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "finance_penalties": {
+      "exact": false,
+      "columns": [
+        { "name": "charge_id", "type": "TEXT" },
+        { "name": "penalty_amount", "type": "REAL" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "requests": {
+      "exact": false,
+      "columns": [
+        { "name": "resident_id", "type": "TEXT" },
+        { "name": "category_id", "type": "TEXT" },
+        { "name": "photos", "type": "TEXT" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "meetings": {
+      "exact": false,
+      "columns": [
+        { "name": "building_id", "type": "TEXT" },
+        { "name": "total_area", "type": "REAL" },
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "branches": {
+      "exact": false,
+      "columns": [
+        { "name": "tenant_id", "type": "TEXT" }
+      ]
+    },
+    "push_subscriptions": {
+      "exact": true,
+      "columns": [
+        { "name": "id", "type": "TEXT" },
+        { "name": "user_id", "type": "TEXT" },
+        { "name": "endpoint", "type": "TEXT" },
+        { "name": "p256dh", "type": "TEXT" },
+        { "name": "auth", "type": "TEXT" },
+        { "name": "created_at", "type": "TEXT" },
+        { "name": "last_used_at", "type": "TEXT" }
+      ]
+    }
+  }
+}

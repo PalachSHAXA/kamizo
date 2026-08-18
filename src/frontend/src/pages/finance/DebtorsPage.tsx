@@ -7,6 +7,8 @@ import { useTenantStore } from '../../stores/tenantStore';
 import { generateReconciliationDoc, generatePretensionDoc } from '../../utils/generateFinanceDocs';
 import { EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
+import { useAuthStore } from '../../stores/authStore';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 interface Debtor {
   apartment_id: string;
@@ -25,6 +27,7 @@ export default function DebtorsPage() {
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
 
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'УК';
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
 
   const debtors = useFinanceStore((s) => s.debtors) as unknown as Debtor[];
   const debtorsLoading = useFinanceStore((s) => s.debtorsLoading);
@@ -78,6 +81,7 @@ export default function DebtorsPage() {
 
   const handleReconciliation = useCallback(
     async (d: Debtor) => {
+      if (isDemoSession) return;
       const now = new Date();
       const periodTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const monthsBack = d.months_overdue || 1;
@@ -88,11 +92,12 @@ export default function DebtorsPage() {
         generateReconciliationDoc(result as Parameters<typeof generateReconciliationDoc>[0], tenantName);
       }
     },
-    [generateReconciliation, tenantName],
+    [generateReconciliation, tenantName, isDemoSession],
   );
 
   const handlePretension = useCallback(
     async (d: Debtor) => {
+      if (isDemoSession) return;
       const msg = t(
         `Сформировать претензию для кв. ${d.apartment_number} (${d.owner_name})?`,
         `${d.apartment_number}-xonadon uchun da'vo shakllantirilsinmi (${d.owner_name})?`,
@@ -104,7 +109,7 @@ export default function DebtorsPage() {
         }
       }
     },
-    [generatePretension, t, tenantName],
+    [generatePretension, t, tenantName, isDemoSession],
   );
 
   if (debtorsLoading) return <PageSkeleton variant="list" />;
@@ -121,6 +126,8 @@ export default function DebtorsPage() {
           <p className="text-xs text-gray-500 mt-0.5">{t('Жители с задолженностью', 'Qarzdor yashovchilar')}</p>
         </div>
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filter bar — Sprint 3: was flex-wrap with min-w-[180px] on each
           field, which forced horizontal overflow at 768-1024px instead of
@@ -257,7 +264,7 @@ export default function DebtorsPage() {
                   <div className="text-xs text-gray-500">
                     {t('Послед. оплата', "Oxirgi to'lov")}: {d.last_payment_date || '—'}
                   </div>
-                  <div className="flex items-center gap-1">
+                  {!isDemoSession && <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleReconciliation(d)}
                       className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
@@ -272,7 +279,7 @@ export default function DebtorsPage() {
                       <AlertTriangle className="h-3.5 w-3.5" />
                       <span>{t('Претензия', "Da'vo")}</span>
                     </button>
-                  </div>
+                  </div>}
                 </div>
               </li>
             ))}
@@ -295,7 +302,7 @@ export default function DebtorsPage() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">
                     {t('Последняя оплата', "Oxirgi to'lov")}
                   </th>
-                  <th className="px-4 py-3 text-center font-medium text-gray-500">{t('Действия', 'Amallar')}</th>
+                  {!isDemoSession && <th className="px-4 py-3 text-center font-medium text-gray-500">{t('Действия', 'Amallar')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -321,7 +328,7 @@ export default function DebtorsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500">{d.last_payment_date || '—'}</td>
-                    <td className="px-4 py-3">
+                    {!isDemoSession && <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleReconciliation(d)}
@@ -340,7 +347,7 @@ export default function DebtorsPage() {
                           <span className="hidden lg:inline">{t('Претензия', "Da'vo")}</span>
                         </button>
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

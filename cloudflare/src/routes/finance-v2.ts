@@ -28,13 +28,27 @@ import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, generateId, isAdminLevel, isManagement } from '../utils/helpers';
 import {
   computeEstimate,
+  computeComplexEstimate,
   type EstimateInput,
+  type ComplexEstimateInput,
+  type ComplexEstimateResult,
   type EstimateModel,
   type StaffPosition,
   type ExpenseLine,
   type IncomeStream,
 } from '../lib/estimate/compute';
+import { classifyApartmentForBilling } from '../lib/finance/property-classification';
 import { validate } from '../lib/estimate/validators';
+import {
+  affectedAllocationBindings,
+  affectedAllocationSql,
+  allocateEstimateItemShares,
+  centsToAmount,
+  financeChargeId,
+  isValidMonthPeriod,
+  normalizeBreakdown,
+  syncPersonalAccounts,
+} from '../lib/finance/accounting';
 
 // ────────────────────────────────────────────────────────────────────
 // DB helpers — тонкие обёртки чтобы не размазывать SQL по хендлерам
@@ -45,45 +59,48 @@ import { validate } from '../lib/estimate/validators';
  * Плюс building facts (floors, has_elevator, has_pumps, residential_area)
  * для validators.
  */
-async function loadEstimateInput(
+export async function loadEstimateInput(
   env: Env,
   estimateId: string,
-  tenantId: string | null,
-): Promise<{ input: EstimateInput; building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean }; row: any } | null> {
+  tenantId: string,
+): Promise<{ input: EstimateInput; complexInput: ComplexEstimateInput; scopeLevel: 'complex' | 'building'; building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean }; row: any } | null> {
+  if (!tenantId || tenantId === '__no_tenant__') return null;
   const row = await env.DB.prepare(
-    `SELECT * FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
-  ).bind(estimateId, ...(tenantId ? [tenantId] : [])).first() as any;
+    'SELECT * FROM finance_estimates WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(estimateId, tenantId).first() as any;
   if (!row) return null;
 
   const building = await env.DB.prepare(
-    `SELECT floors, has_elevator, has_pumps, residential_area FROM buildings WHERE id = ? LIMIT 1`
-  ).bind(row.building_id).first() as any;
+    'SELECT floors, has_elevator, has_pumps, residential_area FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(row.building_id, tenantId).first() as any;
 
   // Штат (позиции units × salary)
   const { results: staffRows } = await env.DB.prepare(
-    `SELECT title, units, salary FROM finance_estimate_staff WHERE estimate_id = ? ORDER BY sort_order, title`
-  ).bind(estimateId).all();
+    'SELECT title, units, salary, vacation_days FROM finance_estimate_staff WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order, title'
+  ).bind(estimateId, tenantId).all();
   const staff: StaffPosition[] = (staffRows || []).map((s: any) => ({
     title: s.title,
     units: s.units,
     salary: s.salary,
+    vacation_days: s.vacation_days ?? undefined, // NULL → движок берёт 0
   }));
 
-  // Статьи: разделяем на expenses и incomes по kind
+  // Статьи: разделяем на expenses и incomes по kind. building_id = scope
+  // (NULL = общая, задано = адресная на конкретный дом ЖК).
   const { results: itemRows } = await env.DB.prepare(
-    `SELECT name, category, amount, monthly_amount, section, unit, linked_to_staff, legal_code, kind
-     FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order, name`
-  ).bind(estimateId).all();
+    `SELECT name, category, amount, monthly_amount, section, unit, linked_to_staff, legal_code, kind, building_id
+     FROM finance_estimate_items WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order, name`
+  ).bind(estimateId, tenantId).all();
 
   const expenses: ExpenseLine[] = [];
   const incomes: IncomeStream[] = [];
   for (const r of (itemRows || []) as any[]) {
     if (r.kind === 'income') {
-      // category выступает как type для income (commercial/basement/parking/telecom/other)
-      const type = (['commercial', 'basement', 'parking', 'telecom'].includes(r.category)
+      // category выступает как type для income
+      const type = (['commercial', 'basement', 'parking', 'telecom', 'advertising'].includes(r.category)
         ? r.category
         : 'other') as IncomeStream['type'];
-      incomes.push({ type, monthly: r.monthly_amount || 0 });
+      incomes.push({ type, monthly: r.monthly_amount || 0, building_id: r.building_id || undefined });
     } else {
       expenses.push({
         name: r.name,
@@ -92,9 +109,20 @@ async function loadEstimateInput(
         unit: (r.unit as ExpenseLine['unit']) || 'flat',
         linked_to_staff: !!r.linked_to_staff,
         legal_code: r.legal_code || undefined,
+        building_id: r.building_id || undefined,
       });
     }
   }
+
+  // Дома ЖК (для scope_level='complex'): список со снимком жилой площади.
+  const { results: cbRows } = await env.DB.prepare(
+     `SELECT building_id, residential_area FROM finance_estimate_buildings
+     WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order`
+  ).bind(estimateId, tenantId).all();
+  const complexBuildings = (cbRows || []).map((c: any) => ({
+    building_id: String(c.building_id),
+    residential_area: Number(c.residential_area) || 0,
+  }));
 
   // residential_area берём приоритетно из estimate (снимок на момент создания),
   // иначе из building. Если и там 0 — падаем в 0 (валидатор выдаст warning).
@@ -107,6 +135,9 @@ async function loadEstimateInput(
       floors: building?.floors,
       profit_rate: (row.uk_profit_percent || 0) / 100,
       payroll_tax_rate: row.payroll_tax_rate ?? 0.24,
+      periodic_enabled: row.periodic_enabled !== 0, // NULL/1 = вкл, 0 = выкл
+      vat_enabled: row.vat_enabled === 1,
+      vat_rate: row.vat_rate ?? 0.12,
     },
     staff,
     expenses,
@@ -114,8 +145,27 @@ async function loadEstimateInput(
     tariff_manual: row.tariff_approved || undefined,
   };
 
+  // Complex-вход (смета на ЖК): те же штат/статьи/доходы + список домов.
+  const complexInput: ComplexEstimateInput = {
+    model: input.model,
+    object: {
+      profit_rate: input.object.profit_rate,
+      payroll_tax_rate: input.object.payroll_tax_rate,
+      periodic_enabled: input.object.periodic_enabled,
+      vat_enabled: input.object.vat_enabled,
+      vat_rate: input.object.vat_rate,
+    },
+    buildings: complexBuildings,
+    staff,
+    expenses,
+    incomes,
+    tariff_manual: input.tariff_manual,
+  };
+
   return {
     input,
+    complexInput,
+    scopeLevel: (row.scope_level === 'complex' ? 'complex' : 'building') as 'complex' | 'building',
     building: {
       floors: building?.floors,
       has_elevator: !!building?.has_elevator,
@@ -130,18 +180,38 @@ async function loadEstimateInput(
  * чтобы UI мог показывать итоги без пересчёта на каждый GET.
  */
 async function persistComputedResult(env: Env, estimateId: string, tenantId: string | null, r: ReturnType<typeof computeEstimate>): Promise<void> {
+  // total_amount = годовые расходы (для карточки списка, где UI читает total_amount).
   await env.DB.prepare(
     `UPDATE finance_estimates
      SET fot_gross = ?, payroll_tax = ?, fot_total = ?,
          self_cost_resident = ?, base_per_m2 = ?, with_profit_per_m2 = ?,
          telecom_comp_per_m2 = ?, tariff_resident = ?,
-         jami_tushum_year = ?, umumiy_year = ?, deficit_year = ?
+         jami_tushum_year = ?, umumiy_year = ?, deficit_year = ?, total_amount = ?
      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
   ).bind(
     r.fot_gross, r.payroll_tax, r.fot_total,
     r.self_cost_resident, r.base_per_m2, r.with_profit_per_m2,
     r.telecom_comp_per_m2, r.tariff_resident,
-    r.jami_tushum_year, r.umumiy_year, r.deficit_year,
+    r.jami_tushum_year, r.umumiy_year, r.deficit_year, r.umumiy_year,
+    estimateId, ...(tenantId ? [tenantId] : [])
+  ).run();
+}
+
+// Кеш агрегатов сметы-ЖК (для карточки списка). Тариф — средневзвешенный по
+// площади (для отображения), итоги — суммарные по ЖК.
+async function persistComplexResult(env: Env, estimateId: string, tenantId: string | null, r: ComplexEstimateResult): Promise<void> {
+  const totalArea = r.buildings.reduce((s, b) => s + (b.residential_area || 0), 0);
+  const avgTariff = totalArea > 0
+    ? Math.round(r.buildings.reduce((s, b) => s + b.tariff_effective * b.residential_area, 0) / totalArea)
+    : 0;
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+     SET fot_gross = ?, payroll_tax = ?, fot_total = ?, tariff_resident = ?,
+         jami_tushum_year = ?, umumiy_year = ?, deficit_year = ?, total_amount = ?
+     WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(
+    r.fot_gross, r.payroll_tax, r.fot_total, avgTariff,
+    r.jami_tushum_year, r.umumiy_year, r.deficit_year, r.umumiy_year,
     estimateId, ...(tenantId ? [tenantId] : [])
   ).run();
 }
@@ -175,19 +245,31 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
     telecom_income = 0,
     tariff_approved,                // для TARIFF_MANUAL
     effective_date,
+    periodic_enabled = 1,           // периодические расходы применяются (1) или нет (0)
+    scope_level = 'building',       // 'building' (один дом) | 'complex' (ЖК)
+    branch_code = null,             // ЖК сметы (для complex)
+    buildings = [],                 // [{building_id, residential_area?}] для complex
   } = body;
 
-  if (!building_id || !period) return error('building_id and period required');
+  const isComplex = scope_level === 'complex';
+  if (!period) return error('period required');
+  if (isComplex) {
+    if (!Array.isArray(buildings) || buildings.length === 0) return error('buildings required for complex');
+  } else if (!building_id) {
+    return error('building_id required');
+  }
   if (!['TARIFF_CALCULATED', 'TARIFF_MANUAL', 'TARIFF_FLAT'].includes(model)) {
     return error(`Invalid model: ${model}`);
   }
 
   const tenantId = getTenantId(request);
 
-  // Sanity: building должен принадлежать тенанту
+  // Первичный дом: для одиночной — building_id; для ЖК — первый из списка
+  // (нужен для NOT NULL building_id и совместимости).
+  const primaryBuildingId = isComplex ? String(buildings[0].building_id) : building_id;
   const building = await env.DB.prepare(
     `SELECT id, residential_area FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
-  ).bind(building_id, ...(tenantId ? [tenantId] : [])).first() as any;
+  ).bind(primaryBuildingId, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!building) return error('Building not found', 404);
 
   const id = generateId();
@@ -198,18 +280,106 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
       id, building_id, period, title, model, status,
       uk_profit_percent, payroll_tax_rate, residential_area,
       commercial_income, basement_income, parking_income, telecom_income,
-      tariff_approved, effective_date,
+      tariff_approved, effective_date, periodic_enabled,
+      scope_level, branch_code,
       created_by, tenant_id
-    ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
-    id, building_id, period, title || `Смета ${period}`, model,
+    id, primaryBuildingId, period, title || `Смета ${period}`, model,
     uk_profit_percent, payroll_tax_rate, finalResidentialArea,
     commercial_income, basement_income, parking_income, telecom_income,
-    tariff_approved || null, effective_date || null,
+    tariff_approved || null, effective_date || null, periodic_enabled ? 1 : 0,
+    isComplex ? 'complex' : 'building', branch_code || null,
     user.id, tenantId || ''
   ).run();
 
-  return json({ id, model, status: 'draft' }, 201);
+  // Дома ЖК: снимок жилой площади каждого (из body или из buildings.residential_area).
+  if (isComplex) {
+    for (let i = 0; i < buildings.length; i++) {
+      const bid = String(buildings[i].building_id);
+      let area = Number(buildings[i].residential_area);
+      if (!area || area <= 0) {
+        const b = await env.DB.prepare(
+          `SELECT residential_area FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+        ).bind(bid, ...(tenantId ? [tenantId] : [])).first() as any;
+        area = Number(b?.residential_area) || 0;
+      }
+      await env.DB.prepare(
+        `INSERT INTO finance_estimate_buildings (id, estimate_id, building_id, residential_area, sort_order, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(generateId(), id, bid, area, i, tenantId || '').run();
+    }
+  }
+
+  return json({ id, model, status: 'draft', scope_level }, 201);
+});
+
+// DELETE /api/finance/estimates/:id — удалить смету (только draft).
+// Каскадно удаляем статьи и штат. Активные/архивные сметы не трогаем.
+route('DELETE', '/api/finance/estimates/:id', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!isManagement(user)) return error('Нет прав на удаление сметы', 403);
+
+  const tenantId = getTenantId(request);
+  const est = await env.DB.prepare(
+    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!est) return error('Estimate not found', 404);
+  if (est.status !== 'draft') return error('Можно удалять только черновики', 409);
+
+  await env.DB.prepare('DELETE FROM finance_estimate_items WHERE estimate_id = ?').bind(params.id).run();
+  await env.DB.prepare('DELETE FROM finance_estimate_staff WHERE estimate_id = ?').bind(params.id).run();
+  await env.DB.prepare(
+    `DELETE FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
+  return json({ ok: true });
+});
+
+// PUT /api/finance/estimates/:id/settings — обновить флаги сметы
+// (periodic_enabled; в след. фазах — vat_enabled/vat_rate/show_profit).
+// Только для draft, только management, только в своём тенанте.
+route('PUT', '/api/finance/estimates/:id/settings', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+
+  const tenantId = getTenantId(request);
+  const est = await env.DB.prepare(
+    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+  if (!est) return error('Estimate not found', 404);
+  if (est.status !== 'draft') return error('Only draft estimates can be edited', 409);
+
+  const body = await request.json() as {
+    periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number;
+    show_profit_to_residents?: boolean;
+  };
+  const sets: string[] = [];
+  const binds: any[] = [];
+  if (typeof body.periodic_enabled === 'boolean') {
+    sets.push('periodic_enabled = ?'); binds.push(body.periodic_enabled ? 1 : 0);
+  }
+  if (typeof body.vat_enabled === 'boolean') {
+    sets.push('vat_enabled = ?'); binds.push(body.vat_enabled ? 1 : 0);
+  }
+  if (typeof body.vat_rate === 'number' && body.vat_rate >= 0 && body.vat_rate < 1) {
+    sets.push('vat_rate = ?'); binds.push(body.vat_rate);
+  }
+  if (typeof body.show_profit_to_residents === 'boolean') {
+    sets.push('show_profit_to_residents = ?'); binds.push(body.show_profit_to_residents ? 1 : 0);
+  }
+  if (sets.length === 0) return json({ ok: true, updated: 0 });
+
+  binds.push(params.id, ...(tenantId ? [tenantId] : []));
+  await env.DB.prepare(
+    `UPDATE finance_estimates SET ${sets.join(', ')} WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(...binds).run();
+  return json({ ok: true, updated: sets.length });
 });
 
 // PUT /api/finance/estimates/:id/staff — заменить весь массив штата
@@ -236,11 +406,11 @@ route('PUT', '/api/finance/estimates/:id/staff', async (request, env, params) =>
     const s = staff[i];
     if (!s.title || s.units <= 0) continue;
     await env.DB.prepare(
-      `INSERT INTO finance_estimate_staff (id, estimate_id, title, units, salary, monthly, sort_order, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO finance_estimate_staff (id, estimate_id, title, units, salary, monthly, vacation_days, sort_order, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       generateId(), params.id, s.title, s.units, s.salary,
-      s.units * s.salary, i, tenantId || ''
+      s.units * s.salary, s.vacation_days ?? 21, i, tenantId || ''
     ).run();
   }
 
@@ -277,12 +447,12 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
     await env.DB.prepare(
       `INSERT INTO finance_estimate_items (
         id, estimate_id, name, category, amount, monthly_amount,
-        section, unit, linked_to_staff, legal_code, kind, sort_order, tenant_id
-      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, 'expense', ?, ?)`
+        section, unit, linked_to_staff, legal_code, kind, building_id, sort_order, tenant_id
+      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?)`
     ).bind(
       generateId(), params.id, it.name, monthly * 12, monthly,
       it.section || 'production', it.unit || 'flat',
-      it.linked_to_staff ? 1 : 0, it.legal_code || null, i, tenantId || ''
+      it.linked_to_staff ? 1 : 0, it.legal_code || null, it.building_id || null, i, tenantId || ''
     ).run();
   }
 
@@ -313,22 +483,22 @@ route('PUT', '/api/finance/estimates/:id/incomes', async (request, env, params) 
 
   // Также обновляем summary-колонки в finance_estimates (commercial_income etc.)
   // — они нужны для computeEstimate когда input не пересобирается из items.
-  const totals = { commercial: 0, basement: 0, parking: 0, telecom: 0, other: 0 };
+  const totals = { commercial: 0, basement: 0, parking: 0, telecom: 0, advertising: 0, other: 0 };
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     const type = it.type;
-    if (!['commercial', 'basement', 'parking', 'telecom', 'other'].includes(type)) continue;
+    if (!['commercial', 'basement', 'parking', 'telecom', 'advertising', 'other'].includes(type)) continue;
     const monthly = it.monthly || 0;
     totals[type] += monthly;
     // Пишем как item с category=type — это позволит редактировать per-line в UI
     await env.DB.prepare(
       `INSERT INTO finance_estimate_items (
         id, estimate_id, name, category, amount, monthly_amount,
-        kind, sort_order, tenant_id
-      ) VALUES (?, ?, ?, ?, ?, ?, 'income', ?, ?)`
+        kind, building_id, sort_order, tenant_id
+      ) VALUES (?, ?, ?, ?, ?, ?, 'income', ?, ?, ?)`
     ).bind(
       generateId(), params.id, `Доход: ${type}`, type, monthly * 12, monthly,
-      i, tenantId || ''
+      it.building_id || null, i, tenantId || ''
     ).run();
   }
 
@@ -351,15 +521,19 @@ route('GET', '/api/finance/estimates/:id/compute', async (request, env, params) 
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
 
   const loaded = await loadEstimateInput(env, params.id, tenantId);
   if (!loaded) return error('Estimate not found', 404);
 
   const result = computeEstimate(loaded.input);
-  // Кэшируем в БД для быстрого GET списком (без пересчёта)
-  await persistComputedResult(env, params.id, tenantId, result);
+  const complexResult: ComplexEstimateResult | null =
+    loaded.scopeLevel === 'complex' ? computeComplexEstimate(loaded.complexInput) : null;
+  // Кешируем агрегаты для карточки списка (single — свой результат, complex — сводный).
+  if (complexResult) await persistComplexResult(env, params.id, tenantId, complexResult);
+  else await persistComputedResult(env, params.id, tenantId, result);
 
-  return json({ input: loaded.input, result });
+  return json({ input: loaded.input, result, complexResult, scopeLevel: loaded.scopeLevel });
 });
 
 // GET /api/finance/estimates/:id/validate — warnings без записи
@@ -369,12 +543,27 @@ route('GET', '/api/finance/estimates/:id/validate', async (request, env, params)
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
 
   const loaded = await loadEstimateInput(env, params.id, tenantId);
   if (!loaded) return error('Estimate not found', 404);
 
   const result = computeEstimate(loaded.input);
   const warnings = validate(loaded.input, result, loaded.building);
+
+  // Для complex — предупреждаем о домах без жилой площади (иначе их тариф 0).
+  if (loaded.scopeLevel === 'complex') {
+    for (const b of loaded.complexInput.buildings) {
+      if (!b.residential_area || b.residential_area <= 0) {
+        warnings.push({
+          code: 'MISSING_AREA', severity: 'error',
+          message_ru: `У дома в ЖК не заполнена жилая площадь — его тариф рассчитать нельзя (building ${b.building_id}).`,
+          message_uz: `Uyning turar joy maydoni yo'q — tarifni hisoblab bo'lmaydi.`,
+          meta: { building_id: b.building_id },
+        });
+      }
+    }
+  }
 
   return json({ warnings });
 });
@@ -387,17 +576,23 @@ route('GET', '/api/finance/estimates/:id/full', async (request, env, params) => 
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
 
   const loaded = await loadEstimateInput(env, params.id, tenantId);
   if (!loaded) return error('Estimate not found', 404);
 
   const result = computeEstimate(loaded.input);
   const warnings = validate(loaded.input, result, loaded.building);
+  const complexResult: ComplexEstimateResult | null =
+    loaded.scopeLevel === 'complex' ? computeComplexEstimate(loaded.complexInput) : null;
 
   return json({
     estimate: loaded.row,
     input: loaded.input,
     result,
+    complexResult,
+    scopeLevel: loaded.scopeLevel,
+    buildings: loaded.complexInput.buildings,
     warnings,
     building: loaded.building,
   });
@@ -414,42 +609,6 @@ route('GET', '/api/finance/estimates/:id/full', async (request, env, params) => 
 // админа) и (2) из cron auto-billing после генерации всех charges.
 // ────────────────────────────────────────────────────────────────────
 
-async function syncPersonalAccounts(env: Env, tenantId: string | null, buildingId?: string | null): Promise<{ updated: number }> {
-  // Один UPDATE ... FROM (SELECT ...) — SQLite 3.33+ поддерживает.
-  // Обновляем apartments-level agg: charged - paid = current_debt, а также
-  // last_payment_date/amount берём из максимального finance_payments.
-  const params: any[] = [];
-  let where = '1=1';
-  if (tenantId) { where += ' AND pa.tenant_id = ?'; params.push(tenantId); }
-  if (buildingId) { where += ' AND pa.building_id = ?'; params.push(buildingId); }
-
-  const res = await env.DB.prepare(
-    `UPDATE personal_accounts AS pa
-     SET current_debt = COALESCE((
-           SELECT SUM(c.amount) - SUM(c.paid_amount)
-           FROM finance_charges c
-           WHERE c.apartment_id = pa.apartment_id
-             ${tenantId ? 'AND c.tenant_id = pa.tenant_id' : ''}
-         ), 0),
-         balance = COALESCE((
-           SELECT SUM(c.paid_amount) - SUM(c.amount)
-           FROM finance_charges c
-           WHERE c.apartment_id = pa.apartment_id
-             ${tenantId ? 'AND c.tenant_id = pa.tenant_id' : ''}
-         ), 0),
-         last_payment_date = (
-           SELECT MAX(p.payment_date)
-           FROM finance_payments p
-           WHERE p.apartment_id = pa.apartment_id
-             ${tenantId ? 'AND p.tenant_id = pa.tenant_id' : ''}
-         ),
-         updated_at = datetime('now')
-     WHERE ${where}`
-  ).bind(...params).run();
-
-  return { updated: (res.meta as any)?.changes || 0 };
-}
-
 // Ручной endpoint пересчёта — admin/director может дёрнуть после подозрения
 // на дрейф (например, ручные правки в БД через sqlite3).
 route('POST', '/api/finance/sync-accounts', async (request, env) => {
@@ -458,10 +617,11 @@ route('POST', '/api/finance/sync-accounts', async (request, env) => {
   if (!isAdminLevel(user)) return error('Admin or director access required', 403);
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const url = new URL(request.url);
   const buildingId = url.searchParams.get('building_id');
 
-  const result = await syncPersonalAccounts(env, tenantId, buildingId);
+  const result = await syncPersonalAccounts(env, tenantId, { buildingId });
   return json({ ok: true, ...result });
 });
 
@@ -503,78 +663,99 @@ route('POST', '/api/finance/cron/generate-monthly', async (request, env) => {
 
   for (const est of (estimates || []) as any[]) {
     try {
-      // Все квартиры дома
-      const { results: apartments } = await env.DB.prepare(
-        `SELECT id, total_area, property_type, is_commercial, is_basement, is_parking
-         FROM apartments WHERE building_id = ? AND tenant_id = ?`
-      ).bind(est.building_id, est.tenant_id).all() as any;
-
-      // Уже сгенерированные на этот период (идемпотентность)
-      const { results: existing } = await env.DB.prepare(
-        `SELECT apartment_id FROM finance_charges
-         WHERE estimate_id = ? AND period = ? AND tenant_id = ?`
-      ).bind(est.id, period, est.tenant_id).all() as any;
-      const existingSet = new Set((existing || []).map((c: any) => c.apartment_id));
-
       // Тянем полную смету для расчёта (с новыми колонками v2)
+      if (!est.tenant_id) throw new Error('Estimate tenant missing');
       const full = await env.DB.prepare(
-        `SELECT * FROM finance_estimates WHERE id = ?`
-      ).bind(est.id).first() as any;
+        `SELECT * FROM finance_estimates WHERE id = ? AND tenant_id = ?`
+      ).bind(est.id, est.tenant_id).first() as any;
 
       const commercialRate = Number(full.commercial_rate) || 0;
       const basementRate = Number(full.basement_rate) || 0;
       const parkingRate = Number(full.parking_rate) || 0;
       const nonResidentialRate = Number(full.non_commercial_rate_per_sqm) || 0;
-      const residentialRate = Number(full.tariff_approved) || Number(full.tariff_resident) || 0;
+
+      // Пер-домовой ЖИЛОЙ тариф: для complex считаем на каждый дом ЖК;
+      // для одиночной — один тариф на building_id сметы.
+      let buildingsToBill: Array<{ building_id: string; residentialRate: number }>;
+      if (full.scope_level === 'complex') {
+        const loaded = await loadEstimateInput(env, est.id, est.tenant_id);
+        const cx = loaded ? computeComplexEstimate(loaded.complexInput) : null;
+        buildingsToBill = (cx?.buildings || []).map((b) => ({
+          building_id: b.building_id, residentialRate: b.tariff_effective,
+        }));
+      } else {
+        buildingsToBill = [{
+          building_id: est.building_id,
+          residentialRate: Number(full.tariff_approved) || Number(full.tariff_resident) || 0,
+        }];
+      }
 
       const { results: itemsRaw } = await env.DB.prepare(
-        `SELECT name, amount, kind FROM finance_estimate_items WHERE estimate_id = ?`
-      ).bind(est.id).all() as any;
+        `SELECT name, amount, kind, building_id FROM finance_estimate_items WHERE estimate_id = ? AND tenant_id = ?`
+      ).bind(est.id, est.tenant_id).all() as any;
       const items = (itemsRaw || []).filter((i: any) => (i.kind || 'expense') === 'expense');
-      const totalItems = items.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
 
       const [year, month] = period.split('-').map(Number);
       const dueDate = new Date(year, month, 0).toISOString().slice(0, 10);
 
       const stmts: any[] = [];
+      const statementApartmentIds: string[] = [];
       let generated = 0, skipped = 0;
 
-      for (const apt of (apartments || []) as any[]) {
-        if (existingSet.has(apt.id)) { skipped++; continue; }
-        const area = Number(apt.total_area) || 0;
-        if (area <= 0 && !apt.is_parking) { skipped++; continue; }
+      // Для каждого дома сметы — свои квартиры и свой жилой тариф.
+      for (const bld of buildingsToBill) {
+        const residentialRate = bld.residentialRate;
+        const { results: apartments } = await env.DB.prepare(
+          `SELECT id, total_area, property_type, is_commercial, is_basement, is_parking
+           FROM apartments WHERE building_id = ? AND tenant_id = ?`
+        ).bind(bld.building_id, est.tenant_id).all() as any;
 
-        let rate: number, propertyType: string, isFlat = false;
-        if (apt.is_parking) { rate = parkingRate; propertyType = 'non_commercial'; isFlat = true; }
-        else if (apt.is_basement || apt.property_type === 'basement') { rate = basementRate > 0 ? basementRate : nonResidentialRate; propertyType = 'non_commercial'; }
-        else if (apt.is_commercial) { rate = commercialRate > 0 ? commercialRate : nonResidentialRate; propertyType = 'commercial'; }
-        else if (apt.property_type === 'non_commercial') { rate = basementRate > 0 ? basementRate : nonResidentialRate; propertyType = 'non_commercial'; }
-        else { rate = residentialRate; propertyType = 'residential'; }
+        for (const apt of (apartments || []) as any[]) {
+          const area = Number(apt.total_area) || 0;
+          if (area <= 0 && !apt.is_parking) { skipped++; continue; }
 
-        const baseAmount = isFlat ? Math.round(rate * 100) / 100 : Math.round(area * rate * 100) / 100;
-        if (baseAmount <= 0) { skipped++; continue; }
+          let rate: number, propertyType: string, isFlat = false;
+          const billingKind = classifyApartmentForBilling(apt);
+          if (billingKind === 'parking') { rate = parkingRate; propertyType = 'non_commercial'; isFlat = true; }
+          else if (billingKind === 'basement') { rate = basementRate > 0 ? basementRate : nonResidentialRate; propertyType = 'non_commercial'; }
+          else if (billingKind === 'commercial') { rate = commercialRate > 0 ? commercialRate : nonResidentialRate; propertyType = 'commercial'; }
+          else { rate = residentialRate; propertyType = 'residential'; }
 
-        const itemBreakdown = items.map((it: any) => ({
-          name: it.name,
-          share: totalItems > 0 ? Math.round((Number(it.amount) / totalItems) * baseAmount * 100) / 100 : 0,
-        }));
-        const breakdown = { area_sqm: area, rate_per_sqm: rate, base_amount: baseAmount, property_type: propertyType, items: itemBreakdown };
-        const dbPropertyType = propertyType === 'non_commercial' ? 'non_commercial' : 'commercial';
+          const baseAmount = isFlat ? Math.round(rate * 100) / 100 : Math.round(area * rate * 100) / 100;
+          if (baseAmount <= 0) { skipped++; continue; }
 
-        stmts.push(env.DB.prepare(
-          `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-        ).bind(
-          generateId(), apt.id, est.id, period, baseAmount,
-          JSON.stringify(breakdown), dbPropertyType, area, rate, dueDate, est.tenant_id
-        ));
-        generated++;
+          const itemBreakdown = allocateEstimateItemShares(items, bld.building_id, baseAmount);
+          const breakdown = { area_sqm: area, rate_per_sqm: rate, base_amount: baseAmount, property_type: propertyType, items: itemBreakdown };
+          const dbPropertyType = billingKind === 'residential' ? 'non_commercial' : 'commercial';
+
+          stmts.push(env.DB.prepare(
+            `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+             ON CONFLICT(id) DO NOTHING`
+          ).bind(
+            financeChargeId(est.tenant_id, est.id, period, apt.id), apt.id, est.id, period, baseAmount,
+            JSON.stringify(breakdown), dbPropertyType, area, rate, dueDate, est.tenant_id
+          ));
+          statementApartmentIds.push(apt.id);
+        }
       }
 
-      // Batch insert
-      const BATCH = 100;
+      // Each committed chunk includes allocation: 99 inserts + one recompute.
+      const BATCH = 99;
       for (let i = 0; i < stmts.length; i += BATCH) {
-        await env.DB.batch(stmts.slice(i, i + BATCH));
+        const inserts = stmts.slice(i, i + BATCH);
+        const apartmentIds = Array.from(new Set(statementApartmentIds.slice(i, i + BATCH)));
+        const results = await env.DB.batch([
+          ...inserts,
+          env.DB.prepare(affectedAllocationSql(apartmentIds.length)).bind(...affectedAllocationBindings(est.tenant_id, apartmentIds)),
+        ]);
+        if (!results.at(-1)?.success) throw new Error('Charge allocation failed');
+        const inserted = results.slice(0, inserts.length).reduce(
+          (sum, result) => sum + (((result.meta as { changes?: number })?.changes ?? 0) > 0 ? 1 : 0),
+          0,
+        );
+        generated += inserted;
+        skipped += inserts.length - inserted;
       }
 
       report.push({ estimate_id: est.id, tenant_id: est.tenant_id, building_id: est.building_id, generated, skipped });
@@ -593,7 +774,8 @@ route('POST', '/api/finance/cron/generate-monthly', async (request, env) => {
   let paSyncTotal = 0;
   for (const tid of touchedTenants) {
     try {
-      const s = await syncPersonalAccounts(env, tid || null);
+      if (!tid) continue;
+      const s = await syncPersonalAccounts(env, tid);
       paSyncTotal += s.updated;
     } catch { /* silent */ }
   }
@@ -621,14 +803,15 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
 
   // Все квартиры, где юзер = primary_owner. Тенант отфильтруется через
   // общий фильтр tenant_id ниже.
   const { results: myApts } = await env.DB.prepare(
     `SELECT id, number, total_area, building_id
      FROM apartments
-     WHERE primary_owner_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(user.id, ...(tenantId ? [tenantId] : [])).all() as any;
+     WHERE primary_owner_id = ? AND tenant_id = ?`
+  ).bind(user.id, tenantId).all() as any;
 
   const aptIds = (myApts || []).map((a: any) => a.id);
   if (aptIds.length === 0) {
@@ -646,10 +829,10 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
             c.amount_breakdown, c.status, c.due_date, c.created_at
      FROM finance_charges c
      WHERE c.apartment_id IN (${placeholders})
-       ${tenantId ? 'AND c.tenant_id = ?' : ''}
+        AND c.tenant_id = ?
      ORDER BY c.period DESC, c.created_at DESC
      LIMIT 200`
-  ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
+  ).bind(...aptIds, tenantId).all() as any;
 
   // Sprint 7 + hotfix: пени по квартирам жителя. Считаем только те, у
   // которых родительский charge всё ещё имеет непогашенный долг
@@ -664,13 +847,13 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
     `SELECT p.id, p.charge_id, p.apartment_id, p.principal_amount, p.penalty_rate,
             p.days_overdue, p.penalty_amount, p.status, p.calculated_at
      FROM finance_penalties p
-     JOIN finance_charges c ON c.id = p.charge_id
+     JOIN finance_charges c ON c.id = p.charge_id AND c.tenant_id = p.tenant_id
      WHERE p.apartment_id IN (${placeholders})
        AND p.status = 'accrued'
        AND c.amount > COALESCE(c.paid_amount, 0)
-       ${tenantId ? 'AND p.tenant_id = ?' : ''}
+        AND p.tenant_id = ?
      ORDER BY p.calculated_at DESC`
-  ).bind(...aptIds, ...(tenantId ? [tenantId] : [])).all() as any;
+  ).bind(...aptIds, tenantId).all() as any;
   // Оставляем только последний snapshot per charge_id (защита от старых записей,
   // если cron ещё не почистил дубли — их не должно быть, но на всякий).
   const latestPerCharge = new Map<string, any>();
@@ -680,13 +863,25 @@ route('GET', '/api/finance/my-charges', async (request, env) => {
   const activePenalties = Array.from(latestPerCharge.values());
   const totalPenalties = activePenalties.reduce((s, p) => s + (p.penalty_amount || 0), 0);
 
+  const lifetimeTotals = await env.DB.prepare(
+    `SELECT
+       COALESCE((SELECT SUM(c.amount) FROM finance_charges c
+         WHERE c.apartment_id IN (${placeholders}) AND c.tenant_id = ?), 0) AS total_charged,
+       COALESCE((SELECT SUM(p.amount) FROM finance_payments p
+         WHERE p.apartment_id IN (${placeholders}) AND p.payment_type != 'overpayment'
+         AND p.tenant_id = ?), 0) AS total_paid`
+  ).bind(
+    ...aptIds, tenantId,
+    ...aptIds, tenantId,
+  ).first<{ total_charged: number; total_paid: number }>();
+
   // Правильный расчёт баланса (backend GET .../balance путает знаки —
   // см. audit item overpaid/debt). Здесь однозначно:
   //   netBalance = charged + penalties − paid
   //   > 0 → долг жителя (должен УК)
   //   < 0 → переплата (УК должна вернуть)
-  const totalCharged = (charges || []).reduce((s: number, c: any) => s + (c.amount || 0), 0);
-  const totalPaid = (charges || []).reduce((s: number, c: any) => s + (c.paid_amount || 0), 0);
+  const totalCharged = Number(lifetimeTotals?.total_charged || 0);
+  const totalPaid = Number(lifetimeTotals?.total_paid || 0);
   const net = totalCharged + totalPenalties - totalPaid;
 
   return json({
@@ -737,7 +932,7 @@ type FactRow = {
 
 async function buildFactReport(
   env: Env,
-  tenantId: string | null,
+  tenantId: string,
   buildingId: string,
   periodFrom: string,
   periodTo: string,
@@ -749,103 +944,140 @@ async function buildFactReport(
   charges_count: number;
   payments_count: number;
 }> {
-  const tenantWhereC = tenantId ? 'AND c.tenant_id = ?' : '';
-  const tenantWhereP = tenantId ? 'AND p.tenant_id = ?' : '';
-  const tenantParams = tenantId ? [tenantId] : [];
-
   // Все charges по домy за период. period в формате YYYY-MM — сравниваем как строки (лексикографический = хронологический для этого формата).
   const { results: charges } = await env.DB.prepare(
     `SELECT c.id, c.apartment_id, c.period, c.amount, c.paid_amount, c.amount_breakdown
      FROM finance_charges c
-     JOIN apartments a ON a.id = c.apartment_id
+     JOIN apartments a ON a.id = c.apartment_id AND a.tenant_id = c.tenant_id
      WHERE a.building_id = ?
-       AND c.period >= ? AND c.period <= ?
-       ${tenantWhereC}`
-  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).all() as any;
+        AND c.period >= ? AND c.period <= ?
+       AND c.tenant_id = ?`
+  ).bind(buildingId, periodFrom, periodTo, tenantId).all() as any;
 
-  // Долг ДО периода (prior_debt) — суммы charges с period < periodFrom, минус их paid_amount.
+  // Входящий баланс — начисления до периода минус реальные поступления до периода.
   const priorRow = await env.DB.prepare(
-    `SELECT COALESCE(SUM(c.amount - c.paid_amount), 0) AS prior_debt
-     FROM finance_charges c
-     JOIN apartments a ON a.id = c.apartment_id
-     WHERE a.building_id = ?
-       AND c.period < ?
-       ${tenantWhereC}`
-  ).bind(buildingId, periodFrom, ...tenantParams).first() as any;
+    `SELECT
+       COALESCE((
+         SELECT SUM(c.amount) FROM finance_charges c
+         JOIN apartments a ON a.id = c.apartment_id AND a.tenant_id = c.tenant_id
+         WHERE a.building_id = ? AND c.period < ? AND c.tenant_id = ?
+       ), 0) - COALESCE((
+         SELECT SUM(p.amount) FROM finance_payments p
+         JOIN apartments a ON a.id = p.apartment_id AND a.tenant_id = p.tenant_id
+         WHERE a.building_id = ? AND date(p.payment_date) < date(? || '-01')
+           AND p.payment_type != 'overpayment' AND p.tenant_id = ?
+       ), 0) AS prior_debt`
+  ).bind(buildingId, periodFrom, tenantId, buildingId, periodFrom, tenantId).first() as any;
   const totalPriorDebt = Number(priorRow?.prior_debt || 0);
 
   // Payments за период (по датам, а не period)
   const paidRow = await env.DB.prepare(
     `SELECT COALESCE(SUM(p.amount), 0) AS paid
      FROM finance_payments p
-     JOIN apartments a ON a.id = p.apartment_id
+     JOIN apartments a ON a.id = p.apartment_id AND a.tenant_id = p.tenant_id
      WHERE a.building_id = ?
        AND date(p.payment_date) >= date(? || '-01')
        AND date(p.payment_date) < date(? || '-01', '+1 month')
-       ${tenantWhereP}`
-  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).first() as any;
+       AND p.payment_type != 'overpayment'
+       AND p.tenant_id = ?`
+  ).bind(buildingId, periodFrom, periodTo, tenantId).first() as any;
   const totalPaid = Number(paidRow?.paid || 0);
 
   const paymentsCountRow = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM finance_payments p
-     JOIN apartments a ON a.id = p.apartment_id
+     JOIN apartments a ON a.id = p.apartment_id AND a.tenant_id = p.tenant_id
      WHERE a.building_id = ?
        AND date(p.payment_date) >= date(? || '-01')
        AND date(p.payment_date) < date(? || '-01', '+1 month')
-       ${tenantWhereP}`
-  ).bind(buildingId, periodFrom, periodTo, ...tenantParams).first() as any;
+       AND p.payment_type != 'overpayment'
+       AND p.tenant_id = ?`
+  ).bind(buildingId, periodFrom, periodTo, tenantId).first() as any;
 
   // Aggregate per-item из amount_breakdown. Каждый charge содержит либо
   // JSON [{name, amount}, ...], либо null (тогда идёт одной строкой "Прочее").
-  const perItem = new Map<string, { name: string; legal_code?: string | null; accrued: number }>();
-  let totalAccrued = 0;
+  const perItem = new Map<string, { name: string; legal_code?: string | null; accruedCents: number }>();
+  let totalAccruedCents = 0;
   for (const c of (charges || []) as any[]) {
     const amount = Number(c.amount || 0);
-    totalAccrued += amount;
-    let breakdown: any = null;
+    totalAccruedCents += Math.round(amount * 100);
+    let breakdown: unknown = null;
     try { breakdown = c.amount_breakdown ? JSON.parse(c.amount_breakdown) : null; } catch { /* keep null */ }
-    if (Array.isArray(breakdown) && breakdown.length) {
-      for (const item of breakdown) {
-        const name = String(item.name || item.category || 'Прочее');
-        const amt = Number(item.amount || 0);
-        const key = name.toLowerCase().trim();
-        const prev = perItem.get(key);
-        if (prev) prev.accrued += amt;
-        else perItem.set(key, { name, legal_code: item.legal_code || null, accrued: amt });
-      }
-    } else {
-      const key = 'прочие услуги';
+    for (const item of normalizeBreakdown(breakdown, amount)) {
+      const key = item.name.toLowerCase().trim();
       const prev = perItem.get(key);
-      if (prev) prev.accrued += amount;
-      else perItem.set(key, { name: 'Прочие услуги', legal_code: null, accrued: amount });
+      if (prev) prev.accruedCents += Math.round(item.amount * 100);
+      else perItem.set(key, { name: item.name, legal_code: item.legal_code, accruedCents: Math.round(item.amount * 100) });
     }
   }
 
-  // Разбираем прошлый долг и оплаты pro-rata по доле статей в accrued.
+  const openingCents = Math.round(totalPriorDebt * 100);
+  const paidCents = Math.round(totalPaid * 100);
+  const openingDebtCents = Math.max(openingCents, 0);
+  const paidToOpeningCents = Math.min(paidCents, openingDebtCents);
+  const currentCashCents = Math.max(paidCents - paidToOpeningCents, 0);
+  const paidToArticlesCents = Math.min(currentCashCents, totalAccruedCents);
+
   const rows: FactRow[] = [];
-  for (const item of perItem.values()) {
-    const share = totalAccrued > 0 ? item.accrued / totalAccrued : 0;
-    const paidShare = totalPaid * share;
-    const priorShare = totalPriorDebt * share;
+  if (openingCents !== 0) {
+    rows.push({
+      name: openingCents > 0 ? 'Задолженность прошлых периодов' : 'Переплата прошлых периодов',
+      legal_code: null,
+      prior_debt: centsToAmount(openingCents),
+      accrued: 0,
+      paid: centsToAmount(paidToOpeningCents),
+      arrears: centsToAmount(openingCents - paidToOpeningCents),
+    });
+  }
+
+  const articles = Array.from(perItem.values()).sort((a, b) =>
+    b.accruedCents - a.accruedCents || a.name.localeCompare(b.name)
+  );
+  const articlePaidCents = articles.map(() => 0);
+  if (paidToArticlesCents > 0 && totalAccruedCents > 0) {
+    const total = BigInt(totalAccruedCents);
+    const target = BigInt(paidToArticlesCents);
+    const shares = articles.map((item, index) => {
+      const numerator = BigInt(item.accruedCents) * target;
+      return { index, cents: numerator / total, remainder: numerator % total };
+    });
+    let left = target - shares.reduce((sum, share) => sum + share.cents, 0n);
+    for (const share of [...shares].sort((a, b) =>
+      a.remainder === b.remainder ? a.index - b.index : a.remainder > b.remainder ? -1 : 1
+    )) {
+      if (left === 0n) break;
+      shares[share.index].cents += 1n;
+      left -= 1n;
+    }
+    for (const share of shares) articlePaidCents[share.index] = Number(share.cents);
+  }
+  for (let index = 0; index < articles.length; index++) {
+    const item = articles[index];
+    const itemPaid = articlePaidCents[index];
     rows.push({
       name: item.name,
       legal_code: item.legal_code,
-      prior_debt: Math.round(priorShare),
-      accrued: Math.round(item.accrued),
-      paid: Math.round(paidShare),
-      arrears: Math.round(priorShare + item.accrued - paidShare),
+      prior_debt: 0,
+      accrued: centsToAmount(item.accruedCents),
+      paid: centsToAmount(itemPaid),
+      arrears: centsToAmount(item.accruedCents - itemPaid),
     });
   }
-  rows.sort((a, b) => b.accrued - a.accrued);
+  const currentCreditCents = currentCashCents - paidToArticlesCents;
+  if (currentCreditCents > 0) {
+    rows.push({
+      name: 'Переплата текущего периода', legal_code: null,
+      prior_debt: 0, accrued: 0, paid: centsToAmount(currentCreditCents), arrears: centsToAmount(-currentCreditCents),
+    });
+  }
 
   // Доход УК (прибыль): sum по finance_estimates.uk_profit_percent × total_expenses / 12 за месяцы периода.
   // План — из активной сметы. Факт — фактически поступившие paid × (uk_profit_percent / (1 + uk_profit_percent)) — приближение.
   const est = await env.DB.prepare(
     `SELECT uk_profit_percent, umumiy_year FROM finance_estimates
      WHERE building_id = ? AND status = 'active'
-       ${tenantId ? 'AND tenant_id = ?' : ''}
+       AND tenant_id = ?
      ORDER BY effective_date DESC, created_at DESC LIMIT 1`
-  ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+  ).bind(buildingId, tenantId).first() as any;
   const profitPct = Number(est?.uk_profit_percent || 0);
   const monthsInPeriod = countMonthsInclusive(periodFrom, periodTo);
   const uk_income_plan = est?.umumiy_year
@@ -858,10 +1090,10 @@ async function buildFactReport(
   return {
     rows,
     totals: {
-      prior_debt: Math.round(totalPriorDebt),
-      accrued: Math.round(totalAccrued),
-      paid: Math.round(totalPaid),
-      arrears: Math.round(totalPriorDebt + totalAccrued - totalPaid),
+      prior_debt: centsToAmount(openingCents),
+      accrued: centsToAmount(totalAccruedCents),
+      paid: centsToAmount(paidCents),
+      arrears: centsToAmount(openingCents + totalAccruedCents - paidCents),
     },
     uk_income_plan,
     uk_income_fact,
@@ -892,15 +1124,16 @@ route('GET', '/api/finance/fact-reports/preview', async (request, env) => {
   if (!buildingId || !periodFrom || !periodTo) {
     return error('building_id, period_from, period_to required (YYYY-MM)');
   }
-  if (!/^\d{4}-\d{2}$/.test(periodFrom) || !/^\d{4}-\d{2}$/.test(periodTo)) {
-    return error('period_from/period_to must be YYYY-MM');
+  if (!isValidMonthPeriod(periodFrom) || !isValidMonthPeriod(periodTo) || periodFrom > periodTo) {
+    return error('period_from/period_to must be real YYYY-MM months with period_from <= period_to');
   }
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   // sanity — building принадлежит тенанту
   const b = await env.DB.prepare(
-    `SELECT id, name, address FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
-  ).bind(buildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+    'SELECT id, name, address FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(buildingId, tenantId).first() as any;
   if (!b) return error('Building not found', 404);
 
   const report = await buildFactReport(env, tenantId, buildingId, periodFrom, periodTo);
@@ -923,11 +1156,15 @@ route('POST', '/api/finance/fact-reports', async (request, env) => {
   const body = await request.json() as any;
   const { building_id, period_from, period_to } = body;
   if (!building_id || !period_from || !period_to) return error('building_id, period_from, period_to required');
+  if (!isValidMonthPeriod(period_from) || !isValidMonthPeriod(period_to) || period_from > period_to) {
+    return error('period_from/period_to must be real YYYY-MM months with period_from <= period_to');
+  }
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const b = await env.DB.prepare(
-    `SELECT id FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
-  ).bind(building_id, ...(tenantId ? [tenantId] : [])).first() as any;
+    'SELECT id FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(building_id, tenantId).first() as any;
   if (!b) return error('Building not found', 404);
 
   const report = await buildFactReport(env, tenantId, building_id, period_from, period_to);
@@ -939,8 +1176,13 @@ route('POST', '/api/finance/fact-reports', async (request, env) => {
        uk_income_plan, uk_income_fact, generated_by, tenant_id
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
-    id, building_id, period_from, period_to, JSON.stringify(report.rows),
-    report.uk_income_plan, report.uk_income_fact, user.id, tenantId || ''
+    id, building_id, period_from, period_to, JSON.stringify({
+      rows: report.rows,
+      totals: report.totals,
+      charges_count: report.charges_count,
+      payments_count: report.payments_count,
+    }),
+    report.uk_income_plan, report.uk_income_fact, user.id, tenantId
   ).run();
 
   return json({ id, ...report }, 201);
@@ -956,12 +1198,12 @@ route('GET', '/api/finance/fact-reports', async (request, env) => {
   const url = new URL(request.url);
   const buildingId = url.searchParams.get('building_id');
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
 
-  const where: string[] = [];
-  const params: any[] = [];
+  const where: string[] = ['tenant_id = ?'];
+  const params: any[] = [tenantId];
   if (buildingId) { where.push('building_id = ?'); params.push(buildingId); }
-  if (tenantId)   { where.push('tenant_id   = ?'); params.push(tenantId); }
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const whereSql = `WHERE ${where.join(' AND ')}`;
 
   const { results } = await env.DB.prepare(
     `SELECT id, building_id, period_from, period_to, uk_income_plan, uk_income_fact,
@@ -982,23 +1224,32 @@ route('GET', '/api/finance/fact-reports/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const row = await env.DB.prepare(
     `SELECT r.*, b.name AS building_name, b.address AS building_address
      FROM finance_fact_reports r
-     LEFT JOIN buildings b ON b.id = r.building_id
-     WHERE r.id = ? ${tenantId ? 'AND r.tenant_id = ?' : ''} LIMIT 1`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+     LEFT JOIN buildings b ON b.id = r.building_id AND b.tenant_id = r.tenant_id
+     WHERE r.id = ? AND r.tenant_id = ? LIMIT 1`
+  ).bind(params.id, tenantId).first() as any;
   if (!row) return error('Not found', 404);
 
-  let rows: FactRow[] = [];
-  try { rows = row.rows_json ? JSON.parse(row.rows_json) : []; } catch { rows = []; }
-
-  const totals = rows.reduce((acc, r) => ({
+  let saved: unknown = [];
+  try { saved = row.rows_json ? JSON.parse(row.rows_json) : []; } catch { saved = []; }
+  const rows: FactRow[] = Array.isArray(saved)
+    ? saved
+    : saved && typeof saved === 'object' && Array.isArray((saved as { rows?: unknown }).rows)
+      ? (saved as { rows: FactRow[] }).rows
+      : [];
+  const computedTotals = rows.reduce((acc, r) => ({
     prior_debt: acc.prior_debt + Number(r.prior_debt || 0),
     accrued:    acc.accrued    + Number(r.accrued || 0),
     paid:       acc.paid       + Number(r.paid || 0),
     arrears:    acc.arrears    + Number(r.arrears || 0),
   }), { prior_debt: 0, accrued: 0, paid: 0, arrears: 0 });
+  const snapshot = !Array.isArray(saved) && saved && typeof saved === 'object'
+    ? saved as { totals?: typeof computedTotals; charges_count?: number; payments_count?: number }
+    : null;
+  const totals = snapshot?.totals || computedTotals;
 
   return json({
     id: row.id,
@@ -1007,6 +1258,8 @@ route('GET', '/api/finance/fact-reports/:id', async (request, env, params) => {
     period_to: row.period_to,
     rows,
     totals,
+    charges_count: snapshot?.charges_count ?? null,
+    payments_count: snapshot?.payments_count ?? null,
     uk_income_plan: row.uk_income_plan,
     uk_income_fact: row.uk_income_fact,
     generated_by: row.generated_by,

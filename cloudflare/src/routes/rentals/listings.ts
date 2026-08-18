@@ -43,6 +43,10 @@ import { createRequestLogger } from '../../utils/logger';
 import { sendPushNotification } from '../notifications';
 import { notifyManagers } from '../../utils/notifications';
 
+declare const Buffer: {
+  from(data: ArrayBuffer): { toString(encoding: 'base64'): string };
+};
+
 // Server-side photo cap: 1 MB decoded per photo (marketplace uses 5 MB
 // but rentals expect residents to upload multiple photos per listing;
 // tighter cap prevents a 5-photo listing bloating a row into 25 MB

@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { ExecutorSpecialization } from '../../../types';
+import type { TeamRole } from '../../../services/api/users';
 
 // Sprint 31: shared role/specialization label + color + icon tables
 // for TeamPage and its split-out children (StaffCard, StaffSection).
@@ -12,12 +13,12 @@ import type { ExecutorSpecialization } from '../../../types';
 export interface StaffMember {
   id: string;
   login: string;
-  password?: string;
   name: string;
-  phone: string;
-  role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
-  specialization?: ExecutorSpecialization;
-  status?: string;
+  phone: string | null;
+  role: TeamRole;
+  specialization?: ExecutorSpecialization | null;
+  status?: string | null;
+  is_active?: number;
   created_at: string;
   completed_count?: number;
   active_count?: number;
@@ -26,26 +27,35 @@ export interface StaffMember {
 
 export const ROLE_LABELS_RU: Record<string, string> = {
   admin: 'Администратор',
+  director: 'Директор',
   manager: 'Менеджер',
   advertiser: 'Менеджер рекламы',
   department_head: 'Глава отдела',
   executor: 'Исполнитель',
+  dispatcher: 'Диспетчер',
+  security: 'Охранник',
 };
 
 export const ROLE_LABELS_UZ: Record<string, string> = {
   admin: 'Administrator',
+  director: 'Direktor',
   manager: 'Menejer',
   advertiser: 'Reklama menejeri',
   department_head: "Bo'lim boshlig'i",
   executor: 'Ijrochi',
+  dispatcher: 'Dispetcher',
+  security: 'Qorovul',
 };
 
 export const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
+  director: 'bg-amber-100 text-amber-700',
   manager: 'bg-purple-100 text-purple-700',
   advertiser: 'bg-orange-100 text-orange-700',
   department_head: 'bg-blue-100 text-blue-700',
   executor: 'bg-green-100 text-green-700',
+  dispatcher: 'bg-cyan-100 text-cyan-700',
+  security: 'bg-slate-100 text-slate-700',
 };
 
 export const SPECIALIZATION_ICONS: Record<ExecutorSpecialization, ReactNode> = {
@@ -77,4 +87,3 @@ export const SPECIALIZATION_COLORS: Record<ExecutorSpecialization, string> = {
   gardener: 'bg-emerald-100 text-emerald-700',
   other: 'bg-gray-100 text-gray-700',
 };
-

@@ -1,8 +1,9 @@
 // Payments store — Zustand module for payments management
 
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { paymentsApi } from '../services/api';
-import { useToastStore } from './toastStore';
+import type { PaymentDto, PaymentPaginationDto } from '../services/api/payments';
 
 interface PaymentFilters {
   apartment_id?: string;
@@ -11,23 +12,16 @@ interface PaymentFilters {
 }
 
 interface PaymentsState {
-  payments: Record<string, unknown>[];  // TODO: type this properly with a Payment interface
+  payments: PaymentDto[];
   isLoading: boolean;
   error: string | null;
   filters: PaymentFilters;
-  pagination: { page: number; limit: number; total: number; totalPages: number } | null;
+  pagination: PaymentPaginationDto | null;
   balance: { apartment_id: string; total_charged: number; total_paid: number; balance: number } | null;
   isLoadingBalance: boolean;
 
   setFilters: (filters: PaymentFilters) => void;
   fetchPayments: (page?: number) => Promise<void>;
-  createPayment: (data: {
-    apartment_id: string;
-    amount: number;
-    payment_type: string;
-    period?: string;
-    description?: string;
-  }) => Promise<boolean>;
   fetchBalance: (apartmentId: string) => Promise<void>;
 }
 
@@ -57,19 +51,6 @@ export const usePaymentsStore = create<PaymentsState>()((set, get) => ({
     }
   },
 
-  createPayment: async (data) => {
-    try {
-      await paymentsApi.createPayment(data);
-      useToastStore.getState().addToast('success', 'Платёж добавлен');
-      // Refresh list
-      await get().fetchPayments();
-      return true;
-    } catch (err: unknown) {
-      useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'Ошибка при создании платежа');
-      return false;
-    }
-  },
-
   fetchBalance: async (apartmentId) => {
     set({ isLoadingBalance: true });
     try {
@@ -80,3 +61,5 @@ export const usePaymentsStore = create<PaymentsState>()((set, get) => ({
     }
   },
 }));
+
+registerSessionStore(usePaymentsStore);

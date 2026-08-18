@@ -1,5 +1,8 @@
 // API Client - Core infrastructure for all API modules
 
+import { clearSessionStorage } from '../sessionStorage';
+import type { User, UserRole, ExecutorSpecialization } from '../../types';
+
 // Cross-origin API endpoint hosted in Tashkent (PDN compliance).
 // Single source of truth for everything that needs to reach the backend.
 // Importing API_URL here (instead of deriving from window.location) is
@@ -76,6 +79,28 @@ interface CacheEntry<T> {
 
 const requestCache = new Map<string, CacheEntry<unknown>>();
 const pendingRequests = new Map<string, Promise<unknown>>();
+const activeControllers = new Set<AbortController>();
+let apiSessionGeneration = 0;
+let sessionExpiredHandler: (() => void) | null = null;
+
+export class SessionChangedError extends Error {
+  constructor() {
+    super('API session changed');
+    this.name = 'SessionChangedError';
+  }
+}
+
+export function resetApiSession(): void {
+  apiSessionGeneration++;
+  requestCache.clear();
+  pendingRequests.clear();
+  for (const controller of activeControllers) controller.abort();
+  activeControllers.clear();
+}
+
+export function registerSessionExpiredHandler(handler: () => void): void {
+  sessionExpiredHandler = handler;
+}
 
 // Cache TTL values (ms)
 export const CACHE_TTL = {
@@ -155,16 +180,36 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   timeout: number = API_TIMEOUT
 ): Promise<T> {
+  return apiRequestParsed(endpoint, options, timeout, (response) => response.json() as Promise<T>);
+}
+
+export async function apiRequestText(
+  endpoint: string,
+  options: RequestInit = {},
+  timeout: number = API_TIMEOUT
+): Promise<string> {
+  return apiRequestParsed(endpoint, options, timeout, (response) => response.text());
+}
+
+async function apiRequestParsed<T>(
+  endpoint: string,
+  options: RequestInit,
+  timeout: number,
+  parseResponse: (response: Response) => Promise<T>,
+): Promise<T> {
+  const requestGeneration = apiSessionGeneration;
   const token = getToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
   // Create abort controller for timeout
   const controller = new AbortController();
+  activeControllers.add(controller);
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
@@ -174,7 +219,11 @@ export async function apiRequest<T>(
       signal: controller.signal,
     });
 
-    const data = await response.json();
+    if (requestGeneration !== apiSessionGeneration) throw new SessionChangedError();
+
+    const data = await parseResponse(response);
+
+    if (requestGeneration !== apiSessionGeneration) throw new SessionChangedError();
 
     if (!response.ok) {
       // Auto-logout on 401 (stale token, tenant mismatch, etc.)
@@ -202,17 +251,13 @@ export async function apiRequest<T>(
           consecutive401Count = 0;
           // Reset flag after 10s so future 401s aren't permanently ignored
           setTimeout(() => { isHandling401 = false; }, 10_000);
-          localStorage.removeItem('auth_token');
-          // Clear zustand persisted auth state
-          try {
-            const authState = JSON.parse(localStorage.getItem('uk-auth-storage') || '{}');
-            if (authState?.state) {
-              authState.state.user = null;
-              authState.state.token = null;
-              localStorage.setItem('uk-auth-storage', JSON.stringify(authState));
-            }
-          } catch { /* storage cleanup may fail */ }
-          // Reload page to show login (delayed to allow state cleanup)
+          if (sessionExpiredHandler) {
+            sessionExpiredHandler();
+          } else {
+            resetApiSession();
+            clearSessionStorage();
+          }
+          // Reload is only a fallback after synchronous memory/storage cleanup.
           setTimeout(() => window.location.reload(), 100);
           throw new ApiError('Session expired', response.status, data);
         }
@@ -224,12 +269,19 @@ export async function apiRequest<T>(
 
     return data;
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401 && error.message === 'Session expired') {
+      throw error;
+    }
+    if (error instanceof SessionChangedError || requestGeneration !== apiSessionGeneration) {
+      throw new SessionChangedError();
+    }
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Превышено время ожидания запроса. Проверьте соединение.');
     }
     throw error;
   } finally {
     clearTimeout(timeoutId);
+    activeControllers.delete(controller);
   }
 }
 
@@ -238,7 +290,8 @@ export async function cachedGet<T>(
   endpoint: string,
   ttl: number = CACHE_TTL.SHORT
 ): Promise<T> {
-  const cacheKey = endpoint;
+  const requestGeneration = apiSessionGeneration;
+  const cacheKey = `${requestGeneration}:${endpoint}`;
 
   // Return cached data if available
   const cached = getCached<T>(cacheKey);
@@ -250,6 +303,7 @@ export async function cachedGet<T>(
 
   // Make the request
   const request = apiRequest<T>(endpoint).then(data => {
+    if (requestGeneration !== apiSessionGeneration) throw new SessionChangedError();
     setCache(cacheKey, data, ttl);
     pendingRequests.delete(cacheKey);
     return data;
@@ -275,9 +329,21 @@ export async function apiRequestWrapped<T>(
   }
 }
 
+export interface UserApiResponse extends Omit<User, 'role'> {
+  role: UserRole;
+  specialization?: ExecutorSpecialization;
+  password_changed_at?: string;
+  contract_signed_at?: string;
+  building_id?: string;
+  total_area?: number;
+  personal_account?: string;
+  signature_key?: string;
+  apartment_id?: string | null;
+  tenant_id?: string | null;
+}
+
 // Transform user object from snake_case (API) to camelCase (frontend)
-export function transformUser(user: Record<string, unknown>): Record<string, unknown> {
-  if (!user) return user;
+export function transformUser(user: UserApiResponse): User {
   return {
     ...user,
     // Map snake_case to camelCase for onboarding fields
@@ -287,6 +353,8 @@ export function transformUser(user: Record<string, unknown>): Record<string, unk
     totalArea: user.total_area || user.totalArea,
     personalAccount: user.personal_account || user.personalAccount,
     signatureKey: user.signature_key || user.signatureKey,
+    accountType: user.account_type ?? user.accountType,
+    tenantId: user.tenant_id ?? user.tenantId ?? null,
     // v128 — apartments.id UUID from the login JOIN. null for users with
     // no apartment row (directors, managers, super-admins, advertisers).
     apartmentId: user.apartment_id ?? user.apartmentId ?? null,

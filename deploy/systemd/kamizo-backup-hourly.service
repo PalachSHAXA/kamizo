@@ -1,0 +1,35 @@
+[Unit]
+Description=Kamizo verified hourly SQLite backup
+RequiresMountsFor=/opt/kamizo/data /opt/kamizo/backups/sqlite
+ConditionPathExists=/run/lock/kamizo-backup.lock
+ConditionPathIsSymbolicLink=!/run/lock/kamizo-backup.lock
+StartLimitIntervalSec=30min
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=kamizo
+Group=kamizo
+UMask=0077
+ExecStart=/usr/local/bin/kamizo-sqlite-backup.sh hourly
+TimeoutStartSec=15min
+Restart=on-failure
+RestartSec=2min
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/kamizo/data
+ReadWritePaths=/opt/kamizo/backups/sqlite /run/lock/kamizo-backup.lock
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=

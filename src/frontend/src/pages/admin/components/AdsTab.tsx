@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Trash2, CheckCircle, RefreshCw, X, Eye, Phone, Globe, MapPin, Clock, Image, ChevronDown, ChevronUp, Ticket, User, Megaphone } from 'lucide-react';
+import { Building2, Trash2, CheckCircle, RefreshCw, X, Eye, Phone, Globe, MapPin, Clock, Image, ChevronDown, ChevronUp, Ticket, Megaphone } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
 import type { Tenant, SuperAd, AdCategory, AdTenantAssignment } from './types';
@@ -14,6 +14,39 @@ interface AdsTabProps {
   isLoadingAds: boolean;
   tenants: Tenant[];
   loadAds: () => void;
+}
+
+interface AdViewDto {
+  id?: string;
+  user_name?: string;
+  user_phone?: string;
+  apartment_number?: string;
+  viewed_at?: string;
+}
+
+interface AdCouponDto {
+  id?: string;
+  code?: string;
+  status?: string;
+  discount_percent?: number;
+  discount_amount?: number;
+  user_name?: string;
+  user_phone?: string;
+  issued_at?: string;
+  activated_by_name?: string;
+}
+
+interface AssignmentTenantDto {
+  id: string;
+  name: string;
+  slug: string;
+  color?: string;
+  color_secondary?: string;
+}
+
+interface AssignmentsDto {
+  assignments: AdTenantAssignment[];
+  all_tenants: AssignmentTenantDto[];
 }
 
 export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants, loadAds }: AdsTabProps) {
@@ -46,19 +79,19 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
 
   // Assign modal
   const [showAssignModal, setShowAssignModal] = useState<SuperAd | null>(null);
-  const [assignModalData, setAssignModalData] = useState<{ assignments: AdTenantAssignment[]; all_tenants: Array<{ id: string; name: string; slug: string; color?: string; color_secondary?: string }> }>({ assignments: [], all_tenants: [] });
+  const [assignModalData, setAssignModalData] = useState<AssignmentsDto>({ assignments: [], all_tenants: [] });
   const [isLoadingAssign, setIsLoadingAssign] = useState(false);
   const [isSavingAssign, setIsSavingAssign] = useState(false);
   const [assignSelectedIds, setAssignSelectedIds] = useState<string[]>([]);
 
   // Views modal
   const [showViewsModal, setShowViewsModal] = useState<SuperAd | null>(null);
-  const [adViews, setAdViews] = useState<Array<{ id?: string; user_name?: string; user_phone?: string; apartment_number?: string; viewed_at?: string }>>([]);
+  const [adViews, setAdViews] = useState<AdViewDto[]>([]);
   const [isLoadingViews, setIsLoadingViews] = useState(false);
 
   // Coupons modal
   const [showCouponsModal, setShowCouponsModal] = useState<SuperAd | null>(null);
-  const [adCoupons, setAdCoupons] = useState<Array<{ id?: string; code?: string; status?: string; discount_percent?: number; discount_amount?: number; user_name?: string; user_phone?: string; issued_at?: string; activated_by_name?: string }>>([]);
+  const [adCoupons, setAdCoupons] = useState<AdCouponDto[]>([]);
   const [isLoadingCoupons, setIsLoadingCoupons] = useState(false);
 
   const handleCreateSuperAd = async () => {
@@ -105,7 +138,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowViewsModal(ad);
     setIsLoadingViews(true);
     try {
-      const res = await apiRequest<{ views: typeof adViews }>(`/api/super-admin/ads/${ad.id}/views`);
+      const res = await apiRequest<{ views: AdViewDto[] }>(`/api/super-admin/ads/${ad.id}/views`);
       setAdViews(res.views || []);
     } catch {
       setAdViews([]);
@@ -118,7 +151,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowCouponsModal(ad);
     setIsLoadingCoupons(true);
     try {
-      const res = await apiRequest<{ coupons: typeof adCoupons }>(`/api/super-admin/ads/${ad.id}/coupons`);
+      const res = await apiRequest<{ coupons: AdCouponDto[] }>(`/api/super-admin/ads/${ad.id}/coupons`);
       setAdCoupons(res.coupons || []);
     } catch {
       setAdCoupons([]);
@@ -131,7 +164,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
     setShowAssignModal(ad);
     setIsLoadingAssign(true);
     try {
-      const res = await apiRequest<{ assignments: AdTenantAssignment[]; all_tenants: Array<{ id: string; name: string; slug: string; color?: string; color_secondary?: string }> }>(`/api/super-admin/ads/${ad.id}/tenants`);
+      const res = await apiRequest<AssignmentsDto>(`/api/super-admin/ads/${ad.id}/tenants`);
       setAssignModalData(res);
       setAssignSelectedIds((res.assignments || []).map((a) => a.tenant_id));
     } catch {
@@ -565,7 +598,7 @@ export function AdsTab({ allAds, setAllAds, adCategories, isLoadingAds, tenants,
                           }`}>
                             {c.status === 'activated' ? 'Активирован' : c.status === 'expired' ? 'Истёк' : 'Выдан'}
                           </span>
-                          {c.discount_percent > 0 && (
+                          {(c.discount_percent ?? 0) > 0 && (
                             <span className="text-xs font-bold text-red-500">-{c.discount_percent}%</span>
                           )}
                         </div>

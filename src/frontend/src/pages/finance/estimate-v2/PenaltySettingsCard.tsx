@@ -11,7 +11,7 @@ export function PenaltySettingsCard() {
   const { language } = useLanguageStore();
   const isRu = language === 'ru';
   const user = useAuthStore(s => s.user);
-  const canEdit = user && ['admin', 'director'].includes(user.role);
+  const canEdit = user && user.demoSession !== true && ['admin', 'director'].includes(user.role);
 
   const [state, setState] = useState<PenaltySettings>({
     enabled: false, daily_rate: 0.001, grace_days: 30, max_multiplier: 1.0,
@@ -56,7 +56,7 @@ export function PenaltySettingsCard() {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {isRu ? 'Пени за просрочку' : 'Kechikish uchun peni'}
@@ -67,7 +67,7 @@ export function PenaltySettingsCard() {
               : 'VMQ-930. Yig\'ilish qaroriga muvofiq. Daily-cron tomonidan grace_days\'dan keyingi qarzdorlarga hisoblanadi.'}
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 text-sm">
+        <label className="staff-primary-control inline-flex min-h-[44px] items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={state.enabled}
@@ -96,7 +96,7 @@ export function PenaltySettingsCard() {
             value={(state.daily_rate * 100).toFixed(2)}
             disabled={!canEdit || !state.enabled}
             onChange={e => setState(s => ({ ...s, daily_rate: (Number(e.target.value) || 0) / 100 }))}
-            className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+            className="min-h-[44px] w-full px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
           />
           <span className="text-[10px] text-gray-400 mt-1 block">
             {isRu ? 'Типично 0.1% в день' : 'Odatda 0.1%'}
@@ -114,7 +114,7 @@ export function PenaltySettingsCard() {
             value={state.grace_days}
             disabled={!canEdit || !state.enabled}
             onChange={e => setState(s => ({ ...s, grace_days: Math.max(0, Math.floor(Number(e.target.value) || 0)) }))}
-            className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+            className="min-h-[44px] w-full px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
           />
           <span className="text-[10px] text-gray-400 mt-1 block">
             {isRu ? 'По ПКМ №930 — 30' : 'VMQ-930 — 30'}
@@ -133,7 +133,7 @@ export function PenaltySettingsCard() {
             value={state.max_multiplier}
             disabled={!canEdit || !state.enabled}
             onChange={e => setState(s => ({ ...s, max_multiplier: Math.max(0, Number(e.target.value) || 0) }))}
-            className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+            className="min-h-[44px] w-full px-3 rounded-lg border border-gray-300 bg-white disabled:bg-gray-50 disabled:text-gray-400"
           />
           <span className="text-[10px] text-gray-400 mt-1 block">
             {isRu ? 'ГК РУз — не > 100% долга (1.0)' : 'FK — qarzdan oshmasin (1.0)'}
@@ -153,7 +153,7 @@ export function PenaltySettingsCard() {
           <button
             onClick={save}
             disabled={saving}
-            className="h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 flex items-center gap-2"
+            className="staff-primary-control min-h-[44px] min-w-[44px] px-4 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {isRu ? 'Сохранить' : 'Saqlash'}

@@ -7,6 +7,7 @@ import { apiRequest } from '../../services/api';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import { formatAmount } from '../../utils/formatCurrency';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 interface ExpenseRow {
   id: string;
@@ -39,6 +40,7 @@ export default function ExpensesPage() {
 
   const isResident = user?.role === 'resident' || user?.role === 'tenant';
   const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'director';
+  const isDemoSession = user?.demoSession === true;
 
   // State
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export default function ExpensesPage() {
 
   // Submit
   const handleAdd = async () => {
-    if (!addForm.amount || !addForm.expense_date) return;
+    if (isDemoSession || !addForm.amount || !addForm.expense_date) return;
     setSaving(true);
     try {
       await apiRequest('/api/finance/expenses', {
@@ -164,7 +166,7 @@ export default function ExpensesPage() {
               : t('План vs факт по статьям сметы', "Smeta bo'yicha reja va haqiqiy xarajatlar")}
           </p>
         </div>
-        {isManager && (
+        {isManager && !isDemoSession && (
           <button
             onClick={() => setShowAdd(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-xl hover:bg-primary-600 transition-colors font-medium text-sm shadow-sm"
@@ -174,6 +176,8 @@ export default function ExpensesPage() {
           </button>
         )}
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filters */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3">
@@ -287,7 +291,7 @@ export default function ExpensesPage() {
       )}
 
       {/* Add expense modal */}
-      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title={t('Добавить расход', 'Xarajat qo\'shish')} size="md">
+      <Modal isOpen={!isDemoSession && showAdd} onClose={() => setShowAdd(false)} title={t('Добавить расход', 'Xarajat qo\'shish')} size="md">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('Статья расхода', 'Xarajat bandi')}</label>

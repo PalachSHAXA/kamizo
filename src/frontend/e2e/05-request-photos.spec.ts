@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { apiLogin, apiCall } from './helpers/auth';
 
 // 1×1 transparent PNG as a data URL — minimal valid image to assert the

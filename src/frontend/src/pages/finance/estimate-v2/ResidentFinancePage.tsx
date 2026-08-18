@@ -189,7 +189,7 @@ export function ResidentFinancePage() {
     return m;
   }, [apartments]);
 
-  if (loading) return <PageSkeleton />;
+  if (loading) return <PageSkeleton variant="list" />;
 
   if (error) {
     return (

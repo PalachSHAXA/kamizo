@@ -946,7 +946,7 @@ p, li {
 }
 
 /* Desktop only: brand gradient background */
-@media (min-width: 769px) {
+@media (min-width: 768px) {
   body {
     background: linear-gradient(135deg, #fefefe 0%, var(--brand-bg) 50%, var(--brand-bg) 100%);
   }
@@ -964,7 +964,7 @@ p, li {
    Body overflow:hidden prevents iOS Safari address-bar resize from causing
    the fixed bars to jump. .has-mobile-header padding-top offsets the header.
    ───────────────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   html {
     height: 100%;
     background: var(--app-bg);
@@ -1080,7 +1080,7 @@ p, li {
    Threshold raised from 500px to 600px so landscape phones (Pixel/Galaxy
    in horizontal orientation report ~520-580px viewport height with the
    keyboard up) don't keep the BottomBar overlapping the chat composer. */
-@media (max-width: 768px) and (max-height: 600px) {
+@media (max-width: 767px) and (max-height: 600px) {
   .bottom-nav,
   [role="navigation"] {
     display: none !important;
@@ -1268,7 +1268,7 @@ html.dark .btn-secondary {
 }
 
 /* Mobile sidebar - hidden by default, shown as overlay */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .sidebar {
     /* Start off-screen to the left */
     transform: translate3d(-100%, 0, 0);
@@ -1385,7 +1385,7 @@ html.dark .sidebar {
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.45);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   html.dark .sidebar {
     box-shadow: 8px 0 30px rgba(0, 0, 0, 0.65);
   }
@@ -1580,7 +1580,7 @@ html.dark .modal-content {
   transition: margin-left 0.3s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .main-content {
     margin-left: 0;
   }
@@ -1591,7 +1591,7 @@ html.dark .modal-content {
    ~80px of empty space below the composer because 140px did not match the
    actual mobile-header-h + safe-area-inset-bottom that the admin view
    already computes. Now both branches use the same formula. */
-@media (min-width: 769px) {
+@media (min-width: 768px) {
   .resident-chat-container {
     /* v129 P1 — same Capacitor dvh-collapse-to-0 fix. svh has the same
        calc semantics; both fall through to vh. */
@@ -1660,7 +1660,7 @@ html.dark .modal-content {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .mobile-header {
     display: flex;
     align-items: center;
@@ -1758,26 +1758,80 @@ html.dark .modal-content {
   .glass-input,
   .input-field {
     padding: 12px 14px;
-    font-size: 16px; /* Prevents zoom on iOS */
     border-radius: 10px;
   }
+}
 
-  select {
-    font-size: 16px;
-  }
-
-  /* Prevent iOS Safari zoom on input focus — minimum 16px */
-  input, select, textarea {
+/* Form controls need a 16px computed size through tablet widths to avoid
+   Safari focus zoom. Labels and other non-form text remain unchanged. */
+@media (max-width: 768px) {
+  .glass-input,
+  .input-field,
+  input,
+  select,
+  textarea {
     font-size: max(16px, 1em) !important;
   }
 }
 
-/* Sprint 1: extend the iOS-zoom guard up to 767px (iPad portrait). The
-   640px-cap block above doesn't cover that band, and Tailwind `text-sm`
-   (14px) on inputs at 700-760px still triggers Safari's auto-zoom. */
-@media (min-width: 641px) and (max-width: 767px) {
-  input, select, textarea {
+/* Local admin/finance forms use raw Tailwind controls as well as shared
+   input classes; keep every interactive field touch-safe without affecting
+   labels or compact read-only text. */
+.admin-form-controls :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  min-height: 44px;
+}
+
+.admin-form-controls :where(input, select, textarea, button):disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Staff-facing admin surfaces keep forms zoom-safe and primary actions
+   touch-safe through iPad landscape. Controls opt in deliberately so compact
+   chart/carousel affordances are not inflated by a broad button selector. */
+@media (max-width: 1024px) {
+  .staff-shell :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    min-height: 44px;
     font-size: max(16px, 1em) !important;
+  }
+
+  .staff-shell .staff-primary-control:not(.staff-control-opt-out) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.charges-kpi-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.estimate-create-label {
+  display: none;
+}
+
+/* 320px admin shells retain four 44px targets (three primaries + More).
+   The accessible names stay on the buttons while visual labels collapse. */
+@media (max-width: 359px) {
+  .bottom-nav-label {
+    display: none !important;
+  }
+}
+
+@media (min-width: 375px) {
+  .charges-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 359px), (min-width: 640px) {
+  .estimate-create-label {
+    display: inline;
+  }
+}
+
+@media (min-width: 1024px) {
+  .charges-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1790,7 +1844,7 @@ html.dark .modal-content {
 }
 
 /* Admin/staff tables: allow horizontal scroll on mobile instead of clipping */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .table-container,
   .overflow-x-auto {
     overflow-x: auto;
@@ -1804,7 +1858,7 @@ html.dark .modal-content {
 }
 
 /* Mobile tables - convert to cards */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .responsive-table {
     display: block;
   }
@@ -1844,7 +1898,7 @@ html.dark .modal-content {
 }
 
 /* Hide elements on mobile */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .hide-mobile {
     display: none !important;
   }
@@ -1855,7 +1909,7 @@ html.dark .modal-content {
   display: none !important;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .show-mobile {
     display: flex !important;
   }
@@ -1978,7 +2032,7 @@ html.dark .modal-content {
   transform: scale(0.95);
 }
 
-@media (min-width: 769px) {
+@media (min-width: 768px) {
   .fab {
     display: none;
   }
@@ -2000,7 +2054,7 @@ html.dark .modal-content {
 }
 
 /* Smooth scrolling on mobile */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .scroll-container {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
@@ -2193,7 +2247,7 @@ a.btn-secondary:active,
 }
 
 /* Larger touch targets for mobile */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   /* Minimum 44px touch targets */
   button:not(.icon-only),
   a[role="button"],
@@ -2258,14 +2312,14 @@ a.btn-secondary:active,
 }
 
 /* Elastic overscroll effect */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .elastic-scroll {
     overscroll-behavior-y: auto;
   }
 }
 
 /* Card press effect for mobile */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .card-pressable {
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
@@ -2561,7 +2615,7 @@ a.btn-secondary:active,
 }
 
 /* Improved select dropdown for mobile */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   select {
     appearance: none;
     -webkit-appearance: none;

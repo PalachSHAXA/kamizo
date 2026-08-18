@@ -102,7 +102,9 @@ async function parseUploadedPdf(request: Request): Promise<
   } catch {
     return { ok: false, status: 400, message: 'Malformed multipart body' };
   }
-  const file = formData.get('file');
+  // The pinned Workers types say FormData.get() only returns strings,
+  // while both Workers and Node's undici return File for uploaded parts.
+  const file = formData.get('file') as unknown as string | File | null;
   if (!file || typeof file === 'string') {
     return { ok: false, status: 400, message: 'Field "file" is required' };
   }

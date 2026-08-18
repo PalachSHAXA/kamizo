@@ -1,22 +1,38 @@
 // Executors API
 
 import { apiRequest } from './client';
+import type { ExecutorSpecialization } from '../../types/common';
+
+export interface ExecutorDto {
+  id: string;
+  login: string;
+  name: string;
+  phone: string;
+  specialization: ExecutorSpecialization;
+  status?: 'available' | 'busy' | 'offline' | null;
+  rating?: number | null;
+  completed_count?: number | null;
+  active_requests?: number | null;
+  total_earnings?: number | null;
+  avg_completion_time?: number | null;
+  created_at?: string;
+}
 
 export const executorsApi = {
   getAll: async (showAll = false) => {
     const url = showAll ? '/api/executors?all=true' : '/api/executors';
     // No caching for executors - always fetch fresh data for accurate assignment
-    return apiRequest<{ executors: Record<string, unknown>[] }>(url, { cache: 'no-store' });
+    return apiRequest<{ executors: ExecutorDto[] }>(url, { cache: 'no-store' });
   },
 
-  // Get single executor by ID (for live data refresh with password)
+  // Get single executor by ID for live data refresh
   getById: async (executorId: string) => {
     // Always fetch fresh data, no caching
-    return apiRequest<{ executor: Record<string, unknown> }>(`/api/executors/${executorId}`, { cache: 'no-store' });
+    return apiRequest<{ executor: ExecutorDto }>(`/api/executors/${executorId}`, { cache: 'no-store' });
   },
 
   updateStatus: async (executorId: string, status: 'available' | 'busy' | 'offline') => {
-    return apiRequest<{ executor: Record<string, unknown> }>(`/api/executors/${executorId}/status`, {
+    return apiRequest<{ executor: ExecutorDto }>(`/api/executors/${executorId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });

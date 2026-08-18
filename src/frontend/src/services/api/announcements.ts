@@ -1,10 +1,33 @@
 // Announcements API & File Upload API
 
-import { apiRequest, cachedGet, invalidateCache, CACHE_TTL, API_URL } from './client';
+import { apiRequest, cachedGet, invalidateCache, CACHE_TTL } from './client';
+
+export interface AnnouncementApiRecord extends Record<string, unknown> {
+  id: string;
+  title: string;
+  content: string;
+  type: 'residents' | 'employees' | 'staff' | 'all';
+  priority?: 'normal' | 'important' | 'urgent';
+  created_by?: string;
+  author_name?: string;
+  created_at: string;
+  expires_at?: string;
+  is_active?: boolean | number;
+  viewed_by_user?: boolean | number;
+  view_count?: number;
+  attachments?: unknown;
+  personalized_data?: unknown;
+  target_type?: 'all' | 'branch' | 'building' | 'entrance' | 'floor' | 'custom';
+  target_branch?: string;
+  target_building_id?: string;
+  target_entrance?: string;
+  target_floor?: string;
+  target_logins?: string;
+}
 
 export const announcementsApi = {
   getAll: async () => {
-    return cachedGet<{ announcements: Record<string, unknown>[] }>('/api/announcements', CACHE_TTL.SHORT);
+    return cachedGet<{ announcements: AnnouncementApiRecord[] }>('/api/announcements', CACHE_TTL.SHORT);
   },
 
   create: async (announcement: {
@@ -86,19 +109,12 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = localStorage.getItem('auth_token');
-    const response = await fetch(`${API_URL}/api/upload`, {
+    const data = await apiRequest<{
+      file: { name: string; url: string; type: string; size: number };
+    }>('/api/upload', {
       method: 'POST',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Upload failed');
-    }
-
-    const data = await response.json();
     return data.file;
   },
 

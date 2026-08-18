@@ -1484,7 +1484,7 @@ CREATE TABLE IF NOT EXISTS ads (
   photos TEXT,                                 -- JSON array of photo URLs (до 5)
 
   -- Promotion settings
-  discount_percent INTEGER DEFAULT 0,          -- Процент скидки по купону
+  discount_percent REAL DEFAULT 0,             -- Процент скидки по купону
   badges TEXT,                                 -- JSON: {"recommended": true, "new": true, "hot": false}
 
   -- Targeting
@@ -1801,6 +1801,16 @@ CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(period);
 
 
 -- ==================== FINANCE MODULE ====================
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  last_used_at TEXT
+);
 
 -- Расходная смета
 CREATE TABLE IF NOT EXISTS finance_estimates (

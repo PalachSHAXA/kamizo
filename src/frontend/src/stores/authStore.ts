@@ -1,14 +1,34 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../types';
-import { authApi, usersApi } from '../services/api';
+import { authApi } from '../services/api/auth';
+import { markLoggedIn, registerSessionExpiredHandler } from '../services/api/client';
+import { usersApi } from '../services/api/users';
 import type { TenantPickEntry } from '../services/api/auth';
 import { useToastStore } from './toastStore';
+import { resetSessionScopedState } from './sessionReset';
+import { useTenantStore } from './tenantStore';
 
 interface MockUserData {
   password: string;
   user: User;
 }
+
+const isUserRole = (value: unknown): value is User['role'] =>
+  value === 'super_admin' || value === 'admin' || value === 'director'
+  || value === 'manager' || value === 'department_head' || value === 'executor'
+  || value === 'resident' || value === 'commercial_owner' || value === 'tenant'
+  || value === 'advertiser' || value === 'dispatcher' || value === 'security'
+  || value === 'marketplace_manager';
+
+const isUser = (value: unknown): value is User => {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'id' in value && typeof value.id === 'string'
+    && 'phone' in value && typeof value.phone === 'string'
+    && 'name' in value && typeof value.name === 'string'
+    && 'login' in value && typeof value.login === 'string'
+    && 'role' in value && isUserRole(value.role);
+};
 
 /**
  * Login attempt outcome.
@@ -36,6 +56,7 @@ interface AuthState {
   // Legacy compatibility - to be removed after full migration
   additionalUsers: Record<string, MockUserData>;
   login: (loginStr: string, password: string, tenantSlug?: string) => Promise<LoginOutcome>;
+  demoLogin: (roleKey: string) => Promise<LoginOutcome>;
   /** Dismiss the picker without resubmitting (user cancelled). */
   clearPicker: () => void;
   logout: () => void;
@@ -71,6 +92,34 @@ interface AuthState {
   getUserPassword: (login: string) => string | null;
 }
 
+const loginErrorMessage = (apiError: unknown): string => {
+  const rawMessage = apiError instanceof Error ? apiError.message : '';
+  if (!rawMessage || rawMessage === 'Invalid credentials') return 'Неверный логин или пароль';
+  if (rawMessage === 'Превышено время ожидания запроса. Проверьте соединение.') return rawMessage;
+  if (rawMessage.toLowerCase().includes('too many') || rawMessage.toLowerCase().includes('rate limit')) {
+    return 'Слишком много попыток входа. Попробуйте через минуту.';
+  }
+  if (rawMessage.toLowerCase().includes('internal server') || rawMessage.toLowerCase().includes('500')) {
+    return 'Ошибка сервера. Попробуйте позже.';
+  }
+  return rawMessage;
+};
+
+const installSession = (
+  set: (state: Partial<AuthState>) => void,
+  user: User,
+  token: string,
+) => {
+  resetSessionScopedState();
+  localStorage.setItem('auth_token', token);
+  markLoggedIn();
+  set({ user, token, isLoading: false, error: null, pickerTenants: null });
+  void useTenantStore.getState().fetchConfig().catch(() => { /* non-critical */ });
+  import('../services/nativePush').then(({ initializeNativePush }) => {
+    void initializeNativePush();
+  }).catch(() => { /* non-critical */ });
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -82,6 +131,7 @@ export const useAuthStore = create<AuthState>()(
       additionalUsers: {},
 
       login: async (loginStr: string, password: string, tenantSlug?: string) => {
+        if (get().isLoading) return 'error';
         const normalizedLogin = loginStr.trim();
         const normalizedPassword = password.trim();
         // Clear any leftover picker state from a previous attempt so the
@@ -105,57 +155,32 @@ export const useAuthStore = create<AuthState>()(
             return 'picker';
           }
 
-          // Sync token to localStorage immediately so apiRequest can use it
-          localStorage.setItem('auth_token', result.token);
-          set({
-            user: result.user as unknown as User,
-            token: result.token,
-            isLoading: false,
-            error: null,
-            pickerTenants: null,
-          });
-          // Refresh tenant config now that we have a valid JWT. App.tsx
-          // calls fetchConfig() on mount, but in the unified mobile app
-          // that initial call lands BEFORE login (no JWT → backend can't
-          // pick a tenant from Origin: https://localhost) and returns
-          // null. After a successful login we have the JWT in
-          // localStorage; the JWT-fallback path in the tenant/config
-          // endpoint can now resolve the user's REAL workspace. Fire
-          // and forget — failure here shouldn't block login. Lazy
-          // import dodges a circular store dep (auth → tenant → auth).
-          import('./tenantStore').then(({ useTenantStore }) => {
-            void useTenantStore.getState().fetchConfig();
-          }).catch(() => { /* non-critical */ });
+          if (!isUser(result.user)) {
+            throw new Error('Invalid user response');
+          }
 
-          // Sprint 86 — request native push permission + register the
-          // device token with the backend. Native-only (Capacitor.is
-          // NativePlatform() guard inside). Fire-and-forget: a denied
-          // permission or a network failure here must not break login.
-          // The PWA build short-circuits to a no-op.
-          import('../services/nativePush').then(({ initializeNativePush }) => {
-            void initializeNativePush();
-          }).catch(() => { /* non-critical */ });
+          installSession(set, result.user, result.token);
           return 'success';
         } catch (apiError: unknown) {
-          // Login failed
-          const rawMessage = apiError instanceof Error ? apiError.message : '';
-          // Normalize server-side "Invalid credentials" → Russian UX message
-          // Other errors (timeout, server error, rate limit) pass through as-is
-          const message =
-            !rawMessage || rawMessage === 'Invalid credentials'
-              ? 'Неверный логин или пароль'
-              : rawMessage === 'Превышено время ожидания запроса. Проверьте соединение.'
-                ? rawMessage
-                : rawMessage.toLowerCase().includes('too many') || rawMessage.toLowerCase().includes('rate limit')
-                  ? 'Слишком много попыток входа. Попробуйте через минуту.'
-                  : rawMessage.toLowerCase().includes('internal server') || rawMessage.toLowerCase().includes('500')
-                    ? 'Ошибка сервера. Попробуйте позже.'
-                    : rawMessage;
           set({
             isLoading: false,
-            error: message,
+            error: loginErrorMessage(apiError),
             pickerTenants: null,
           });
+          return 'error';
+        }
+      },
+
+      demoLogin: async (roleKey: string) => {
+        if (get().isLoading) return 'error';
+        set({ isLoading: true, error: null, pickerTenants: null });
+        try {
+          const result = await authApi.demoLogin(roleKey);
+          if (!isUser(result.user)) throw new Error('Invalid user response');
+          installSession(set, result.user, result.token);
+          return 'success';
+        } catch (apiError: unknown) {
+          set({ isLoading: false, error: loginErrorMessage(apiError), pickerTenants: null });
           return 'error';
         }
       },
@@ -176,20 +201,10 @@ export const useAuthStore = create<AuthState>()(
         import('../services/nativePush').then(({ unregisterNativePush }) => {
           void unregisterNativePush(jwtSnapshot);
         }).catch(() => { /* non-critical */ });
-        authApi.logout();
+        localStorage.removeItem('auth_token');
         set({ user: null, token: null, error: null });
-        // Sprint 87 — очистка tenantStore + всех persist-ключей
-        // tenant-config-*. Без этого на нативе (один origin capacitor://
-        // localhost на все тенанты) следующий юзер поднимет кэш
-        // предыдущего и увидит его фичи до подгрузки нового config.
-        import('./tenantStore').then(({ useTenantStore }) => {
-          useTenantStore.getState().clear();
-        }).catch(() => { /* non-critical */ });
-        try {
-          Object.keys(localStorage)
-            .filter((k) => k === 'tenant-config' || k.startsWith('tenant-config-'))
-            .forEach((k) => localStorage.removeItem(k));
-        } catch { /* private mode */ }
+        resetSessionScopedState();
+        authApi.logout();
       },
 
       register: async (userData) => {
@@ -308,11 +323,11 @@ export const useAuthStore = create<AuthState>()(
           phone: user.phone,
           address: user.address,
           apartment: user.apartment,
-          building_id: (user as Record<string, unknown>).buildingId as string,
-          entrance: (user as Record<string, unknown>).entrance as string,
-          floor: (user as Record<string, unknown>).floor as string,
-          branch: (user as Record<string, unknown>).branch as string,
-          building: (user as Record<string, unknown>).building as string,
+          building_id: user.buildingId,
+          entrance: user.entrance,
+          floor: user.floor,
+          branch: user.branch,
+          building: user.building,
         }).catch((err) => {
           useToastStore.getState().addToast('error', (err as Error).message || 'Ошибка регистрации');
         });
@@ -401,3 +416,8 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+registerSessionExpiredHandler(() => {
+  useAuthStore.setState({ user: null, token: null, error: null });
+  resetSessionScopedState();
+});

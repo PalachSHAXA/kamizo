@@ -93,6 +93,148 @@ describe('requireFeature', () => {
   })
 })
 
+describe('getUser impersonation context', () => {
+  function createAuthEnv(user: Record<string, unknown>, demoTenant = true) {
+    return {
+      JWT_SECRET: 'middleware-test-secret',
+      DB: {
+        prepare: (sql: string) => ({
+          bind: (..._args: unknown[]) => ({
+            first: async () => {
+              if (sql.includes("slug = 'demo'")) return demoTenant ? { id: 'tenant-demo' } : null
+              if (sql.includes('SELECT is_active FROM tenants')) return { is_active: 1 }
+              return user
+            },
+          }),
+        }),
+      },
+    } as any
+  }
+
+  it('attaches a verified impersonation actor without changing the session user', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const payload = {
+      userId: 'tenant-admin',
+      role: 'admin',
+      tenantId: 'tenant-1',
+      imp: true,
+      imp_by: 'super-admin-1',
+    } satisfies Parameters<typeof createJWT>[0]
+    const token = await createJWT(payload, 'middleware-test-secret', 3600)
+    const request = new Request('https://api.kamizo.uz/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const user = await getUser(request, createAuthEnv({
+      id: 'tenant-admin',
+      login: 'admin',
+      phone: '+998',
+      name: 'Tenant Admin',
+      role: 'admin',
+      tenant_id: 'tenant-1',
+      is_active: 1,
+    }))
+
+    expect(user).toMatchObject({
+      id: 'tenant-admin',
+      role: 'admin',
+      isImpersonated: true,
+      impersonatedBy: 'super-admin-1',
+    })
+  })
+
+  it('leaves an ordinary signed session unchanged', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const token = await createJWT(
+      { userId: 'admin-2', role: 'admin', tenantId: 'tenant-1' },
+      'middleware-test-secret',
+      3600,
+    )
+    const request = new Request('https://api.kamizo.uz/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const user = await getUser(request, createAuthEnv({
+      id: 'admin-2', login: 'admin2', phone: '+998', name: 'Admin Two', role: 'admin',
+      tenant_id: 'tenant-1', is_active: 1,
+    }))
+
+    expect(user?.id).toBe('admin-2')
+    expect(user?.isImpersonated).toBeUndefined()
+    expect(user?.impersonatedBy).toBeUndefined()
+  })
+
+  it('maps a signed demo capability only for the exact active demo tenant', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const { setCache } = await import('../middleware/cache-local')
+    vi.mocked(setCache).mockClear()
+    const token = await createJWT({
+      userId: 'demo-manager', role: 'manager', tenantId: 'tenant-demo', demo_session: true,
+    }, 'middleware-test-secret', 1800)
+    const request = new Request('https://api.kamizo.uz/api/requests', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const user = await getUser(request, createAuthEnv({
+      id: 'demo-manager', login: 'demo-manager', phone: '+998', name: 'Demo Manager', role: 'manager',
+      tenant_id: 'tenant-demo', is_active: 1,
+    }))
+
+    expect(user?.isDemoSession).toBe(true)
+    expect(setCache).not.toHaveBeenCalled()
+  })
+
+  it('rejects a signed demo capability outside the exact demo tenant', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const token = await createJWT({
+      userId: 'other-manager', role: 'manager', tenantId: 'tenant-other', demo_session: true,
+    }, 'middleware-test-secret', 1800)
+    const request = new Request('https://api.kamizo.uz/api/requests', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const user = await getUser(request, createAuthEnv({
+      id: 'other-manager', login: 'other-manager', phone: '+998', name: 'Other Manager', role: 'manager',
+      tenant_id: 'tenant-other', is_active: 1,
+    }, false))
+
+    expect(user).toBeNull()
+  })
+
+  it('adds safe impersonation IDs to central request logs without exposing the bearer token', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const { createRequestLogger } = await import('../utils/logger')
+    const token = await createJWT({
+      userId: 'tenant-admin-3', role: 'admin', tenantId: 'tenant-1',
+      imp: true, imp_by: 'super-admin-3',
+    }, 'middleware-test-secret', 3600)
+    const request = new Request('https://api.kamizo.uz/api/test', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    await getUser(request, createAuthEnv({
+      id: 'tenant-admin-3', login: 'admin3', phone: '+998', name: 'Admin Three', role: 'admin',
+      tenant_id: 'tenant-1', is_active: 1,
+    }))
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    createRequestLogger(request).info('audit-safe')
+
+    const rawEntry = String(logSpy.mock.calls[0][0])
+    expect(JSON.parse(rawEntry).data).toEqual({
+      actorId: 'super-admin-3',
+      impersonatedSessionUserId: 'tenant-admin-3',
+      isImpersonated: true,
+    })
+    expect(rawEntry).not.toContain(token)
+    logSpy.mockRestore()
+  })
+})
+
 // ============================================================
 // checkRateLimit tests
 // ============================================================
@@ -155,23 +297,113 @@ describe('checkRateLimit', () => {
 // ============================================================
 
 describe('getClientIdentifier', () => {
-  it('returns user identifier when user provided', async () => {
+  function requestWithRawHeaders(
+    headers: Record<string, string>,
+    cloudflareWorker = false,
+  ): Request {
+    const normalizedHeaders = Object.fromEntries(
+      Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]),
+    )
+    return {
+      headers: {
+        get: (name: string) => normalizedHeaders[name.toLowerCase()] ?? null,
+      },
+      ...(cloudflareWorker ? { cf: {} } : {}),
+    } as unknown as Request
+  }
+
+  it('keeps an ordinary authenticated user in the user bucket', async () => {
     const { getClientIdentifier } = await import('../middleware/rateLimit')
 
-    const req = new Request('https://test.kamizo.uz/api/test')
+    const req = new Request('https://test.kamizo.uz/api/test', {
+      headers: { 'X-Real-IP': '192.0.2.10', 'CF-Connecting-IP': '198.51.100.20' },
+    })
     const result = getClientIdentifier(req, { id: 'user-abc' } as any)
 
     expect(result).toBe('user:user-abc')
   })
 
-  it('returns IP identifier when no user', async () => {
+  it('uses validated X-Real-IP despite a spoofed CF-Connecting-IP', async () => {
     const { getClientIdentifier } = await import('../middleware/rateLimit')
 
-    const req = new Request('https://test.kamizo.uz/api/test', {
-      headers: { 'CF-Connecting-IP': '192.168.1.1' },
+    const first = new Request('https://test.kamizo.uz/api/test', {
+      headers: { 'X-Real-IP': '192.0.2.10', 'CF-Connecting-IP': '198.51.100.1' },
     })
-    const result = getClientIdentifier(req, null)
+    const second = new Request('https://test.kamizo.uz/api/test', {
+      headers: { 'X-Real-IP': '192.0.2.10', 'CF-Connecting-IP': '198.51.100.2' },
+    })
 
-    expect(result).toBe('ip:192.168.1.1')
+    expect(getClientIdentifier(first, null)).toBe('ip:192.0.2.10')
+    expect(getClientIdentifier(second, null)).toBe('ip:192.0.2.10')
+  })
+
+  it('uses only the first X-Forwarded-For token', async () => {
+    const { getClientIdentifier } = await import('../middleware/rateLimit')
+    const req = new Request('https://test.kamizo.uz/api/test', {
+      headers: { 'X-Forwarded-For': '203.0.113.7, 10.0.0.4' },
+    })
+
+    expect(getClientIdentifier(req, null)).toBe('ip:203.0.113.7')
+  })
+
+  it.each([
+    ['IPv4', '192.168.1.1'],
+    ['compressed IPv6', '2001:db8::1'],
+    ['IPv4-mapped IPv6', '::ffff:192.0.2.128'],
+  ])('accepts a valid %s address', async (_label, ip) => {
+    const { getClientIdentifier } = await import('../middleware/rateLimit')
+    const req = new Request('https://test.kamizo.uz/api/test', {
+      headers: { 'X-Real-IP': ip },
+    })
+
+    expect(getClientIdentifier(req, null)).toBe(`ip:${ip}`)
+  })
+
+  it.each([
+    ['out-of-range IPv4', '256.1.1.1'],
+    ['short IPv4', '192.168.1'],
+    ['leading-zero IPv4', '192.168.001.1'],
+    ['invalid IPv6', '2001:db8:::1'],
+    ['multiple X-Real-IP values', '192.0.2.1, 192.0.2.2'],
+    ['newline injection', '192.0.2.1\n198.51.100.2'],
+  ])('maps %s to the unknown bucket', async (_label, ip) => {
+    const { getClientIdentifier } = await import('../middleware/rateLimit')
+
+    expect(getClientIdentifier(requestWithRawHeaders({ 'X-Real-IP': ip }), null))
+      .toBe('ip:unknown')
+  })
+
+  it('rejects a malformed first XFF token instead of selecting a later address', async () => {
+    const { getClientIdentifier } = await import('../middleware/rateLimit')
+    const req = requestWithRawHeaders({
+      'X-Forwarded-For': 'not-an-ip, 203.0.113.8',
+      'CF-Connecting-IP': '203.0.113.9',
+    }, true)
+
+    expect(getClientIdentifier(req, null)).toBe('ip:unknown')
+  })
+
+  it('uses CF-Connecting-IP only for a request with Worker metadata', async () => {
+    const { getClientIdentifier } = await import('../middleware/rateLimit')
+    const headers = { 'CF-Connecting-IP': '198.51.100.30' }
+
+    expect(getClientIdentifier(requestWithRawHeaders(headers), null)).toBe('ip:unknown')
+    expect(getClientIdentifier(requestWithRawHeaders(headers, true), null))
+      .toBe('ip:198.51.100.30')
+  })
+
+  it('keeps demo-login on one IP route bucket even when a bearer user is present', async () => {
+    const { getRateLimitIdentifier } = await import('../middleware/rateLimit')
+    const req = new Request('https://api.kamizo.uz/api/auth/demo-login', {
+      method: 'POST', headers: { 'X-Real-IP': '192.0.2.10' },
+    })
+
+    expect(getRateLimitIdentifier(
+      req,
+      { id: 'existing-user' } as any,
+      'POST:/api/auth/demo-login',
+    )).toBe('ip:192.0.2.10')
+    expect(getRateLimitIdentifier(req, { id: 'existing-user' } as any, 'POST:/api/requests'))
+      .toBe('user:existing-user')
   })
 })

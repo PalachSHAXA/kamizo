@@ -6,6 +6,7 @@ import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
+import { broadcastWithConnectionManager } from '../../utils/connection-manager';
 
 // Sprint 64 P0: shared membership/tenant check for chat endpoints. Previously
 // GET/POST messages and POST /read all skipped this check, letting any
@@ -205,9 +206,6 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
 
   // Send WebSocket notification for real-time chat
   try {
-    const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
-    const connManager = env.CONNECTION_MANAGER.get(connManagerId);
-
     // We already verified channel membership above; reuse that row.
     const channelRow = channel;
 
@@ -279,7 +277,7 @@ route('POST', '/api/chat/channels/:id/messages', async (request, env, params) =>
       }
 
       // Sprint 76 P0/F2: DO /broadcast now requires the internal secret.
-      await connManager.fetch('http://internal/broadcast', {
+      await broadcastWithConnectionManager(env, request, 'chat_message', 'http://internal/broadcast', {
         method: 'POST',
         headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
         body: JSON.stringify({

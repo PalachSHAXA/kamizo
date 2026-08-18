@@ -44,7 +44,6 @@ import { ImageLightbox } from '../../components/common/ImageLightbox';
 // в dark теме.
 const APP_BG          = 'var(--app-bg, #F4F0E8)';
 const SURFACE         = 'var(--surface, #FFFFFF)';
-const SURFACE_SUNKEN  = 'var(--surface-sunken, #F5F5F4)';
 const TEXT_PRIMARY    = 'var(--text-primary, #1C1917)';
 const TEXT_SECONDARY  = 'var(--text-secondary, #57534E)';
 const TEXT_MUTED      = 'var(--text-muted, #A8A29E)';
@@ -53,7 +52,6 @@ const HAIRLINE        = 'var(--border-c, rgba(28,25,23,0.06))';
 // Stone scale — alt-surface chips, dividers. Маппинг к theme-aware
 // surface tokens чтобы chips/dividers сидели в правильной палитре
 // на dark теме (warm stone тёмные оттенки вместо светло-серых).
-const STONE_50  = 'var(--surface-sunken, #FAFAF9)';
 const STONE_100 = 'var(--surface-sunken, #F5F5F4)';
 const STONE_150 = 'var(--surface-2, #ECECEA)';
 const STONE_200 = 'var(--border-c, #E7E5E4)';
@@ -111,7 +109,7 @@ const parseBudgetMillions = (meeting: Meeting): { value: string; sub: string } |
   for (const item of items) {
     const text = `${item.title} ${item.description}`;
     // strip spaces between digit groups so "184 000 000" parses
-    const compact = text.replace(/(\d)[\s ](?=\d)/g, '$1');
+    const compact = text.replace(/(\d)[\s\u00a0](?=\d)/g, '$1');
     const m = compact.match(/(\d[\d.,]{4,})\s*(сум|so'm|som|UZS)/i);
     if (!m) continue;
     const raw = Number(m[1].replace(/[.,]/g, ''));

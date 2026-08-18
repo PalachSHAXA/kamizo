@@ -5,6 +5,22 @@ import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
 import { json, error, bilingualError, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { sendPushNotification } from './notifications';
+import {
+  allocationBindings,
+  allocationRecomputeSql,
+  allocateEstimateItemShares,
+  affectedAllocationBindings,
+  affectedAllocationSql,
+  amountToCents,
+  centsToAmount,
+  derivePaymentId,
+  enterpriseIncomeId,
+  financeChargeId,
+  syncPersonalAccounts,
+} from '../lib/finance/accounting';
+import { computeComplexEstimate } from '../lib/estimate/compute';
+import { classifyApartmentForBilling } from '../lib/finance/property-classification';
+import { loadEstimateInput } from './finance-v2';
 
 // ── Helper: finance access check ──────────────────────────────────
 
@@ -273,26 +289,19 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
   if (!isAdminLevel(user)) return error('Admin or director access required', 403);
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const { estimate_id } = await request.json() as { estimate_id: string };
   if (!estimate_id) return error('estimate_id is required');
 
   const estimate = await env.DB.prepare(
-    `SELECT * FROM finance_estimates WHERE id = ? AND status = 'active' ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(estimate_id, ...(tenantId ? [tenantId] : [])).first<Record<string, unknown>>();
+    "SELECT * FROM finance_estimates WHERE id = ? AND status = 'active' AND tenant_id = ?"
+  ).bind(estimate_id, tenantId).first<Record<string, unknown>>();
   if (!estimate) return error('Active estimate not found', 404);
 
   // Get estimate items for breakdown
   const { results: items } = await env.DB.prepare(
-    'SELECT * FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order'
-  ).bind(estimate_id).all();
-
-  // Get all apartments for this building. v2 добавил флаги is_basement/is_parking
-  // (migration 057) — читаем их наравне с legacy is_commercial/property_type.
-  const { results: apartments } = await env.DB.prepare(
-    `SELECT id, number, total_area, living_area, property_type,
-            is_commercial, is_basement, is_parking, status
-     FROM apartments WHERE building_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(estimate.building_id as string, ...(tenantId ? [tenantId] : [])).all();
+    'SELECT * FROM finance_estimate_items WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order'
+  ).bind(estimate_id, tenantId).all();
 
   const period = estimate.period as string;
 
@@ -315,31 +324,44 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     ? (Number(estimate.tariff_approved) || Number(estimate.tariff_resident) || 0)
     : (Number(estimate.commercial_rate_per_sqm) || 0);
 
+  let buildingsToBill: Array<{ buildingId: string; residentialRate: number }>;
+  if (estimate.scope_level === 'complex') {
+    const loaded = await loadEstimateInput(env, estimate_id, tenantId);
+    const complex = loaded ? computeComplexEstimate(loaded.complexInput) : null;
+    buildingsToBill = (complex?.buildings || []).map(building => ({
+      buildingId: building.building_id,
+      residentialRate: building.tariff_effective,
+    }));
+  } else {
+    buildingsToBill = [{ buildingId: estimate.building_id as string, residentialRate }];
+  }
+
+  const apartments: Array<Record<string, unknown> & { billingBuildingId: string; billingResidentialRate: number }> = [];
+  for (const building of buildingsToBill) {
+    const { results } = await env.DB.prepare(
+      `SELECT id, number, total_area, living_area, property_type,
+              is_commercial, is_basement, is_parking, status
+       FROM apartments WHERE building_id = ? AND tenant_id = ?`
+    ).bind(building.buildingId, tenantId).all();
+    apartments.push(...results.map(apartment => ({
+      ...apartment,
+      billingBuildingId: building.buildingId,
+      billingResidentialRate: building.residentialRate,
+    })));
+  }
+
   // Calculate last day of month for due_date
   const [year, month] = period.split('-').map(Number);
   const dueDate = new Date(year, month, 0).toISOString().split('T')[0]; // last day of month
 
-  // Pre-fetch existing charges in one query to avoid N+1 duplicate checks
-  const { results: existingCharges } = await env.DB.prepare(
-    `SELECT apartment_id FROM finance_charges WHERE period = ? AND estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(period, estimate_id, ...(tenantId ? [tenantId] : [])).all();
-  const existingAptIds = new Set((existingCharges || []).map((c: any) => c.apartment_id));
-
-  // Build all INSERT statements, skipping duplicates.
-  // v2 сметы не пишут total_amount на estimate — считаем сумму по items
-  // (только expenses, доходы не входят в totalEstimate для breakdown).
-  const totalEstimate = isV2Model
-    ? (items as Array<Record<string, unknown>>)
-        .filter(i => (i.kind || 'expense') === 'expense')
-        .reduce((s, i) => s + (Number(i.amount) || 0), 0)
-    : (estimate.total_amount as number);
+  // Deterministic primary IDs make concurrent generation idempotent without a schema change.
   const chargeStmts: ReturnType<D1Database['prepare']>[] = [];
+  const chargeApartmentIds: string[] = [];
 
   for (const apt of apartments) {
     const a = apt as Record<string, unknown>;
     const area = Number(a.total_area) || 0;
     if (area <= 0) continue;
-    if (existingAptIds.has(a.id as string)) continue; // skip duplicates
 
     // Determine rate based on apartment type. Приоритет флагов v2 (is_parking,
     // is_basement, is_commercial) над старым property_type — во всех случаях
@@ -348,21 +370,19 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     let propertyType: string;
     let isFlat: boolean = false; // parking биллится за место (не за м²)
 
-    if (a.is_parking) {
+    const billingKind = classifyApartmentForBilling(a);
+    if (billingKind === 'parking') {
       rate = parkingRate;
       propertyType = 'non_commercial';
       isFlat = true;
-    } else if (a.is_basement || a.property_type === 'basement') {
+    } else if (billingKind === 'basement') {
       rate = basementRate > 0 ? basementRate : nonResidentialRate;
       propertyType = 'non_commercial';
-    } else if (a.is_commercial) {
+    } else if (billingKind === 'commercial') {
       rate = commercialRate > 0 ? commercialRate : nonResidentialRate;
       propertyType = 'commercial';
-    } else if (a.property_type === 'non_commercial') {
-      rate = basementRate > 0 ? basementRate : nonResidentialRate;
-      propertyType = 'non_commercial';
     } else {
-      rate = residentialRate;
+      rate = a.billingResidentialRate as number;
       propertyType = 'residential';
     }
 
@@ -371,10 +391,11 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
       ? Math.round(rate * 100) / 100
       : Math.round(area * rate * 100) / 100;
 
-    const itemBreakdown = items.map((item: Record<string, unknown>) => ({
-      name: item.name,
-      share: totalEstimate > 0 ? Math.round((item.amount as number) / totalEstimate * baseAmount * 100) / 100 : 0,
-    }));
+    const itemBreakdown = allocateEstimateItemShares(
+      items as Array<Record<string, unknown>>,
+      a.billingBuildingId as string,
+      baseAmount,
+    );
     const breakdown = {
       area_sqm: area,
       rate_per_sqm: rate,
@@ -383,45 +404,67 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
       items: itemBreakdown,
     };
 
-    const dbPropertyType = propertyType === 'non_commercial' ? 'non_commercial' : 'commercial';
+    const dbPropertyType = billingKind === 'residential' ? 'non_commercial' : 'commercial';
 
     chargeStmts.push(
       env.DB.prepare(
         `INSERT INTO finance_charges (id, apartment_id, estimate_id, period, amount, amount_breakdown, property_type, area_sqm, rate_per_sqm, status, due_date, tenant_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+         ON CONFLICT(id) DO NOTHING`
       ).bind(
-        generateId(), a.id as string, estimate_id, period, baseAmount,
+        financeChargeId(tenantId, estimate_id, period, a.id as string), a.id as string, estimate_id, period, baseAmount,
         JSON.stringify(breakdown), dbPropertyType,
-        area, rate, dueDate, tenantId || ''
+        area, rate, dueDate, tenantId
       )
+    );
+    chargeApartmentIds.push(a.id as string);
+  }
+
+  // Keep each transaction within D1's 100-statement limit: 99 inserts + allocation.
+  const CHARGE_BATCH = 99;
+  let generated = 0;
+  for (let i = 0; i < chargeStmts.length; i += CHARGE_BATCH) {
+    const inserts = chargeStmts.slice(i, i + CHARGE_BATCH);
+    const apartmentIds = Array.from(new Set(chargeApartmentIds.slice(i, i + CHARGE_BATCH)));
+    const results = await env.DB.batch([
+      ...inserts,
+      env.DB.prepare(affectedAllocationSql(apartmentIds.length)).bind(...affectedAllocationBindings(tenantId, apartmentIds)),
+    ]);
+    if (!results.at(-1)?.success) return error('Charge allocation failed', 500);
+    generated += results.slice(0, inserts.length).reduce(
+      (sum, result) => sum + (((result.meta as { changes?: number })?.changes ?? 0) > 0 ? 1 : 0),
+      0,
     );
   }
 
-  // Batch insert up to 100 statements per call
-  const CHARGE_BATCH = 100;
-  for (let i = 0; i < chargeStmts.length; i += CHARGE_BATCH) {
-    await env.DB.batch(chargeStmts.slice(i, i + CHARGE_BATCH));
+  for (const building of buildingsToBill) {
+    await syncPersonalAccounts(env, tenantId, { buildingId: building.buildingId });
   }
-  const generated = chargeStmts.length;
 
   // Sprint 62 P1: this block was reading `estimate.enterprise_profit` which
   // doesn't exist on the schema (column is `enterprise_profit_percent`).
   // The auto-income record never fired, so UK profit was never logged when
   // charges generated. Compute as percent × total charge amount.
   const profitPercent = Number(estimate.enterprise_profit_percent ?? estimate.uk_profit_percent) || 0;
-  if (generated > 0 && profitPercent > 0) {
+  if (profitPercent > 0) {
     // Sum the just-generated charge amounts to derive the profit base.
     const generatedSum = await env.DB.prepare(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM finance_charges WHERE estimate_id = ? AND period = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-    ).bind(estimate_id, period, ...(tenantId ? [tenantId] : [])).first() as any;
+      'SELECT COALESCE(SUM(amount), 0) as total FROM finance_charges WHERE estimate_id = ? AND period = ? AND tenant_id = ?'
+    ).bind(estimate_id, period, tenantId).first() as any;
     const enterpriseProfit = Math.round(((generatedSum?.total || 0) * profitPercent / 100) * 100) / 100;
     if (enterpriseProfit > 0) {
       await env.DB.prepare(
-        'INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        `INSERT INTO finance_income (id, category_id, amount, period, description, source_type, source_id, created_by, tenant_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           amount = excluded.amount,
+           description = excluded.description,
+           created_by = excluded.created_by
+         WHERE finance_income.tenant_id = excluded.tenant_id`
       ).bind(
-        generateId(), 'fic_other', enterpriseProfit, period,
-        `Доход предприятия от сметы (${generated} квартир, ${profitPercent}%)`,
-        'estimate', estimate_id, user.id, tenantId || ''
+        enterpriseIncomeId(tenantId, estimate_id, period), 'fic_other', enterpriseProfit, period,
+        `Доход предприятия от сметы за ${period} (${profitPercent}%)`,
+        'estimate', estimate_id, user.id, tenantId
       ).run();
     }
   }
@@ -434,11 +477,11 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
     const { results: ownersRows } = await env.DB.prepare(
       `SELECT DISTINCT a.primary_owner_id AS owner_id, SUM(c.amount) AS total
        FROM finance_charges c
-       JOIN apartments a ON a.id = c.apartment_id
+       JOIN apartments a ON a.id = c.apartment_id AND a.tenant_id = c.tenant_id
        WHERE c.estimate_id = ? AND c.period = ? AND a.primary_owner_id IS NOT NULL
-         ${tenantId ? 'AND c.tenant_id = ?' : ''}
+          AND c.tenant_id = ?
        GROUP BY a.primary_owner_id`
-    ).bind(estimate_id, period, ...(tenantId ? [tenantId] : [])).all() as any;
+    ).bind(estimate_id, period, tenantId).all() as any;
 
     const periodTitle = new Date(period + '-01').toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
     for (const row of (ownersRows || []) as Array<{ owner_id: string; total: number }>) {
@@ -461,10 +504,11 @@ route('POST', '/api/finance/charges/generate', async (request, env) => {
 route('GET', '/api/finance/charges', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
 
-  const tenantId = getTenantId(request);
   const url = new URL(request.url);
   const pagination = getPaginationParams(url);
   const apartmentId = url.searchParams.get('apartment_id');
@@ -472,19 +516,19 @@ route('GET', '/api/finance/charges', async (request, env) => {
   const status = url.searchParams.get('status');
   const buildingId = url.searchParams.get('building_id');
 
-  let where = tenantId ? 'c.tenant_id = ?' : '1=1';
-  const bindParams: (string | number)[] = tenantId ? [tenantId] : [];
+  let where = 'c.tenant_id = ?';
+  const bindParams: (string | number)[] = [tenantId];
 
   // Resident sees only their own
-  if (user.role === 'resident' || user.role === 'tenant') {
-    where += ' AND c.apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ?)';
+  if (user.role === 'resident' || user.role === 'tenant' || user.role === 'commercial_owner') {
+    where += ' AND c.apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ? AND tenant_id = c.tenant_id)';
     bindParams.push(user.id);
   }
 
   if (apartmentId) { where += ' AND c.apartment_id = ?'; bindParams.push(apartmentId); }
   if (period) { where += ' AND c.period = ?'; bindParams.push(period); }
   if (status) { where += ' AND c.status = ?'; bindParams.push(status); }
-  if (buildingId) { where += ' AND c.apartment_id IN (SELECT id FROM apartments WHERE building_id = ?)'; bindParams.push(buildingId); }
+  if (buildingId) { where += ' AND c.apartment_id IN (SELECT id FROM apartments WHERE building_id = ? AND tenant_id = c.tenant_id)'; bindParams.push(buildingId); }
 
   const countResult = await env.DB.prepare(
     `SELECT COUNT(*) as total FROM finance_charges c WHERE ${where}`
@@ -495,8 +539,8 @@ route('GET', '/api/finance/charges', async (request, env) => {
   const { results } = await env.DB.prepare(
     `SELECT c.*, a.number as apartment_number, a.building_id, b.name as building_name
      FROM finance_charges c
-     LEFT JOIN apartments a ON c.apartment_id = a.id
-     LEFT JOIN buildings b ON a.building_id = b.id
+     LEFT JOIN apartments a ON c.apartment_id = a.id AND a.tenant_id = c.tenant_id
+     LEFT JOIN buildings b ON a.building_id = b.id AND b.tenant_id = a.tenant_id
      WHERE ${where} ORDER BY c.period DESC, a.number ASC LIMIT ? OFFSET ?`
   ).bind(...bindParams, pagination.limit || 50, offset).all();
 
@@ -507,28 +551,42 @@ route('GET', '/api/finance/charges', async (request, env) => {
 route('GET', '/api/finance/charges/summary', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
   if (!await hasFinanceAccess(user, env, request, 'view_only')) return error('Finance access required', 403);
-
-  const tenantId = getTenantId(request);
   const url = new URL(request.url);
   const buildingId = url.searchParams.get('building_id');
   const period = url.searchParams.get('period');
 
   if (!buildingId) return json({ summary: { total_charged: 0, total_paid: 0, total_debt: 0, total_overpaid: 0 } });
 
-  let where = 'c.apartment_id IN (SELECT id FROM apartments WHERE building_id = ?)';
-  const bindParams: (string | number)[] = [buildingId];
-  if (tenantId) { where += ' AND c.tenant_id = ?'; bindParams.push(tenantId); }
-  if (period) { where += ' AND c.period = ?'; bindParams.push(period); }
-
   const summary = await env.DB.prepare(
-    `SELECT COALESCE(SUM(c.amount), 0) as total_charged, COALESCE(SUM(c.paid_amount), 0) as total_paid,
-     COALESCE(SUM(CASE WHEN c.amount > c.paid_amount THEN c.amount - c.paid_amount ELSE 0 END), 0) as total_debt,
-     COALESCE(SUM(CASE WHEN c.paid_amount > c.amount THEN c.paid_amount - c.amount ELSE 0 END), 0) as total_overpaid
-     FROM finance_charges c WHERE ${where}`
-  ).bind(...bindParams).first();
+     `WITH scoped_apartments AS (
+       SELECT id, tenant_id FROM apartments WHERE building_id = ? AND tenant_id = ?
+     ), charged AS (
+       SELECT COALESCE(SUM(c.amount), 0) AS total_charged
+       FROM finance_charges c
+       JOIN scoped_apartments sa ON sa.id = c.apartment_id AND c.tenant_id = sa.tenant_id
+       WHERE c.tenant_id = ?
+          ${period ? 'AND c.period = ?' : ''}
+     ), received AS (
+       SELECT COALESCE(SUM(p.amount), 0) AS total_paid
+       FROM finance_payments p
+       JOIN scoped_apartments sa ON sa.id = p.apartment_id AND p.tenant_id = sa.tenant_id
+       WHERE p.payment_type != 'overpayment'
+         AND p.tenant_id = ?
+          ${period ? "AND strftime('%Y-%m', p.payment_date) = ?" : ''}
+     )
+     SELECT total_charged, total_paid,
+       MAX(total_charged - total_paid, 0) AS total_debt,
+       MAX(total_paid - total_charged, 0) AS total_overpaid
+     FROM charged CROSS JOIN received`
+  ).bind(
+    buildingId, tenantId, tenantId, ...(period ? [period] : []),
+    tenantId, ...(period ? [period] : []),
+  ).first();
 
   return json({ summary });
 });
@@ -544,111 +602,160 @@ route('POST', '/api/finance/payments', async (request, env) => {
   if (!await hasFinanceAccess(user, env, request, 'payments_only')) return error('Finance payment access required', 403);
 
   const tenantId = getTenantId(request);
-  const body = await request.json() as Record<string, unknown>;
-  const { apartment_id, amount, payment_type, receipt_number, description } = body as {
-    apartment_id: string; amount: number; payment_type?: string; receipt_number?: string; description?: string;
-  };
-
-  // P24: isFinite check
-  const parsedAmount = Number(amount);
-  if (!apartment_id || !parsedAmount || !isFinite(parsedAmount) || parsedAmount <= 0) return error('apartment_id and positive amount are required');
-  // P23: Max payment amount
-  if (parsedAmount > 100_000_000) return bilingualError('Сумма оплаты не может превышать 100 000 000', "To'lov summasi 100 000 000 dan oshmasligi kerak", 400);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
+  const idempotencyKey = request.headers.get('Idempotency-Key');
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
+    return error('Valid Idempotency-Key header required (8-128 safe characters)');
+  }
+  const body: unknown = await request.json();
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.getPrototypeOf(body) !== Object.prototype) {
+    return error('Payment body must be a plain object');
+  }
+  const input = body as Record<string, unknown>;
+  const allowed = new Set(['apartment_id', 'amount', 'payment_type', 'receipt_number', 'description']);
+  if (Object.keys(input).some(key => !allowed.has(key))) return error('Unexpected payment field');
+  const { apartment_id, amount, payment_type, receipt_number, description } = input;
+  if (typeof apartment_id !== 'string' || apartment_id.length === 0 || apartment_id.length > 128) return error('Invalid apartment_id');
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return error('Invalid payment amount');
+  if (amount > 100_000_000) return bilingualError('Сумма оплаты не может превышать 100 000 000', "To'lov summasi 100 000 000 dan oshmasligi kerak", 400);
+  const amountCents = amountToCents(amount);
+  if (amountCents === null) return error('Payment amount must have at most 2 decimal places');
+  const normalizedAmount = centsToAmount(amountCents);
+  if (payment_type !== undefined && (typeof payment_type !== 'string' || !['cash', 'card', 'transfer', 'online'].includes(payment_type))) {
+    return error('Invalid payment_type');
+  }
+  if (receipt_number !== undefined && typeof receipt_number !== 'string') {
+    return error('Invalid receipt_number');
+  }
+  const normalizedReceipt = typeof receipt_number === 'string' ? receipt_number.trim() : '';
+  if (typeof receipt_number === 'string' && (normalizedReceipt.length === 0 || normalizedReceipt.length > 128)) {
+    return error('Invalid receipt_number');
+  }
+  if (description !== undefined && description !== null && (typeof description !== 'string' || description.length > 1000)) {
+    return error('Invalid description');
+  }
+  const normalizedDescription = typeof description === 'string' ? (description.trim() || null) : null;
 
   // Sprint 62 P1: verify apartment exists in this tenant. Was stamping
   // tenant_id from the request regardless of whether the apartment
   // actually belongs to this tenant — payment ended up tagged to tenant A
   // but citing an apartment from tenant B in the response.
   const apartmentCheck = await env.DB.prepare(
-    `SELECT id FROM apartments WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(apartment_id, ...(tenantId ? [tenantId] : [])).first();
+    'SELECT id FROM apartments WHERE id = ? AND tenant_id = ?'
+  ).bind(apartment_id, tenantId).first();
   if (!apartmentCheck) return error('Apartment not found in this tenant', 404);
 
-  // Generate receipt number: FIN-YYYY-NNNN
-  const year = new Date().getFullYear();
-  const countResult = await env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM finance_payments WHERE receipt_number LIKE ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(`FIN-${year}-%`, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
-  const seq = (countResult?.cnt || 0) + 1;
-  const generatedReceipt = receipt_number || `FIN-${year}-${String(seq).padStart(4, '0')}`;
+  const paymentId = await derivePaymentId(tenantId, idempotencyKey);
+  const generatedReceipt = normalizedReceipt || `FIN-${paymentId.slice(3)}`;
+  const normalizedType = typeof payment_type === 'string' ? payment_type : 'cash';
+  type ExistingPayment = {
+    id: string; apartment_id: string; amount: number; payment_type: string;
+    receipt_number: string; description: string | null; tenant_id: string;
+  };
+  const readExisting = () => env.DB.prepare(
+    `SELECT id, apartment_id, amount, payment_type, receipt_number, description, tenant_id
+     FROM finance_payments WHERE id = ? AND tenant_id = ? LIMIT 1`
+  ).bind(paymentId, tenantId).first<ExistingPayment>();
+  const readReceipt = () => env.DB.prepare(
+    `SELECT id, apartment_id, amount, payment_type, receipt_number, description, tenant_id
+     FROM finance_payments WHERE tenant_id = ? AND receipt_number = ? LIMIT 1`
+  ).bind(tenantId, generatedReceipt).first<ExistingPayment>();
+  const samePayload = (existing: ExistingPayment) =>
+    existing.apartment_id === apartment_id
+    && amountToCents(Number(existing.amount)) === amountCents
+    && existing.payment_type === normalizedType
+    && existing.receipt_number.trim() === generatedReceipt
+    && (existing.description?.trim() || null) === normalizedDescription;
+  const respond = async (payment: ExistingPayment | null, status: number) => {
+    const totals = await env.DB.prepare(
+      `SELECT
+         COALESCE((SELECT SUM(amount) FROM finance_charges WHERE tenant_id = ? AND apartment_id = ?), 0) AS total_charged,
+         COALESCE((SELECT SUM(amount) FROM finance_payments WHERE tenant_id = ? AND apartment_id = ? AND payment_type != 'overpayment'), 0) AS total_received`
+    ).bind(tenantId, apartment_id, tenantId, apartment_id).first<{ total_charged: number; total_received: number }>();
+    const remainingOverpay = centsToAmount(Math.max(
+      Math.round(Number(totals?.total_received || 0) * 100) - Math.round(Number(totals?.total_charged || 0) * 100),
+      0,
+    ));
+    return json({ payment: {
+      id: payment?.id || paymentId,
+      receipt_number: payment?.receipt_number || generatedReceipt,
+      amount: payment ? Number(payment.amount) : normalizedAmount,
+      remaining_overpay: remainingOverpay,
+    } }, status);
+  };
+  const respondReplay = async (payment: ExistingPayment) => {
+    await syncPersonalAccounts(env, tenantId, { apartmentId: apartment_id });
+    return respond(payment, 200);
+  };
 
-  // Get unpaid charges for this apartment, oldest first
-  const { results: unpaidCharges } = await env.DB.prepare(
-    `SELECT id, amount, paid_amount FROM finance_charges
-     WHERE apartment_id = ? AND status != 'paid' ${tenantId ? 'AND tenant_id = ?' : ''}
-     ORDER BY period ASC, created_at ASC`
-  ).bind(apartment_id, ...(tenantId ? [tenantId] : [])).all();
+  const existing = await readExisting();
+  if (existing) return samePayload(existing)
+    ? respondReplay(existing)
+    : error('Idempotency-Key was already used with a different payment payload', 409);
 
-  let remaining = parsedAmount;
-  let firstChargeId: string | null = null;
-
-  // P01+P17: Collect batch updates instead of N+1 loop
-  const batchStatements: D1PreparedStatement[] = [];
-
-  for (const charge of unpaidCharges) {
-    if (remaining <= 0) break;
-    const c = charge as Record<string, unknown>;
-    const chargeAmount = c.amount as number;
-    const paidAmount = (c.paid_amount as number) || 0;
-    const owed = chargeAmount - paidAmount;
-    if (owed <= 0) continue;
-
-    if (!firstChargeId) firstChargeId = c.id as string;
-    const apply = Math.min(remaining, owed);
-    const newPaid = paidAmount + apply;
-    const newStatus = newPaid >= chargeAmount ? 'paid' : 'partial';
-
-    batchStatements.push(
-      env.DB.prepare('UPDATE finance_charges SET paid_amount = ?, status = ? WHERE id = ?')
-        .bind(newPaid, newStatus, c.id as string)
-    );
-
-    remaining -= apply;
-  }
-
-  const paymentId = generateId();
-  batchStatements.push(
+  const insert =
     env.DB.prepare(
       `INSERT INTO finance_payments (id, charge_id, apartment_id, amount, payment_type, receipt_number, description, received_by, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(paymentId, firstChargeId, apartment_id, parsedAmount, payment_type || 'cash', generatedReceipt, description || null, user.id, tenantId || '')
-  );
-
-  // P15: If overpayment remains, record it as credit
-  if (remaining > 0) {
-    batchStatements.push(
-      env.DB.prepare(
-        `INSERT INTO finance_payments (id, charge_id, apartment_id, amount, payment_type, receipt_number, description, received_by, tenant_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(generateId(), null, apartment_id, remaining, 'overpayment', generatedReceipt + '-OVP', 'Переплата (автоматически)', user.id, tenantId || '')
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM finance_payments WHERE tenant_id = ? AND receipt_number = ?
+       )`
+    ).bind(
+      paymentId, null, apartment_id, normalizedAmount, normalizedType, generatedReceipt, normalizedDescription, user.id, tenantId,
+      tenantId, generatedReceipt,
     );
+  const recompute = env.DB.prepare(allocationRecomputeSql()).bind(...allocationBindings(tenantId, apartment_id));
+
+  let batchResults: D1Result<unknown>[];
+  try {
+    batchResults = await env.DB.batch([insert, recompute]);
+  } catch (cause) {
+    const concurrent = await readExisting().catch(() => null);
+    if (concurrent) return samePayload(concurrent)
+      ? respondReplay(concurrent)
+      : error('Idempotency-Key was already used with a different payment payload', 409);
+    const receiptConflict = await readReceipt().catch(() => null);
+    if (receiptConflict) return error('Receipt number is already used in this tenant', 409);
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (/SQLITE_(?:CONSTRAINT|BUSY)|UNIQUE constraint|database is locked/i.test(message)) {
+      return error('Concurrent payment request could not be resolved; retry', 409);
+    }
+    return error('Internal server error', 500);
   }
-
-  // Execute all in single batch transaction
-  await env.DB.batch(batchStatements);
-
-  return json({ payment: { id: paymentId, receipt_number: generatedReceipt, amount: parsedAmount, remaining_overpay: remaining > 0 ? remaining : 0 } }, 201);
+  if (!batchResults[0]?.success || ((batchResults[0].meta as { changes?: number })?.changes ?? 0) !== 1) {
+    const concurrent = await readExisting();
+    if (concurrent) return samePayload(concurrent)
+      ? respondReplay(concurrent)
+      : error('Idempotency-Key was already used with a different payment payload', 409);
+    const receiptConflict = await readReceipt();
+    if (receiptConflict) return error('Receipt number is already used in this tenant', 409);
+    return error('Payment was not recorded', 500);
+  }
+  if (!batchResults[1]?.success) return error('Payment allocation failed', 500);
+  await syncPersonalAccounts(env, tenantId, { apartmentId: apartment_id });
+  return respond(null, 201);
 });
 
 // 10. GET /api/finance/payments — список оплат
 route('GET', '/api/finance/payments', async (request, env) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
 
-  const tenantId = getTenantId(request);
   const url = new URL(request.url);
   const pagination = getPaginationParams(url);
   const apartmentId = url.searchParams.get('apartment_id');
   const period = url.searchParams.get('period');
   const paymentType = url.searchParams.get('payment_type');
 
-  let where = tenantId ? 'p.tenant_id = ?' : '1=1';
-  const bindParams: (string | number)[] = tenantId ? [tenantId] : [];
+  let where = "p.tenant_id = ? AND p.payment_type != 'overpayment'";
+  const bindParams: (string | number)[] = [tenantId];
 
-  if (user.role === 'resident' || user.role === 'tenant') {
-    where += ' AND p.apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ?)';
+  if (user.role === 'resident' || user.role === 'tenant' || user.role === 'commercial_owner') {
+    where += ' AND p.apartment_id IN (SELECT id FROM apartments WHERE primary_owner_id = ? AND tenant_id = p.tenant_id)';
     bindParams.push(user.id);
   }
 
@@ -663,7 +770,7 @@ route('GET', '/api/finance/payments', async (request, env) => {
   const offset = ((pagination.page || 1) - 1) * (pagination.limit || 50);
   const { results } = await env.DB.prepare(
     `SELECT p.*, a.number as apartment_number FROM finance_payments p
-     LEFT JOIN apartments a ON p.apartment_id = a.id
+     LEFT JOIN apartments a ON p.apartment_id = a.id AND a.tenant_id = p.tenant_id
      WHERE ${where} ORDER BY p.payment_date DESC LIMIT ? OFFSET ?`
   ).bind(...bindParams, pagination.limit || 50, offset).all();
 
@@ -1087,20 +1194,21 @@ route('DELETE', '/api/finance/access/:id', async (request, env, params) => {
 route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
   // Only require 'communal' feature for staff (not residents viewing their own balance)
   if (user.role !== 'resident' && user.role !== 'tenant') {
     const fc = await requireFeature('communal', env, request);
     if (!fc.allowed) return error(fc.error!, 403);
   }
 
-  const tenantId = getTenantId(request);
   const aptId = params.apartmentId;
 
   // Resident can only view their own
   if (user.role === 'resident' || user.role === 'tenant') {
     const owns = await env.DB.prepare(
-      'SELECT id FROM apartments WHERE id = ? AND primary_owner_id = ?'
-    ).bind(aptId, user.id).first();
+      'SELECT id FROM apartments WHERE id = ? AND primary_owner_id = ? AND tenant_id = ?'
+    ).bind(aptId, user.id, tenantId).first();
     if (!owns) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   } else if (!await hasFinanceAccess(user, env, request, 'view_only')) {
     return error('Finance access required', 403);
@@ -1108,9 +1216,10 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
 
   // Total charged and paid
   const totals = await env.DB.prepare(
-    `SELECT COALESCE(SUM(amount), 0) as total_charged, COALESCE(SUM(paid_amount), 0) as total_paid
-     FROM finance_charges WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(aptId, ...(tenantId ? [tenantId] : [])).first<{ total_charged: number; total_paid: number }>();
+    `SELECT
+       COALESCE((SELECT SUM(amount) FROM finance_charges WHERE apartment_id = ? AND tenant_id = ?), 0) AS total_charged,
+       COALESCE((SELECT SUM(amount) FROM finance_payments WHERE apartment_id = ? AND payment_type != 'overpayment' AND tenant_id = ?), 0) AS total_paid`
+  ).bind(aptId, tenantId, aptId, tenantId).first<{ total_charged: number; total_paid: number }>();
 
   const totalCharged = totals?.total_charged || 0;
   const totalPaid = totals?.total_paid || 0;
@@ -1123,9 +1232,9 @@ route('GET', '/api/finance/apartments/:apartmentId/balance', async (request, env
   // Charges by month
   const { results: chargesByMonth } = await env.DB.prepare(
     `SELECT period, SUM(amount) as charged, SUM(paid_amount) as paid, SUM(amount - paid_amount) as debt
-     FROM finance_charges WHERE apartment_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
+     FROM finance_charges WHERE apartment_id = ? AND tenant_id = ?
      GROUP BY period ORDER BY period DESC LIMIT 24`
-  ).bind(aptId, ...(tenantId ? [tenantId] : [])).all();
+  ).bind(aptId, tenantId).all();
 
   return json({
     balance: {

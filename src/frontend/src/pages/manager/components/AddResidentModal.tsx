@@ -6,38 +6,18 @@ import { useToastStore } from '../../../stores/toastStore';
 import { branchesApi, buildingsApi, entrancesApi, apartmentsApi, vehiclesApi } from '../../../services/api';
 import { normalizeAsciiHomoglyphs } from '../../../utils/normalizeAscii';
 import type { AddResidentModalProps } from './types';
-
-interface BranchItem {
-  id: string;
-  code: string;
-  name: string;
-  district?: string;
-  buildings_count?: number;
-  residents_count?: number;
-}
-
-interface BuildingItem {
-  id: string;
-  name: string;
-  branch_code: string;
-  building_number: string;
-  [key: string]: unknown;
-}
-
-interface EntranceItem {
-  id: string;
-  building_id: string;
-  number: number;
-  [key: string]: unknown;
-}
-
-interface ApartmentItem {
-  id: string;
-  number: string;
-  status: string;
-  entrance_id: string;
-  [key: string]: unknown;
-}
+import {
+  mapApartmentDtos,
+  mapBranchDtos,
+  mapBuildingDtos,
+  mapEntranceDtos,
+} from '../../shared/components/residents/dtoMappers';
+import type {
+  ApartmentItem,
+  BranchItem,
+  BuildingItem,
+  EntranceItem,
+} from '../../shared/components/residents/dtoMappers';
 
 // Add Resident Modal
 export function AddResidentModal({ onClose }: AddResidentModalProps) {
@@ -78,7 +58,7 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
   useEffect(() => {
     setLoadingBranches(true);
     branchesApi.getAll()
-      .then(res => setBranches(res.branches || []))
+      .then(res => setBranches(mapBranchDtos(res.branches || [])))
       .catch(() => setBranches([]))
       .finally(() => setLoadingBranches(false));
   }, []);
@@ -95,9 +75,7 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
     setLoadingBuildings(true);
     buildingsApi.getAll()
       .then(res => {
-        const filtered = (res.buildings || []).filter(
-          (b: BuildingItem) => b.branch_code === branch.code
-        );
+        const filtered = mapBuildingDtos(res.buildings || []).filter(b => b.branch_code === branch.code);
         setBuildings(filtered);
       })
       .catch(() => setBuildings([]))
@@ -112,7 +90,7 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
     }
     setLoadingEntrances(true);
     entrancesApi.getByBuilding(selectedBuildingId)
-      .then(res => setEntrances(res.entrances || []))
+      .then(res => setEntrances(mapEntranceDtos(res.entrances || [])))
       .catch(() => setEntrances([]))
       .finally(() => setLoadingEntrances(false));
   }, [selectedBuildingId]);
@@ -125,7 +103,7 @@ export function AddResidentModal({ onClose }: AddResidentModalProps) {
     }
     setLoadingApartments(true);
     apartmentsApi.getByBuilding(selectedBuildingId, { entranceId: selectedEntranceId, limit: 500 })
-      .then(res => setApartments(res.apartments || []))
+      .then(res => setApartments(mapApartmentDtos(res.apartments || [])))
       .catch(() => setApartments([]))
       .finally(() => setLoadingApartments(false));
   }, [selectedEntranceId, selectedBuildingId]);

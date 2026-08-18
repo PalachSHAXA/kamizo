@@ -14,6 +14,16 @@ import {
 import type { Tenant, TenantFormData, AnalyticsData, SuperAd, AdCategory, TabType } from './components/types';
 import { INITIAL_FORM_DATA } from './components/types';
 
+interface SuperBannerDto {
+  id: string;
+  title: string;
+  description?: string;
+  image_url?: string;
+  link_url?: string;
+  placement?: string;
+  is_active: boolean | number;
+}
+
 export function SuperAdminDashboard() {
   const { logout } = useAuthStore();
   const addToast = useToastStore(s => s.addToast);
@@ -37,7 +47,7 @@ export function SuperAdminDashboard() {
   const [isLoadingAds, setIsLoadingAds] = useState(false);
 
   // Banners
-  const [banners, setBanners] = useState<Record<string, unknown>[]>([]);
+  const [banners, setBanners] = useState<SuperBannerDto[]>([]);
   const [isLoadingBanners, setIsLoadingBanners] = useState(false);
 
   useEffect(() => {
@@ -101,7 +111,7 @@ export function SuperAdminDashboard() {
   const loadBanners = async () => {
     setIsLoadingBanners(true);
     try {
-      const res = await apiRequest<{ banners: Record<string, unknown>[] }>('/api/super-admin/banners');
+      const res = await apiRequest<{ banners: SuperBannerDto[] }>('/api/super-admin/banners');
       setBanners(res.banners || []);
     } catch (err: unknown) {
       setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки баннеров');

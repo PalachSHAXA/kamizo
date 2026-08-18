@@ -14,6 +14,7 @@ import { registerDebtReportRoutes } from './debt-reports';
 import { registerResidentRoutes } from './residents';
 import { registerMeterRoutes } from './meters';
 import { registerMeterReadingRoutes } from './meter-readings';
+import { registerBuildingActRoutes } from './acts';
 
 export function registerBuildingRoutes() {
   registerBranchRoutes();
@@ -31,4 +32,5 @@ export function registerBuildingRoutes() {
   registerResidentRoutes();
   registerMeterRoutes();
   registerMeterReadingRoutes();
+  registerBuildingActRoutes();
 }

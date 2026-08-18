@@ -8,10 +8,14 @@ import { registerTeamRoutes } from './team';
 import { registerExecutorRoutes } from './executors';
 import { registerStatsRoutes } from './stats';
 import { registerImportRoutes } from './import';
+import { registerImpersonationExchangeRoutes } from './impersonation-exchange';
+import { registerDemoRoutes } from './demo';
 
 export function registerUserRoutes() {
   registerSeedRoutes();
   registerAuthRoutes();
+  registerDemoRoutes();
+  registerImpersonationExchangeRoutes();
   registerImportRoutes();
   registerCrudRoutes();
   registerChangesRoutes();

@@ -16,7 +16,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import {
-  AlertTriangle, ArrowLeft, Calendar, Check, CheckCircle, ChevronRight, Clock,
+  AlertTriangle, ArrowLeft, Calendar, Check, ChevronRight, Clock,
   Loader2, MessageSquare, RefreshCw, Shield, Vote, X,
 } from 'lucide-react';
 import { plural } from '../utils/plural';
@@ -39,7 +39,6 @@ const TEXT_PRIMARY = 'var(--themed-text-primary, #1C1917)';
 const TEXT_SECONDARY = 'var(--themed-text-secondary, #6F6A62)';
 const TEXT_MUTED = 'var(--themed-text-muted, #A8A29E)';
 const BORDER_C = 'var(--themed-border-c, rgba(28,25,23,0.08))';
-const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
 const BRAND_TINT = 'var(--themed-brand-tint, #FFF3EA)';
@@ -82,7 +81,7 @@ const formatTimeLeft = (iso: string | undefined, lang: 'ru' | 'uz'): { label: st
   const mins = Math.floor(ms / 60000);
   const hrs = Math.floor(mins / 60);
   const days = Math.floor(hrs / 24);
-  if (days >= 1) return { label: lang === 'ru' ? `осталось ${days} ${plural('ru', days, { one: 'день', few: 'дня', many: 'дней' })}` : `${days} kun qoldi`, expired: false };
+  if (days >= 1) return { label: lang === 'ru' ? `осталось ${days} ${plural('ru', days, { one: 'день', few: 'дня', many: 'дней' }, { one: 'kun', other: 'kun' })}` : `${days} kun qoldi`, expired: false };
   if (hrs >= 1)  return { label: lang === 'ru' ? `осталось ${hrs} ч` : `${hrs} soat qoldi`, expired: false };
   return { label: lang === 'ru' ? `осталось ${mins} мин` : `${mins} daq qoldi`, expired: false };
 };
@@ -563,7 +562,7 @@ function MeetingCard({ meeting, user, lang, onOpen, calculateMeetingQuorum, calc
 
   const agendaCount = meeting.agendaItems.length;
   const agendaWord = lang === 'ru'
-    ? plural('ru', agendaCount, { one: 'пункт', few: 'пункта', many: 'пунктов' })
+    ? plural('ru', agendaCount, { one: 'пункт', few: 'пункта', many: 'пунктов' }, { one: 'band', other: 'band' })
     : 'band';
 
   return (

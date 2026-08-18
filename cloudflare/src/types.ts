@@ -3,7 +3,7 @@
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
-  ENCRYPTION_KEY: string;
+  DEMO_LOGIN_GLOBAL_LIMIT?: string;
   JWT_SECRET: string;
   BASE_DOMAIN: string;
   VAPID_EMAIL: string;
@@ -17,7 +17,7 @@ export interface Env {
   CRON_SECRET?: string;
   ASSETS: Fetcher;
   RATE_LIMITER: KVNamespace;
-  CONNECTION_MANAGER: DurableObjectNamespace;
+  CONNECTION_MANAGER?: DurableObjectNamespace;
   // Sprint 85 — tenant contract PDFs. On Cloudflare Workers this is
   // the real R2Bucket binding declared in wrangler.toml; on the VPS
   // Node.js path the shim at /opt/kamizo/app/src/shim/r2.js exposes
@@ -67,6 +67,9 @@ export interface User {
   account_type?: string;
   tenant_id?: string;
   email?: string;
+  isImpersonated?: true;
+  impersonatedBy?: string;
+  isDemoSession?: true;
 }
 
 export type Handler = (request: Request, env: Env, params: Record<string, string>) => Promise<Response>;

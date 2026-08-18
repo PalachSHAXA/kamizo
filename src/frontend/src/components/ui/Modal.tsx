@@ -1,7 +1,8 @@
-import { useEffect, useRef, useId, type ReactNode, type MouseEvent } from 'react';
+import { useId, type ReactNode, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { MODAL_SIZES, type ModalSize } from '../../theme/sizes';
-import { useModalPresence } from '../../stores/modalStore';
+import { useModalLifecycle } from './useModalLifecycle';
 
 export type { ModalSize };
 
@@ -12,28 +13,27 @@ export interface ModalProps {
   onClose: () => void;
   /** Optional title — rendered in the header and used for `aria-labelledby`. */
   title?: ReactNode;
+  /** Accessible name override when a rich visual title contains extra text. */
+  ariaLabel?: string;
   /** Modal body. */
   children: ReactNode;
   /** Width preset. Defaults to `md`. */
   size?: ModalSize;
   /** Hide the default close (X) button in the header. */
   hideCloseButton?: boolean;
+  /** Accessible label for the default close button. */
+  closeLabel?: string;
   /** Disable closing by clicking on the backdrop. */
   disableBackdropClose?: boolean;
   /** Optional extra classes appended to the panel. */
   panelClassName?: string;
+  /** Optional extra classes appended to the backdrop. */
+  backdropClassName?: string;
+  /** Explicit focus target for flows that open after an async action. */
+  returnFocus?: HTMLElement | null;
 }
 
 const SIZE_CLASS = MODAL_SIZES;
-
-const FOCUSABLE = [
-  'a[href]',
-  'button:not([disabled])',
-  'textarea:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
 
 /**
  * Accessible modal primitive.
@@ -48,107 +48,44 @@ export function Modal({
   open,
   onClose,
   title,
+  ariaLabel,
   children,
   size = 'md',
   hideCloseButton = false,
+  closeLabel = 'Закрыть',
   disableBackdropClose = false,
   panelClassName = '',
+  backdropClassName = '',
+  returnFocus,
 }: ModalProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
   const titleId = useId();
-
-  // Hide the global BottomBar while this modal is open via the shared
-  // modal-presence registry.
-  useModalPresence(open);
-
-  // ESC handler + focus trap
-  useEffect(() => {
-    if (!open) return;
-
-    previouslyFocused.current = document.activeElement as HTMLElement | null;
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const root = panelRef.current;
-      if (!root) return;
-      const focusable = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
-      );
-      if (focusable.length === 0) {
-        e.preventDefault();
-        root.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement as HTMLElement | null;
-      if (e.shiftKey) {
-        if (active === first || !root.contains(active)) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (active === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKey);
-
-    // Focus first focusable element on open
-    requestAnimationFrame(() => {
-      const root = panelRef.current;
-      if (!root) return;
-      const first = root.querySelector<HTMLElement>(FOCUSABLE);
-      (first || root).focus();
-    });
-
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      const prev = previouslyFocused.current;
-      if (prev && typeof prev.focus === 'function') {
-        prev.focus();
-      }
-    };
-  }, [open, onClose]);
-
-  // Body scroll lock
-  useEffect(() => {
-    if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
+  const { panelRef, layerRef, isTopLayer } = useModalLifecycle({
+    active: open,
+    onClose,
+    returnFocus,
+  });
 
   if (!open) return null;
 
   const handleBackdrop = (e: MouseEvent<HTMLDivElement>) => {
     if (disableBackdropClose) return;
-    if (e.target === e.currentTarget) onClose();
+    if (isTopLayer() && e.target === e.currentTarget) onClose();
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4 anim-backdrop-in"
+      ref={layerRef}
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[10100] p-0 sm:p-4 anim-backdrop-in ${backdropClassName}`}
       onClick={handleBackdrop}
     >
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
+        aria-label={ariaLabel}
+        aria-labelledby={!ariaLabel && title ? titleId : undefined}
         tabIndex={-1}
-        className={`bg-white w-full ${SIZE_CLASS[size]} rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto outline-none modal-landscape-tight modal-content ${panelClassName}`}
+        className={`bg-white w-full min-h-0 ${SIZE_CLASS[size]} rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto outline-none modal-landscape-tight modal-content ${panelClassName}`}
       >
         {(title || !hideCloseButton) && (
           <div className="flex items-center justify-between gap-3 p-4 sm:p-6 border-b border-gray-100">
@@ -164,7 +101,7 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 className="tap-target p-2 hover:bg-gray-100 rounded-xl transition-colors flex items-center justify-center shrink-0"
-                aria-label="Закрыть"
+                aria-label={closeLabel}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -173,7 +110,8 @@ export function Modal({
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

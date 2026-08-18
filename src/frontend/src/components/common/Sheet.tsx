@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, Component } from 'react';
+import { useEffect, useId, useRef, useState, Component } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
-import { useModalPresence } from '../../stores/modalStore';
 import { SHEET_SIZES, type SheetSize } from '../../theme/sizes';
+import { useModalLifecycle } from '../ui/useModalLifecycle';
 
 interface SheetProps {
   /** Visibility — parent-controlled */
@@ -56,10 +57,9 @@ export function Sheet({
   forceAction = false,
   showClose = true,
 }: SheetProps) {
-  const { language } = useLanguageStore();
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const language = useLanguageStore((state) => state.language);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
+  const titleId = useId();
   const [entered, setEntered] = useState(false);
 
   // v118.68 — swipe-down-to-dismiss state. Mobile only (< sm 640 px).
@@ -71,9 +71,11 @@ export function Sheet({
   const dragStart = useRef({ y: 0, t: 0 });
   const dragLast = useRef({ y: 0, t: 0 });
 
-  // Hide the global BottomBar while this sheet is open — same modal-presence
-  // registry the rest of the app uses.
-  useModalPresence(isOpen);
+  const { panelRef: sheetRef, layerRef, isTopLayer } = useModalLifecycle({
+    active: isOpen,
+    onClose,
+    closeOnEscape: !forceAction,
+  });
 
   // Enter animation flag — flipped on next frame after mount so the sheet
   // slides/fades in instead of popping.
@@ -83,34 +85,6 @@ export function Sheet({
     const raf = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(raf);
   }, [isOpen]);
-
-  // Focus trap-ish: remember where focus was, restore on close.
-  useEffect(() => {
-    if (!isOpen) return;
-    previousActiveElement.current = document.activeElement as HTMLElement;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !forceAction) {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKey);
-
-    // Focus the close button if present
-    setTimeout(() => {
-      const closeBtn = sheetRef.current?.querySelector<HTMLButtonElement>('button[data-sheet-close]');
-      closeBtn?.focus();
-    }, 50);
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.removeEventListener('keydown', handleKey);
-      previousActiveElement.current?.focus?.();
-    };
-  }, [isOpen, onClose, forceAction]);
 
   if (!isOpen) return null;
 
@@ -224,13 +198,11 @@ export function Sheet({
       }
     : {};
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="sheet-title"
-      onClick={() => { if (!forceAction) onClose(); }}
+      ref={layerRef}
+      className="fixed inset-0 z-[10100] flex items-end sm:items-center justify-center"
+      onClick={() => { if (!forceAction && isTopLayer()) onClose(); }}
     >
       {/* Backdrop */}
       <div
@@ -240,6 +212,10 @@ export function Sheet({
       {/* Sheet body */}
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         // Sprint 4: added `modal-landscape-tight` so landscape phones with
         // max-height 600px get a 95dvh cap + reduced inner padding — was
@@ -252,10 +228,7 @@ export function Sheet({
           transition-transform duration-200 ease-out
           ${entered ? 'translate-y-0 sm:scale-100 sm:opacity-100' : 'translate-y-full sm:translate-y-0 sm:scale-95 sm:opacity-0'}
         `}
-        style={{
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          ...dragStyle,
-        }}
+        style={dragStyle}
       >
         {/* v118.68 — Handle grip + header — оба элемента слушают
             pointer events для swipe-down-to-dismiss. Handle обёрнут
@@ -279,7 +252,7 @@ export function Sheet({
           >
             <div className="min-w-0 flex-1">
               {title && (
-                <h2 id="sheet-title" className="text-lg sm:text-xl font-bold text-gray-900 break-words" title={title}>
+                <h2 id={titleId} className="text-lg sm:text-xl font-bold text-gray-900 break-words" title={title}>
                   {title}
                 </h2>
               )}
@@ -307,18 +280,23 @@ export function Sheet({
           ref={bodyRef}
           {...bodyDragHandlers}
           className="flex-1 overflow-y-auto px-5 py-4 overscroll-contain"
+          style={footer ? undefined : { paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
         >
           {children}
         </div>
 
         {/* Sticky footer */}
         {footer && (
-          <div className="border-t border-gray-200/60 px-5 py-3 flex-shrink-0 bg-white">
+          <div
+            className="border-t border-gray-200/60 px-5 pt-3 flex-shrink-0 bg-white"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+          >
             {footer}
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

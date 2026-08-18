@@ -5,6 +5,7 @@
  *   - Приказ Минюст №3501 «Мин. тариф» (ставки с 01.05.2024) — lex.uz/docs/6840346
  *   - ЗРУ-581 «Об управлении МКД» (07.11.2019) — lex.uz/acts/4586287 (ст.16, 21, 22, 28, 29)
  *   - ПКМ №930 (21.11.2019) — тревожная кнопка НЕ обязательна для жилых МКД
+ *   - ПКМ №5152 — порядок формирования тарифов на содержание общего имущества МКД
  *
  * Ревизия: 2026-Q3 (обновить когда Минюст выпустит новую редакцию).
  * Меняется коммитом + деплоем — админ-панели для редактирования нет
@@ -50,14 +51,26 @@ export interface MandatoryService {
   label_ru: string;
   label_uz: string;
   conditional?: 'has_elevator' | 'has_pumps';
+  // optional — услуга не обязательна для каждого дома (например гидроизоляция
+  // кровли нужна не всегда). В UI рендерится с галочкой «включать в смету»;
+  // если не включена — не входит в тариф и НЕ триггерит MISSING-warning.
+  optional?: boolean;
 }
+
+// Обратная совместимость: старые сметы хранят объединённый код
+// 'facades_entrances'. При проверке чек-листа он засчитывается за оба новых
+// кода facades + entrances (см. validators.ts).
+export const LEGACY_SERVICE_CODE_MAP: Record<string, string[]> = {
+  facades_entrances: ['facades', 'entrances'],
+};
 
 export const MANDATORY_SERVICES: MandatoryService[] = [
   { code: 'electricity_common', label_ru: 'Электроснабжение МОП', label_uz: 'Umumiy joylar elektri' },
   { code: 'elevator_if_present', label_ru: 'Обслуживание лифта', label_uz: 'Lift xizmati', conditional: 'has_elevator' },
-  { code: 'facades_entrances', label_ru: 'Фасады и подъезды', label_uz: 'Fasadlar va podyezdlar' },
+  { code: 'facades', label_ru: 'Фасады', label_uz: 'Fasadlar' },
+  { code: 'entrances', label_ru: 'Подъезды', label_uz: 'Podyezdlar' },
   { code: 'pumps_if_present', label_ru: 'Насосное оборудование', label_uz: 'Nasos uskunasi', conditional: 'has_pumps' },
-  { code: 'roof_waterproofing', label_ru: 'Гидроизоляция кровли', label_uz: 'Tom gidroizolyatsiyasi' },
+  { code: 'roof_waterproofing', label_ru: 'Гидроизоляция кровли', label_uz: 'Tom gidroizolyatsiyasi', optional: true },
   { code: 'basement_shaft_networks', label_ru: 'Сети подвала/шахты', label_uz: 'Yerto\'la/shaxta tarmoqlari' },
   { code: 'gutters', label_ru: 'Водостоки', label_uz: 'Suv oqizgichlar' },
   { code: 'stairwell_lift_cleaning_weekly', label_ru: 'Уборка подъездов/лифтов (≥1/нед)', label_uz: 'Podyezd/lift tozalash (haftada 1)' },

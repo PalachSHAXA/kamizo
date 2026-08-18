@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Kamizo verified SQLite backup hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+AccuracySec=1s
+Unit=kamizo-backup-hourly.service
+
+[Install]
+WantedBy=timers.target

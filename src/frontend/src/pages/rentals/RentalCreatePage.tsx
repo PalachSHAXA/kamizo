@@ -13,11 +13,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, X, Plus, Star, RefreshCw, Check, Info, Clock, Sofa, Snowflake, Wifi, Car,
+  ArrowLeft, X, Plus, Star, RefreshCw, Check, Clock, Sofa, Snowflake, Wifi, Car,
 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useAuthStore } from '../../stores/authStore';
-import { useTenantStore } from '../../stores/tenantStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { useAndroidKbSpacer } from './useAndroidKbSpacer';
@@ -137,9 +136,8 @@ export function RentalCreatePage() {
         floor_total: Number(floorTotal),
         apartment_number: user?.apartment ?? null,
         entrance: null,
-        building_id: (user as any)?.building_id ?? null,
+        building_id: user?.buildingId ?? null,
         price_monthly: priceNum,
-        price_currency: 'UZS' as any,           // server ignores; default UZS
         deposit_months: 1,
         furnished: furnished ? 1 : 0,
         air_conditioning: ac ? 1 : 0,
@@ -186,7 +184,7 @@ export function RentalCreatePage() {
     const picked = Array.from(files).slice(0, remaining);
     // Add placeholders immediately so the grid reflects the pick even
     // while FileReader runs (large images can take 100-300ms).
-    const drafts: DraftPhoto[] = picked.map((f, i) => ({
+    const drafts: DraftPhoto[] = picked.map((_, i) => ({
       id: `ph-${Date.now()}-${i}`,
       state: 'reading',
       data_url: '',

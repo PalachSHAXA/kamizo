@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Users, Wrench, Car } from 'lucide-react';
+import { Home, FileText, ShoppingBag, Bell, User, CalendarDays, BarChart3, MessageCircle, LayoutDashboard, QrCode, Plus, Lock, Car, Ellipsis } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 // v118.79 — Capacitor Haptics on tab tap. ONLY in this file. No other
 // component imports @capacitor/haptics — confirmed by grep gate in plan.
@@ -50,6 +50,12 @@ import { useTenantStore } from '../stores/tenantStore';
 import { useModalStore } from '../stores/modalStore';
 import { useIsMobile } from '../hooks/useBreakpoint';
 import { FeatureLockedModal } from './FeatureLockedModal';
+import {
+  getAdminNavigation,
+  getBottomNavigation,
+  isAdminNavigationRole,
+  resolveBottomNavigationActiveId,
+} from '../navigation/adminNavigation';
 
 /**
  * BottomBar — single shared bottom navigation used by EVERY page in the
@@ -216,43 +222,21 @@ export function BottomBar() {
       ];
     }
 
-    if (role === 'admin') {
+    if (isAdminNavigationRole(role)) {
+      const badgeById: Record<string, number> = { requests: newRequestsCount };
       return [
-        { id: 'home', icon: LayoutDashboard, label: language === 'ru' ? 'Главная' : 'Bosh', path: '/', badge: 0 },
-        { id: 'requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', path: '/requests', badge: newRequestsCount, feature: 'requests' },
-        { id: 'team', icon: Users, label: language === 'ru' ? 'Команда' : 'Jamoa', path: '/team', badge: 0 },
-        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
-        { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
-      ];
-    }
-
-    if (role === 'director') {
-      return [
-        { id: 'home', icon: LayoutDashboard, label: language === 'ru' ? 'Обзор' : 'Sharh', path: '/', badge: 0 },
-        { id: 'requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', path: '/requests', badge: newRequestsCount, feature: 'requests' },
-        { id: 'reports', icon: BarChart3, label: language === 'ru' ? 'Отчёты' : 'Hisobotlar', path: '/reports', badge: 0 },
-        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
-        { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
-      ];
-    }
-
-    if (role === 'department_head') {
-      return [
-        { id: 'home', icon: LayoutDashboard, label: language === 'ru' ? 'Отдел' : 'Bo\'lim', path: '/', badge: 0 },
-        { id: 'requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', path: '/requests', badge: newRequestsCount, feature: 'requests' },
-        { id: 'executors', icon: Wrench, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar', path: '/executors', badge: 0 },
-        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
-        { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
-      ];
-    }
-
-    if (role === 'manager') {
-      return [
-        { id: 'home', icon: LayoutDashboard, label: language === 'ru' ? 'Главная' : 'Bosh', path: '/', badge: 0 },
-        { id: 'requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar', path: '/requests', badge: newRequestsCount, feature: 'requests' },
-        { id: 'chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', path: '/chat', badge: 0, feature: 'chat' },
-        { id: 'executors', icon: Wrench, label: language === 'ru' ? 'Исполн.' : 'Ijrochilar', path: '/executors', badge: 0 },
-        { id: 'profile', icon: User, label: language === 'ru' ? 'Профиль' : 'Profil', path: '/profile', badge: 0 },
+        ...getBottomNavigation(role, language === 'ru' ? 'ru' : 'uz', { demoSession: user.demoSession }).map(item => ({
+          ...item,
+          badge: badgeById[item.id] || 0,
+          feature: item.id === 'requests' || item.id === 'chat' ? item.id : undefined,
+        })),
+        {
+          id: 'more',
+          icon: Ellipsis,
+          label: language === 'ru' ? 'Ещё' : 'Yana',
+          path: '',
+          badge: 0,
+        },
       ];
     }
 
@@ -284,6 +268,17 @@ export function BottomBar() {
 
   const tabs = getTabs();
   const currentPath = location.pathname;
+  const adminDrawerItems = isAdminNavigationRole(role)
+    ? getAdminNavigation(role, language === 'ru' ? 'ru' : 'uz', { demoSession: user.demoSession })
+    : [];
+  const adminActiveId = isAdminNavigationRole(role)
+    ? resolveBottomNavigationActiveId(
+        currentPath,
+        location.search,
+        getBottomNavigation(role, language === 'ru' ? 'ru' : 'uz', { demoSession: user.demoSession }),
+        adminDrawerItems,
+      )
+    : null;
 
   // ownsRoute — "this tab strictly matches the current route".
   // Used twice: once for the tab being checked, and once for every OTHER
@@ -308,6 +303,7 @@ export function BottomBar() {
 
   const isActive = (tab: Tab) => {
     if (tab.isFab) return false;
+    if (isAdminNavigationRole(role)) return adminActiveId === tab.id;
     // Strict match wins first — Заявки / Чат / Профиль (and their sub-
     // routes) keep their own active state on their owned routes.
     if (ownsRoute(tab)) return true;
@@ -337,6 +333,11 @@ export function BottomBar() {
   };
 
   const handleTap = (tab: Tab) => {
+    if (tab.id === 'more') {
+      fireLightHaptic();
+      window.dispatchEvent(new Event('open-sidebar'));
+      return;
+    }
     if (tab.isFab) {
       // v118.79 — light haptic on FAB tap (user enumerated `+` in the
       // BottomBar list). Locked-tap (handled below) does NOT fire.
@@ -387,7 +388,7 @@ export function BottomBar() {
       <button
         key={tab.id}
         type="button"
-        className="icon-only"
+        className="icon-only bottom-nav-item"
         onClick={() => handleTap(tab)}
         aria-current={active ? 'page' : undefined}
         aria-label={tab.label || tab.id}
@@ -408,8 +409,8 @@ export function BottomBar() {
           // stays as the canonical brand value across both themes.
           color: active ? '#EA580C' : 'var(--bb-inactive-fg, #9CA3AF)',
           opacity: locked ? 0.4 : 1,
-          minWidth: 0,
-          minHeight: 0,
+          minWidth: 44,
+          minHeight: 44,
           WebkitTapHighlightColor: 'transparent',
         }}
       >
@@ -419,7 +420,13 @@ export function BottomBar() {
           fill={active && tab.fillOnActive ? 'currentColor' : 'none'}
         />
         {active && tab.label && (
-          <span style={{ fontSize: 13, fontWeight: 750, whiteSpace: 'nowrap' }}>{tab.label}</span>
+          <span
+            className="bottom-nav-label"
+            data-bottom-label
+            style={{ fontSize: 13, fontWeight: 750, whiteSpace: 'nowrap' }}
+          >
+            {tab.label}
+          </span>
         )}
         {tab.badge > 0 && !locked && (
           <span

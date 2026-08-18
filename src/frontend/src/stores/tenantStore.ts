@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { API_URL, getToken } from '../services/api/client';
+import { apiRequest, getToken, SessionChangedError } from '../services/api/client';
+import { registerSessionStore } from './sessionRegistry';
 
 export interface TenantConfig {
   tenant: {
@@ -83,14 +84,11 @@ export const useTenantStore = create<TenantState>()(
         // 3 попытки: 4с timeout + пауза 1с + 4с + пауза 2с + 4с = ≤15с worst
         for (let i = 0; i <= RETRY_PAUSES_MS.length; i++) {
           try {
-            const ctrl = new AbortController();
-            const timeoutId = setTimeout(() => ctrl.abort(), PER_ATTEMPT_TIMEOUT_MS);
-            const token = getToken();
-            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await fetch(`${API_URL}/api/tenant/config`, { headers, signal: ctrl.signal });
-            clearTimeout(timeoutId);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const config = (await response.json()) as TenantConfig;
+            const config = await apiRequest<TenantConfig>(
+              '/api/tenant/config',
+              {},
+              PER_ATTEMPT_TIMEOUT_MS,
+            );
             set({
               config,
               fetchedAt: Date.now(),
@@ -101,6 +99,7 @@ export const useTenantStore = create<TenantState>()(
             });
             return;
           } catch (e) {
+            if (e instanceof SessionChangedError) return;
             if (i < RETRY_PAUSES_MS.length) {
               await new Promise((r) => setTimeout(r, RETRY_PAUSES_MS[i]));
             }
@@ -190,3 +189,5 @@ export const useTenantStore = create<TenantState>()(
     },
   ),
 );
+
+registerSessionStore(useTenantStore);

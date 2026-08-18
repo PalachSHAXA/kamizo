@@ -6,7 +6,6 @@ workers_dev = true
 
 # Secrets (set via: wrangler secret put <NAME>):
 # wrangler secret put JWT_SECRET
-# wrangler secret put ENCRYPTION_KEY
 # wrangler secret put VAPID_PRIVATE_KEY
 # wrangler secret put SENTRY_DSN
 
@@ -26,7 +25,6 @@ VAPID_EMAIL = "admin@kamizo.uz"
 
 # Секреты хранятся в Cloudflare Secrets (не в коде!)
 # Установить:
-#   wrangler secret put ENCRYPTION_KEY
 #   wrangler secret put JWT_SECRET
 #   wrangler secret put SENTRY_DSN
 

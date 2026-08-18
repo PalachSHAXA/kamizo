@@ -1,100 +1,111 @@
 name: Deploy to Cloudflare
 
+env:
+  PRODUCTION_URL: https://app.kamizo.uz
+  STAGING_URL: https://kamizo-staging.workers.dev
+
 on:
   push:
     branches:
-      - main
       - develop
-  workflow_dispatch:  # Allows manual triggering from GitHub UI
+  workflow_dispatch:
+    inputs:
+      backend_release_verified:
+        description: Backend deployed and smoke-tested on VPS
+        required: true
+        type: boolean
+        default: false
+      staging_config_verified:
+        description: Staging binding IDs and removed classes were manually verified
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   deploy-production:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.backend_release_verified == true
     runs-on: ubuntu-latest
     name: Deploy to Production
+    environment: production
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Configure read-only VPS preflight SSH
+        env:
+          KAMIZO_VPS_SSH_KEY: ${{ secrets.KAMIZO_VPS_SSH_KEY }}
+          KAMIZO_VPS_KNOWN_HOSTS: ${{ secrets.KAMIZO_VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$KAMIZO_VPS_SSH_KEY"
+          test -n "$KAMIZO_VPS_KNOWN_HOSTS"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$KAMIZO_VPS_SSH_KEY" >"$HOME/.ssh/kamizo_vps"
+          printf '%s\n' "$KAMIZO_VPS_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/kamizo_vps" "$HOME/.ssh/known_hosts"
+
+      - name: Verify production backend ingress security
+        run: ./scripts/preflight-backend-production.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Reproducible install from committed lockfile (npm ci). Falls back to
-      # npm install if the lockfile is out of sync, so a minor drift never
-      # blocks a production deploy. Previously this step did
-      # `rm -rf node_modules package-lock.json && npm install`, which pulled
-      # the latest matching versions on every run — non-reproducible and a
-      # frequent source of red builds.
+      # Reproducible install from the committed lockfile.
       - name: Install frontend dependencies
         run: |
           cd src/frontend
-          npm ci || npm install
+          npm ci
 
-      # Tests are informational and MUST NOT block the production deploy.
-      # A flaky or environment-specific test failure should never stop a
-      # working build from shipping. The result is still visible in the run.
-      - name: Run frontend tests (non-blocking)
-        continue-on-error: true
+      - name: Run frontend unit tests
         run: |
           cd src/frontend
           npm run test
 
-      # Type-check the frontend before building. Vite/esbuild does NOT type
-      # check — without this step, missing-identifier bugs ship straight to
-      # prod and only show up as a runtime ReferenceError → ErrorBoundary
-      # fallback. The recent /guest-access crash (commits 38dd819, e87c755)
-      # was exactly this: a refactor dropped imports of `apiRequest`,
-      # `useLanguageStore`, `useAuthStore`, `VISITOR_TYPE_LABELS`, etc.;
-      # tsc flagged TS2304 the whole time, nobody ran it.
-      #
-      # Surface ALL tsc output to the log so existing type debt stays
-      # visible, but only HARD-FAIL on the runtime-crash classes:
-      #   • TS2304 — Cannot find name 'X'
-      #   • TS2552 — Cannot find name 'X'. Did you mean 'Y'?
-      # Every other TS error is type-only and doesn't crash at runtime, so
-      # we let it through instead of blocking the deploy queue on
-      # pre-existing tech debt in unrelated files.
-      - name: Type-check frontend (block on missing-identifier errors)
+      - name: Type-check frontend
         run: |
           cd src/frontend
-          set +e
-          npx tsc -p tsconfig.app.json --noEmit > tsc.log 2>&1
-          status=$?
-          cat tsc.log
-          if grep -E "error TS(2304|2552):" tsc.log > /dev/null; then
-            echo ""
-            echo "::error::tsc found missing-identifier errors (TS2304/TS2552). These crash at runtime — blocking deploy."
-            exit 1
-          fi
-          if [ "$status" -ne 0 ]; then
-            echo ""
-            echo "::warning::tsc reported type errors (no TS2304/TS2552), deploy continues. Clean these up — they will eventually catch a real bug."
-          fi
-          exit 0
+          npm run typecheck
 
       - name: Build frontend
         run: |
           cd src/frontend
-          npm run build
+          npm run build:budget
+
+      - name: Install Cloudflare dependencies
+        run: |
+          cd cloudflare
+          npm ci
+
+      - name: Type-check backend
+        run: |
+          cd cloudflare
+          npx tsc --noEmit
+
+      - name: Run backend tests
+        run: |
+          cd cloudflare
+          npm run test
+
+      - name: Install Playwright Chromium
+        run: |
+          cd src/frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run isolated E2E without production access
+        run: |
+          cd src/frontend
+          npm run test:e2e:isolated
 
       - name: Copy built files to cloudflare/public
         run: |
           rm -rf cloudflare/public
           cp -r src/frontend/dist cloudflare/public
-
-      - name: Install Cloudflare dependencies
-        run: |
-          cd cloudflare
-          npm ci || npm install
-
-      - name: Run backend tests (non-blocking)
-        continue-on-error: true
-        run: |
-          cd cloudflare
-          npm run test
 
       - name: Deploy to Cloudflare Workers (Production)
         uses: cloudflare/wrangler-action@v3
@@ -103,15 +114,18 @@ jobs:
           workingDirectory: cloudflare
           command: deploy
 
+      - name: Verify production frontend bundle
+        run: ./scripts/verify-frontend-bundle.sh "$PRODUCTION_URL"
+
       - name: Deployment summary
         run: |
           echo "✅ Production deployment successful!"
-          echo "🌐 Live at: https://kamizo.uz"
+          echo "🌐 Live at: $PRODUCTION_URL"
 
-  deploy-staging:
+  develop-checks:
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    name: Deploy to Staging
+    name: Develop Checks
 
     steps:
       - name: Checkout code
@@ -125,55 +139,89 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd src/frontend
-          npm ci || npm install
+          npm ci
 
-      - name: Run frontend tests (non-blocking)
-        continue-on-error: true
+      - name: Run frontend unit tests
         run: |
           cd src/frontend
           npm run test
 
-      # Same gate as production — see the long comment on the equivalent
-      # step above. Block staging on TS2304/TS2552 so the bug doesn't
-      # even reach develop.
-      - name: Type-check frontend (block on missing-identifier errors)
+      - name: Type-check frontend
         run: |
           cd src/frontend
-          set +e
-          npx tsc -p tsconfig.app.json --noEmit > tsc.log 2>&1
-          status=$?
-          cat tsc.log
-          if grep -E "error TS(2304|2552):" tsc.log > /dev/null; then
-            echo ""
-            echo "::error::tsc found missing-identifier errors (TS2304/TS2552). These crash at runtime — blocking deploy."
-            exit 1
-          fi
-          if [ "$status" -ne 0 ]; then
-            echo ""
-            echo "::warning::tsc reported type errors (no TS2304/TS2552), deploy continues."
-          fi
-          exit 0
+          npm run typecheck
 
       - name: Build frontend
         run: |
           cd src/frontend
-          npm run build
+          npm run build:budget
 
-      - name: Copy built files to cloudflare/public
+      - name: Install Playwright Chromium
         run: |
-          rm -rf cloudflare/public
-          cp -r src/frontend/dist cloudflare/public
+          cd src/frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run isolated E2E without production access
+        run: |
+          cd src/frontend
+          npm run test:e2e:isolated
 
       - name: Install Cloudflare dependencies
         run: |
           cd cloudflare
-          npm ci || npm install
+          npm ci
 
-      - name: Run backend tests (non-blocking)
-        continue-on-error: true
+      - name: Type-check backend
+        run: |
+          cd cloudflare
+          npx tsc --noEmit
+
+      - name: Run backend tests
         run: |
           cd cloudflare
           npm run test
+
+      - name: Upload verified frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-frontend-dist
+          path: src/frontend/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-staging:
+    needs: develop-checks
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/develop' &&
+      inputs.staging_config_verified == true
+    runs-on: ubuntu-latest
+    name: Deploy to Staging
+    timeout-minutes: 90
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download verified frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-frontend-dist
+          path: cloudflare/public
+
+      - name: Install Cloudflare dependencies
+        run: |
+          cd cloudflare
+          npm ci
+
+      - name: Preflight staging bindings and removed classes
+        run: ./scripts/preflight-staging-config.sh cloudflare/wrangler.staging.toml
 
       - name: Deploy to Cloudflare Workers (Staging)
         uses: cloudflare/wrangler-action@v3
@@ -182,7 +230,10 @@ jobs:
           workingDirectory: cloudflare
           command: deploy --config wrangler.staging.toml
 
+      - name: Verify staging frontend bundle
+        run: ./scripts/verify-frontend-bundle.sh "$STAGING_URL"
+
       - name: Deployment summary
         run: |
           echo "✅ Staging deployment successful!"
-          echo "🌐 Staging at: https://kamizo-staging.workers.dev"
+          echo "🌐 Staging at: $STAGING_URL"

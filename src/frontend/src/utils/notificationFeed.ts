@@ -23,11 +23,11 @@
        add a case in classifyNotificationKind() — that's the only edit
        needed for the filter to start populating.
 */
-import type { ComponentType } from 'react';
 import {
   Check, FileText, Wrench, Users, Megaphone, Bell, Star,
   Zap, CreditCard, XCircle, Clock,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Notification } from '../types';
 import type { Announcement } from '../types';
 
@@ -45,7 +45,7 @@ export interface FeedItem {
   createdAt: string;
   unread: boolean;
   /** Icon component (lucide-react) chosen by kind+subtype. */
-  Icon: ComponentType<{ size?: number; className?: string }>;
+  Icon: LucideIcon;
   /** CSS var() string for the icon tile background. */
   bg: string;
   /** CSS var() string for the icon glyph color. */

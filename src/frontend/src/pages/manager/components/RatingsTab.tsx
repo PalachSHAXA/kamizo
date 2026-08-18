@@ -10,6 +10,9 @@ export function RatingsTab({
   isLoadingRatings
 }: RatingsTabProps) {
   const { language } = useLanguageStore();
+  const current = ratingSummary?.current;
+  const monthly = ratingSummary?.monthly ?? [];
+  const recentComments = ratingSummary?.recentComments ?? [];
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -17,7 +20,7 @@ export function RatingsTab({
 
       {isLoadingRatings ? (
         <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div>
-      ) : !ratingSummary?.current ? (
+      ) : !ratingSummary || !current ? (
         <div className="text-center text-gray-400 py-20">{language === 'ru' ? 'Оценок пока нет' : 'Hali baholar yo\'q'}</div>
       ) : (
         <>
@@ -45,10 +48,10 @@ export function RatingsTab({
           {/* Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: language === 'ru' ? 'Общая оценка' : 'Umumiy baho', value: ratingSummary.current.avg_overall },
-              { label: language === 'ru' ? 'Чистота' : 'Tozalik', value: ratingSummary.current.avg_cleanliness },
-              { label: language === 'ru' ? 'Реагирование' : 'Javob berish', value: ratingSummary.current.avg_responsiveness },
-              { label: language === 'ru' ? 'Коммуникация' : 'Muloqot', value: ratingSummary.current.avg_communication },
+              { label: language === 'ru' ? 'Общая оценка' : 'Umumiy baho', value: current.avg_overall },
+              { label: language === 'ru' ? 'Чистота' : 'Tozalik', value: current.avg_cleanliness },
+              { label: language === 'ru' ? 'Реагирование' : 'Javob berish', value: current.avg_responsiveness },
+              { label: language === 'ru' ? 'Коммуникация' : 'Muloqot', value: current.avg_communication },
             ].map((stat, idx) => (
               <div key={idx} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <div className="text-[12px] text-gray-500 font-medium mb-1">{stat.label}</div>
@@ -71,19 +74,19 @@ export function RatingsTab({
                   </div>
                 )}
                 <div className="text-xs text-gray-400 mt-1">
-                  {ratingSummary.current.count || 0} {language === 'ru' ? 'голосов' : 'ovozlar'}
+                  {current.count || 0} {language === 'ru' ? 'голосов' : 'ovozlar'}
                 </div>
               </div>
             ))}
           </div>
 
           {/* Monthly Trend Chart */}
-          {ratingSummary.monthly?.length > 1 && (
+          {monthly.length > 1 && (
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Динамика по месяцам' : 'Oylik dinamika'}</h3>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={ratingSummary.monthly.map((m) => ({
+                  <AreaChart data={monthly.map((m) => ({
                     period: m.period,
                     overall: Number(m.avg_overall || 0).toFixed(1),
                     count: m.count,
@@ -105,7 +108,7 @@ export function RatingsTab({
             <div className="space-y-2">
               {(() => {
                 const recs: { text: string; priority: 'high' | 'medium' | 'low' }[] = [];
-                const c = ratingSummary.current;
+                const c = current;
                 if (c.avg_responsiveness && Number(c.avg_responsiveness) < 3.5) {
                   recs.push({
                     text: language === 'ru'
@@ -161,11 +164,11 @@ export function RatingsTab({
           </div>
 
           {/* Recent Comments */}
-          {ratingSummary.recentComments?.length > 0 && (
+          {recentComments.length > 0 && (
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <h3 className="text-sm font-semibold mb-3">{language === 'ru' ? 'Последние отзывы' : 'So\'nggi sharhlar'}</h3>
               <div className="space-y-3">
-                {ratingSummary.recentComments.map((comment, idx) => (
+                {recentComments.map((comment, idx) => (
                   <div key={idx} className="border-b border-gray-50 pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex gap-0.5">

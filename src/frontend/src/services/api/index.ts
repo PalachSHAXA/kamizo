@@ -24,6 +24,7 @@ export { announcementsApi, uploadApi } from './announcements';
 
 // Buildings, Branches, Entrances, Building Documents, Apartments (CRM)
 export { buildingsApi, branchesApi, entrancesApi, buildingDocumentsApi, apartmentsApi } from './buildings';
+export { actsApi } from './acts';
 
 // CRM: Owners, Personal Accounts, Residents, Meters, Meter Readings
 export { ownersApi, personalAccountsApi, crmResidentsApi, metersApi, meterReadingsApi } from './crm';
@@ -69,7 +70,7 @@ export { estimateV2Api, residentFinanceApi } from './finance-v2';
 export type {
   EstimateModelV2, StaffPositionV2, ExpenseLineV2, IncomeStreamV2,
   ExpenseSection, ItemUnit, IncomeType, EstimateResultV2, EstimateWarning,
-  MyChargeRow, MyBalance, MyApartmentRow,
+  MyChargeRow, MyBalance, MyApartmentRow, PenaltyRow,
 } from './finance-v2';
 
 // Settings, Notifications, Tenant

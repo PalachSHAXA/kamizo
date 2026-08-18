@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Wrench, Search, Plus, X, Calendar, Clock,
+  Wrench, Search, Plus, Calendar, Clock,
   AlertTriangle, CheckCircle, User, Building2,
   FileText, Play, Pause, Check, Loader2
 } from 'lucide-react';
@@ -10,50 +10,25 @@ import { useCRMStore } from '../stores/crmStore';
 import { useExecutorStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { workOrdersApi } from '../services/api';
+import type { WorkOrderApiRecord } from '../services/api/requests';
 import { WorkOrderDetailModal } from './work-orders/WorkOrderDetailModal';
 import { WorkOrderFormModal } from './work-orders/WorkOrderFormModal';
 import type { WorkOrder, WorkOrderStatus, WorkOrderPriority } from './work-orders/types';
 
-// Map API snake_case fields to camelCase interface
-interface WorkOrderRaw {
-  id: string;
-  number: string;
-  title: string;
-  description?: string;
-  type: WorkOrder['type'];
-  priority: WorkOrder['priority'];
-  status: WorkOrder['status'];
-  building_id?: string;
-  buildingId?: string;
-  apartment_id?: string;
-  apartmentId?: string;
-  assigned_to?: string;
-  assignedTo?: string;
-  scheduled_date?: string;
-  scheduledDate?: string;
-  scheduled_time?: string;
-  scheduledTime?: string;
-  started_at?: string;
-  startedAt?: string;
-  completed_at?: string;
-  completedAt?: string;
-  estimated_duration?: number;
-  estimatedDuration?: number;
-  actual_duration?: number;
-  actualDuration?: number;
-  materials?: string | { name: string; quantity: number; cost: number }[];
-  checklist?: string | { item: string; completed: boolean }[];
-  notes?: string;
-  request_id?: string;
-  requestId?: string;
-  created_at?: string;
-  createdAt?: string;
-  updated_at?: string;
-  updatedAt?: string;
+function parseArray<T>(value: string | T[] | undefined): T[] {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
 }
 
-function mapWorkOrder(raw: Record<string, unknown>): WorkOrder {
-  const r = raw as unknown as WorkOrderRaw;
+function mapWorkOrder(r: WorkOrderApiRecord): WorkOrder {
+  const materials = parseArray<{ name: string; quantity: number; unit?: string }>(r.materials)
+    .map(({ name, quantity, unit }) => ({ name, quantity, unit: unit || '' }));
   return {
     id: r.id,
     number: r.number,
@@ -71,8 +46,8 @@ function mapWorkOrder(raw: Record<string, unknown>): WorkOrder {
     completedAt: r.completed_at || r.completedAt,
     estimatedDuration: r.estimated_duration ?? r.estimatedDuration ?? 60,
     actualDuration: r.actual_duration ?? r.actualDuration,
-    materials: typeof r.materials === 'string' ? JSON.parse(r.materials || '[]') : (r.materials || []),
-    checklist: typeof r.checklist === 'string' ? JSON.parse(r.checklist || '[]') : (r.checklist || []),
+    materials,
+    checklist: parseArray(r.checklist),
     notes: r.notes,
     requestId: r.request_id || r.requestId,
     createdAt: r.created_at || r.createdAt || new Date().toISOString(),
@@ -104,8 +79,7 @@ export function WorkOrdersPage() {
       if (filterPriority !== 'all') filters.priority = filterPriority;
       if (filterBuilding !== 'all') filters.buildingId = filterBuilding;
       const response = await workOrdersApi.getAll(Object.keys(filters).length > 0 ? filters : undefined);
-      const resp = response as Record<string, unknown>;
-      const orders = ((resp.workOrders || resp.work_orders || []) as Record<string, unknown>[]).map(mapWorkOrder);
+      const orders = response.workOrders.map(mapWorkOrder);
       setWorkOrders(orders);
     } catch (error) {
       console.error('Failed to fetch work orders:', error);
@@ -535,4 +509,3 @@ export function WorkOrdersPage() {
     </div>
   );
 }
-

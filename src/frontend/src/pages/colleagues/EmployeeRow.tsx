@@ -13,6 +13,7 @@ export function EmployeeRow({
   onOpen,
   onRate,
   onThank,
+  readOnly = false,
   accent = 'default',
 }: {
   emp: Employee;
@@ -21,6 +22,7 @@ export function EmployeeRow({
   onOpen: () => void;
   onRate: () => void;
   onThank: () => void;
+  readOnly?: boolean;
   accent?: 'default' | 'team';
 }) {
   const bg = accent === 'team'
@@ -50,7 +52,7 @@ export function EmployeeRow({
         </div>
         <p className="text-xs text-gray-500 truncate">{emp.position}</p>
       </button>
-      <div className="flex items-center gap-1.5 flex-shrink-0">
+      {!readOnly && <div className="flex items-center gap-1.5 flex-shrink-0">
         <button
           onClick={onRate}
           disabled={isRated}
@@ -72,7 +74,7 @@ export function EmployeeRow({
         >
           <Heart className="w-4 h-4" />
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

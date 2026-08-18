@@ -17,6 +17,7 @@ import { useLanguageStore } from '../../../stores/languageStore';
 import { useTenantStore } from '../../../stores/tenantStore';
 import { useAuthStore } from '../../../stores/authStore';
 import { factReportApi, type FactReportPayload } from '../../../services/api/finance-v2';
+import { FinanceDemoReadOnlyBanner } from '../FinanceDemoReadOnlyBanner';
 
 function currentMonth(): string {
   const d = new Date();
@@ -31,15 +32,14 @@ function monthAgo(n: number): string {
 const fmt = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 
 export function FactReportPage() {
-  const { buildings, fetchBuildings } = useBuildingStore(s => ({
-    buildings: s.buildings,
-    fetchBuildings: s.fetchBuildings,
-  }));
+  const buildings = useBuildingStore(s => s.buildings);
+  const fetchBuildings = useBuildingStore(s => s.fetchBuildings);
   const { language } = useLanguageStore();
   const isRu = language === 'ru';
   const tenant = useTenantStore(s => s.config?.tenant);
   const user = useAuthStore(s => s.user);
-  const canSave = user && ['admin', 'director'].includes(user.role);
+  const isDemoSession = user?.demoSession === true;
+  const canSave = user && !isDemoSession && ['admin', 'director'].includes(user.role);
 
   const [buildingId, setBuildingId] = useState<string>('');
   const [periodFrom, setPeriodFrom] = useState<string>(monthAgo(11));
@@ -71,7 +71,7 @@ export function FactReportPage() {
   };
 
   const save = async () => {
-    if (!buildingId) return;
+    if (isDemoSession || !buildingId) return;
     setSaving(true); setErr(null);
     try {
       const res = await factReportApi.save({
@@ -99,6 +99,7 @@ export function FactReportPage() {
           <FileText size={20} className="text-brand" />
           {isRu ? 'Факт-отчёт собственникам (ст.29 ЗРУ-581)' : 'Egalarga fakt-hisobot (29-modda ORQ-581)'}
         </h1>
+        {isDemoSession && <div className="mb-3"><FinanceDemoReadOnlyBanner /></div>}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <label className="text-sm">
             <span className="block text-slate-600 mb-1">{isRu ? 'Дом' : 'Uy'}</span>

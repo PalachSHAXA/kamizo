@@ -1,14 +1,20 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import type {
   BuildingFull,
   BuildingDocument,
   Entrance,
 } from '../types';
 import { buildingsApi, entrancesApi, buildingDocumentsApi } from '../services/api';
+import type {
+  BuildingApiResponse,
+  BuildingDocumentApiResponse,
+  EntranceApiResponse,
+} from '../services/api/buildings';
 import { useToastStore } from './toastStore';
 
 // Helper to map API response to frontend type
-const mapBuildingFromApi = (b: Record<string, unknown>): BuildingFull => ({
+const mapBuildingFromApi = (b: BuildingApiResponse): BuildingFull => ({
   id: b.id,
   name: b.name,
   address: b.address,
@@ -59,9 +65,9 @@ const mapBuildingFromApi = (b: Record<string, unknown>): BuildingFull => ({
   documents: [],
   createdAt: b.created_at,
   updatedAt: b.updated_at,
-} as BuildingFull);
+});
 
-const mapEntranceFromApi = (e: Record<string, unknown>): Entrance => ({
+const mapEntranceFromApi = (e: EntranceApiResponse): Entrance => ({
   id: e.id,
   buildingId: e.building_id,
   number: e.number,
@@ -77,7 +83,20 @@ const mapEntranceFromApi = (e: Record<string, unknown>): Entrance => ({
   responsibleId: e.responsible_id,
   lastInspection: e.last_inspection,
   notes: e.notes,
-} as Entrance);
+});
+
+const mapDocumentFromApi = (document: BuildingDocumentApiResponse): BuildingDocument => ({
+  id: document.id,
+  buildingId: document.building_id,
+  name: document.name,
+  type: document.type,
+  fileUrl: document.file_url,
+  fileSize: document.file_size,
+  uploadedAt: document.uploaded_at,
+  uploadedBy: document.uploaded_by,
+  expiresAt: document.expires_at,
+  isActive: !!document.is_active,
+});
 
 interface BuildingState {
   // Data
@@ -124,7 +143,7 @@ export const useBuildingStore = create<BuildingState>()(
     fetchBuildings: async () => {
       set({ isLoadingBuildings: true });
       try {
-        const response = await buildingsApi.getAll();
+        const response = await buildingsApi.getAll<BuildingApiResponse>();
         const buildings = (response.buildings || []).map(mapBuildingFromApi);
         set({ buildings, isLoadingBuildings: false });
       } catch (error) {
@@ -135,12 +154,12 @@ export const useBuildingStore = create<BuildingState>()(
 
     fetchBuildingById: async (id: string) => {
       try {
-        const response = await buildingsApi.getById(id);
+        const response = await buildingsApi.getById<BuildingApiResponse, EntranceApiResponse, BuildingDocumentApiResponse>(id);
         if (!response.building) return null;
 
         const building = mapBuildingFromApi(response.building);
         const entrances = (response.entrances || []).map(mapEntranceFromApi);
-        const documents = response.documents || [];
+        const documents = (response.documents || []).map(mapDocumentFromApi);
 
         // Update local state with this building's data
         set((state) => {
@@ -164,7 +183,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     addBuilding: async (buildingData) => {
       try {
-        const response = await buildingsApi.create(buildingData as Record<string, unknown>); // TODO: type this properly
+        const response = await buildingsApi.create<BuildingApiResponse>(buildingData);
         if (response.building) {
           const newBuilding = mapBuildingFromApi(response.building);
           set((state) => ({ buildings: [...state.buildings, newBuilding] }));
@@ -179,7 +198,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     updateBuilding: async (id, data) => {
       try {
-        await buildingsApi.update(id, data as Record<string, unknown>); // TODO: type this properly
+        await buildingsApi.update(id, data);
         // Optimistic update
         set((state) => ({
           buildings: state.buildings.map((b) =>
@@ -220,7 +239,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     addBuildingDocument: async (buildingId, docData) => {
       try {
-        const response = await buildingDocumentsApi.create(buildingId, {
+        const response = await buildingDocumentsApi.create<BuildingDocumentApiResponse>(buildingId, {
           name: docData.name,
           type: docData.type,
           fileUrl: docData.fileUrl,
@@ -268,7 +287,7 @@ export const useBuildingStore = create<BuildingState>()(
     fetchEntrancesByBuilding: async (buildingId: string) => {
       set({ isLoadingEntrances: true });
       try {
-        const response = await entrancesApi.getByBuilding(buildingId);
+        const response = await entrancesApi.getByBuilding<EntranceApiResponse>(buildingId);
         const entrances = (response.entrances || []).map(mapEntranceFromApi);
 
         // Replace entrances for this building, keep others
@@ -287,7 +306,7 @@ export const useBuildingStore = create<BuildingState>()(
 
     addEntrance: async (entranceData) => {
       try {
-        const response = await entrancesApi.create(entranceData.buildingId, {
+        const response = await entrancesApi.create<EntranceApiResponse>(entranceData.buildingId, {
           number: entranceData.number,
           floorsFrom: entranceData.floorsFrom,
           floorsTo: entranceData.floorsTo,
@@ -342,3 +361,5 @@ export const useBuildingStore = create<BuildingState>()(
     },
   })
 );
+
+registerSessionStore(useBuildingStore);

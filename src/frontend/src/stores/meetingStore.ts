@@ -11,6 +11,7 @@
  */
 
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { persist } from 'zustand/middleware';
 import type {
   Meeting,
@@ -37,6 +38,12 @@ import { useMeetingReconsiderationStore } from './meetingReconsiderationStore';
 export type { AgainstVote, ReconsiderationRequest, ReconsiderationStats } from './meetingReconsiderationStore';
 
 // ============ Mappers: snake_case (API) <-> camelCase (Frontend) ============
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const recordArray = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value) ? value.filter(isRecord) : [];
 
 const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
   // Helper to safely parse JSON or return as-is if already parsed
@@ -75,7 +82,7 @@ const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
     dateTime: opt.date_time || opt.dateTime,
     votesByShare: opt.vote_weight || opt.voteWeight || opt.votes_by_share || opt.votesByShare || 0,
     voteWeight: opt.vote_weight || opt.voteWeight || 0,
-    voteCount: opt.vote_count || opt.voteCount || (opt.votes?.length ?? 0),
+    voteCount: opt.vote_count || opt.voteCount || (Array.isArray(opt.votes) ? opt.votes.length : 0),
     voters: opt.voters || [],
     votes: opt.votes || opt.voters || [], // For backward compatibility with UI
   });
@@ -90,11 +97,11 @@ const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
     organizerName: data.organizer_name || data.organizerName,
     format: data.format,
     status: data.status,
-    scheduleOptions: parseJson(data.schedule_options || data.scheduleOptions, []).map(mapScheduleOption),
+    scheduleOptions: recordArray(parseJson(data.schedule_options || data.scheduleOptions, [])).map(mapScheduleOption),
     schedulePollEndsAt: data.schedule_poll_ends_at || data.schedulePollEndsAt,
     confirmedDateTime: data.confirmed_date_time || data.confirmedDateTime,
     location: data.location,
-    agendaItems: (data.agendaItems || parseJson(data.agenda_items, [])).map(mapAgendaItem),
+    agendaItems: recordArray(data.agendaItems || parseJson(data.agenda_items, [])).map(mapAgendaItem),
     materials: parseJson(data.materials, []),
     votingSettings: parseJson(data.voting_settings || data.votingSettings, {}),
     eligibleVoters: parseJson(data.eligible_voters || data.eligibleVoters, []),
@@ -117,7 +124,7 @@ const mapMeetingFromApi = (data: Record<string, unknown>): Meeting => {
     remindersSent: parseJson(data.reminders_sent || data.remindersSent, []),
     notificationLogs: parseJson(data.notification_logs || data.notificationLogs, []),
     createdAt: data.created_at || data.createdAt,
-  } as Meeting;
+  } as unknown as Meeting;
 };
 
 // Merge partial API response (base meeting fields) with existing full meeting (preserving sub-data)
@@ -134,8 +141,10 @@ const mergeMeetingUpdate = (existing: Meeting, updated: Meeting): Meeting => ({
 interface ProtocolApiData {
   id: string;
   meeting_id: string;
-  number: string;
-  generated_at: string;
+  number?: string;
+  protocol_number?: string;
+  generated_at?: string;
+  created_at?: string;
   content: string;
   protocol_hash: string;
   signed_by_uk_user_id?: string;
@@ -143,14 +152,24 @@ interface ProtocolApiData {
   signed_by_uk_role?: string;
   signed_by_uk_at?: string;
   signed_by_uk_hash?: string;
-  attachments: string;
+  uk_signature_hash?: string;
+  attachments?: string | null;
 }
+
+const isProtocolApiData = (value: unknown): value is ProtocolApiData =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.meeting_id === 'string' &&
+  (typeof value.number === 'string' || typeof value.protocol_number === 'string') &&
+  (typeof value.generated_at === 'string' || typeof value.created_at === 'string') &&
+  typeof value.content === 'string' &&
+  typeof value.protocol_hash === 'string';
 
 const mapProtocolFromApi = (data: ProtocolApiData): MeetingProtocol => ({
   id: data.id,
   meetingId: data.meeting_id,
-  number: data.number,
-  generatedAt: data.generated_at,
+  number: data.number || data.protocol_number || '',
+  generatedAt: data.generated_at || data.created_at || '',
   content: data.content,
   protocolHash: data.protocol_hash,
   signedByUK: data.signed_by_uk_user_id ? {
@@ -158,13 +177,13 @@ const mapProtocolFromApi = (data: ProtocolApiData): MeetingProtocol => ({
     name: data.signed_by_uk_name || '',
     role: data.signed_by_uk_role || '',
     signedAt: data.signed_by_uk_at || '',
-    signatureHash: data.signed_by_uk_hash || '',
+    signatureHash: data.signed_by_uk_hash || data.uk_signature_hash || '',
   } : undefined,
   attachments: JSON.parse(data.attachments || '[]'),
 });
 
 interface BuildingSettingsApiData {
-  id: string;
+  id?: string;
   building_id: string;
   voting_unit: BuildingMeetingSettings['votingUnit'];
   default_quorum_percent: number;
@@ -173,9 +192,32 @@ interface BuildingSettingsApiData {
   allow_resident_initiative: number;
   require_moderation: number;
   default_meeting_time: string;
-  reminder_hours_before: string;
-  notification_channels: string;
+  reminder_hours_before: string | number[];
+  notification_channels: string | BuildingMeetingSettings['notificationChannels'];
 }
+
+const isBuildingSettingsApiData = (value: unknown): value is BuildingSettingsApiData =>
+  isRecord(value) &&
+  typeof value.building_id === 'string' &&
+  ['apartment', 'owner', 'share'].includes(String(value.voting_unit)) &&
+  typeof value.default_quorum_percent === 'number' &&
+  typeof value.schedule_poll_duration_days === 'number' &&
+  typeof value.voting_duration_hours === 'number' &&
+  typeof value.allow_resident_initiative === 'number' &&
+  typeof value.require_moderation === 'number' &&
+  typeof value.default_meeting_time === 'string' &&
+  (typeof value.reminder_hours_before === 'string' || Array.isArray(value.reminder_hours_before)) &&
+  (typeof value.notification_channels === 'string' || Array.isArray(value.notification_channels));
+
+const parseSettingArray = <T>(value: string | T[], fallback: T[]): T[] => {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as T[] : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 const mapBuildingSettingsFromApi = (data: BuildingSettingsApiData): BuildingMeetingSettings => ({
   buildingId: data.building_id,
@@ -186,8 +228,8 @@ const mapBuildingSettingsFromApi = (data: BuildingSettingsApiData): BuildingMeet
   allowResidentInitiative: Boolean(data.allow_resident_initiative),
   requireModeration: Boolean(data.require_moderation),
   defaultMeetingTime: data.default_meeting_time,
-  reminderHoursBefore: JSON.parse(data.reminder_hours_before || '[48, 2]'),
-  notificationChannels: JSON.parse(data.notification_channels || '["in_app", "push"]'),
+  reminderHoursBefore: parseSettingArray(data.reminder_hours_before, [48, 2]),
+  notificationChannels: parseSettingArray(data.notification_channels, ['in_app', 'push']),
 });
 
 // Default building meeting settings
@@ -374,7 +416,7 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.getAll({ onlyActive: true });
           if (response.success && response.data) {
-            const meetings = Array.isArray(response.data) ? response.data.map(mapMeetingFromApi) : [];
+            const meetings = recordArray(response.data).map(mapMeetingFromApi);
             set({ meetings });
           }
         } catch { /* silently fail for silent refresh */ }
@@ -385,7 +427,7 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.getAll({ onlyActive: true });
           if (response.success && response.data) {
-            const meetings = Array.isArray(response.data) ? response.data.map(mapMeetingFromApi) : [];
+            const meetings = recordArray(response.data).map(mapMeetingFromApi);
             set({ meetings, loading: false });
           } else {
             set({ error: response.error || 'Failed to fetch meetings', loading: false });
@@ -400,7 +442,7 @@ export const useMeetingStore = create<MeetingState>()(
         try {
           const response = await meetingsFullApi.getAll({ buildingId });
           if (response.success && response.data) {
-            const newMeetings = Array.isArray(response.data) ? response.data.map(mapMeetingFromApi) : [];
+            const newMeetings = recordArray(response.data).map(mapMeetingFromApi);
             set((state) => {
               const otherMeetings = state.meetings.filter(m => m.buildingId !== buildingId);
               return { meetings: [...otherMeetings, ...newMeetings], loading: false };
@@ -440,7 +482,7 @@ export const useMeetingStore = create<MeetingState>()(
               attachments: item.attachments,
             })),
           });
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const meeting = mapMeetingFromApi(response.data);
             set((state) => ({ meetings: [...state.meetings, meeting], loading: false }));
             return meeting;
@@ -467,7 +509,7 @@ export const useMeetingStore = create<MeetingState>()(
           if (data.votingSettings !== undefined) apiData.voting_settings = JSON.stringify(data.votingSettings);
 
           const response = await meetingsFullApi.update(id, apiData);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === id ? mergeMeetingUpdate(m, updated) : m),
@@ -532,7 +574,7 @@ export const useMeetingStore = create<MeetingState>()(
       submitForModeration: async (meetingId) => {
         try {
           const response = await meetingsFullApi.submit(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -548,7 +590,7 @@ export const useMeetingStore = create<MeetingState>()(
       approveMeeting: async (meetingId) => {
         try {
           const response = await meetingsFullApi.approve(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -564,7 +606,7 @@ export const useMeetingStore = create<MeetingState>()(
       rejectMeeting: async (meetingId, reason) => {
         try {
           const response = await meetingsFullApi.reject(meetingId, reason);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -580,7 +622,7 @@ export const useMeetingStore = create<MeetingState>()(
       openSchedulePoll: async (meetingId) => {
         try {
           const response = await meetingsFullApi.openSchedulePoll(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -596,7 +638,7 @@ export const useMeetingStore = create<MeetingState>()(
       confirmSchedule: async (meetingId, selectedOptionId) => {
         try {
           const response = await meetingsFullApi.confirmSchedule(meetingId, selectedOptionId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -612,7 +654,7 @@ export const useMeetingStore = create<MeetingState>()(
       openVoting: async (meetingId) => {
         try {
           const response = await meetingsFullApi.openVoting(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -628,7 +670,7 @@ export const useMeetingStore = create<MeetingState>()(
       closeVoting: async (meetingId) => {
         try {
           const response = await meetingsFullApi.closeVoting(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -644,7 +686,7 @@ export const useMeetingStore = create<MeetingState>()(
       publishResults: async (meetingId) => {
         try {
           const response = await meetingsFullApi.publishResults(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -660,7 +702,7 @@ export const useMeetingStore = create<MeetingState>()(
       generateProtocol: async (meetingId) => {
         try {
           const response = await meetingsFullApi.generateProtocol(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isProtocolApiData(response.data)) {
             const protocol = mapProtocolFromApi(response.data);
             set((state) => ({
               protocols: [...state.protocols, protocol],
@@ -682,7 +724,7 @@ export const useMeetingStore = create<MeetingState>()(
       approveProtocol: async (meetingId) => {
         try {
           const response = await meetingsFullApi.approveProtocol(meetingId);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -698,7 +740,7 @@ export const useMeetingStore = create<MeetingState>()(
       cancelMeeting: async (meetingId, reason) => {
         try {
           const response = await meetingsFullApi.cancel(meetingId, reason);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -773,7 +815,7 @@ export const useMeetingStore = create<MeetingState>()(
       fetchBuildingSettings: async (buildingId) => {
         try {
           const response = await meetingBuildingSettingsApi.get(buildingId);
-          if (response.success && response.data) {
+          if (response.success && isBuildingSettingsApiData(response.data)) {
             const settings = mapBuildingSettingsFromApi(response.data);
             set((state) => {
               const existing = state.buildingSettings.find(s => s.buildingId === buildingId);
@@ -809,7 +851,7 @@ export const useMeetingStore = create<MeetingState>()(
           if (settings.notificationChannels !== undefined) apiData.notification_channels = JSON.stringify(settings.notificationChannels);
 
           const response = await meetingBuildingSettingsApi.update(buildingId, apiData);
-          if (response.success && response.data) {
+          if (response.success && isBuildingSettingsApiData(response.data)) {
             const updatedSettings = mapBuildingSettingsFromApi(response.data);
             set((state) => {
               const existing = state.buildingSettings.find(s => s.buildingId === buildingId);
@@ -850,7 +892,7 @@ export const useMeetingStore = create<MeetingState>()(
       setEligibleVoters: async (meetingId, voterIds, totalCount) => {
         try {
           const response = await meetingEligibleVotersApi.set(meetingId, voterIds, totalCount);
-          if (response.success && response.data) {
+          if (response.success && isRecord(response.data)) {
             const updated = mapMeetingFromApi(response.data);
             set((state) => ({
               meetings: state.meetings.map(m => m.id === meetingId ? mergeMeetingUpdate(m, updated) : m)
@@ -922,3 +964,5 @@ export const useMeetingStore = create<MeetingState>()(
     }
   )
 );
+
+registerSessionStore(useMeetingStore);

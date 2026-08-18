@@ -4,7 +4,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, isManagement } from '../../utils/helpers';
-import { createRequestLogger } from '../../utils/logger';
+import { broadcastWithConnectionManager } from '../../utils/connection-manager';
 
 export function registerChatReadRoutes() {
 
@@ -62,32 +62,24 @@ route('POST', '/api/chat/channels/:id/read', async (request, env, params) => {
   `).bind(user.id, channelId, user.id).run();
 
   // Send read receipt via WebSocket
-  try {
-    const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
-    const connManager = env.CONNECTION_MANAGER.get(connManagerId);
-
-    // Sprint 76 P0/F2: internal secret required by DO.
-    await connManager.fetch('http://internal/broadcast', {
-      method: 'POST',
-      headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
-      body: JSON.stringify({
-        type: 'chat_read',
-        data: {
-          channel_id: channelId,
-          user_id: user.id,
-          user_name: user.name,
-          // Sprint 11: surface the reader's role so the client can flip
-          // the aggregated management_read flag without exposing the
-          // specific colleague ID.
-          user_role: user.role,
-        },
-        channels: [`chat:channel:${channelId}`],
-        tenantId: tenantId || undefined,
-      })
-    });
-  } catch (e) {
-    createRequestLogger(request).error('Failed to send read receipt', e);
-  }
+  await broadcastWithConnectionManager(env, request, 'chat_read', 'http://internal/broadcast', {
+    method: 'POST',
+    headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
+    body: JSON.stringify({
+      type: 'chat_read',
+      data: {
+        channel_id: channelId,
+        user_id: user.id,
+        user_name: user.name,
+        // Sprint 11: surface the reader's role so the client can flip
+        // the aggregated management_read flag without exposing the
+        // specific colleague ID.
+        user_role: user.role,
+      },
+      channels: [`chat:channel:${channelId}`],
+      tenantId: tenantId || undefined,
+    })
+  });
 
   return json({ success: true });
 });

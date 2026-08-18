@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Plus, Trash2, Shield, Eye, CreditCard, AlertTriangle } from 'lucide-react';
 import { useFinanceStore } from '../../stores/financeStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import { teamApi } from '../../services/api';
 import { PenaltySettingsCard } from './estimate-v2/PenaltySettingsCard';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 interface UserItem {
   id: string;
@@ -16,6 +18,7 @@ interface UserItem {
 export default function SettingsPage() {
   const { language } = useLanguageStore();
   const t = useCallback((ru: string, uz: string) => language === 'ru' ? ru : uz, [language]);
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
 
   const { financeAccess, accessLoading, fetchFinanceAccess, grantAccess, revokeAccess } = useFinanceStore();
 
@@ -40,6 +43,7 @@ export default function SettingsPage() {
   }, [fetchFinanceAccess]);
 
   const openModal = useCallback(async () => {
+    if (isDemoSession) return;
     setModalOpen(true);
     setSelectedUserId('');
     setSelectedLevel('view_only');
@@ -60,10 +64,10 @@ export default function SettingsPage() {
     } finally {
       setUsersLoading(false);
     }
-  }, [financeAccess]);
+  }, [financeAccess, isDemoSession]);
 
   const handleGrant = useCallback(async () => {
-    if (!selectedUserId) return;
+    if (isDemoSession || !selectedUserId) return;
     setSubmitting(true);
     try {
       await grantAccess(selectedUserId, selectedLevel);
@@ -71,9 +75,10 @@ export default function SettingsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedUserId, selectedLevel, grantAccess]);
+  }, [selectedUserId, selectedLevel, grantAccess, isDemoSession]);
 
   const handleRevoke = useCallback(async (id: string, userName: string) => {
+    if (isDemoSession) return;
     const confirmed = window.confirm(
       t(
         `Вы уверены, что хотите отозвать доступ у ${userName}?`,
@@ -82,7 +87,7 @@ export default function SettingsPage() {
     );
     if (!confirmed) return;
     await revokeAccess(id);
-  }, [revokeAccess, t]);
+  }, [revokeAccess, t, isDemoSession]);
 
   const translateRole = (role: string) => {
     const map: Record<string, [string, string]> = {
@@ -144,9 +149,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 pb-24 md:pb-0">
+    <div className="w-full min-w-0 max-w-full space-y-6 p-4 pb-24 sm:p-6 md:pb-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-stretch justify-between gap-3 min-[360px]:flex-row min-[360px]:items-center">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
             {t('Настройки доступа', 'Ruxsat sozlamalari')}
@@ -155,14 +160,16 @@ export default function SettingsPage() {
             {t('Управление доступом к финансовому модулю', 'Moliya moduliga kirish boshqaruvi')}
           </p>
         </div>
-        <button
+        {!isDemoSession && <button
           onClick={openModal}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
+          className="staff-primary-control inline-flex min-h-[44px] items-center justify-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
           {t('Дать доступ', 'Ruxsat berish')}
-        </button>
+        </button>}
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Sprint 7: настройка пеней за просрочку */}
       <PenaltySettingsCard />
@@ -204,9 +211,9 @@ export default function SettingsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">
                     {t('Дата', 'Sana')}
                   </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">
+                  {!isDemoSession && <th className="text-right px-4 py-3 font-medium text-gray-600">
                     {t('Действия', 'Amallar')}
-                  </th>
+                  </th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -223,15 +230,15 @@ export default function SettingsPage() {
                     <td className="px-4 py-3">{accessLevelBadge(item.access_level)}</td>
                     <td className="px-4 py-3 text-gray-600">{item.granted_by_name}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(item.granted_at)}</td>
-                    <td className="px-4 py-3 text-right">
+                    {!isDemoSession && <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => handleRevoke(item.id, item.user_name)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {t('Отозвать', 'Bekor qilish')}
                       </button>
-                    </td>
+                    </td>}
                   </tr>
                   );
                 })}
@@ -242,7 +249,7 @@ export default function SettingsPage() {
       )}
 
       {/* Grant Access Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={t('Дать доступ', 'Ruxsat berish')} size="md">
+      <Modal isOpen={!isDemoSession && modalOpen} onClose={() => setModalOpen(false)} title={t('Дать доступ', 'Ruxsat berish')} size="md">
         <div className="space-y-5">
           {/* User select */}
           <div>
@@ -255,7 +262,7 @@ export default function SettingsPage() {
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                className="min-h-[44px] w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
               >
                 <option value="">{t('Выберите сотрудника...', 'Xodimni tanlang...')}</option>
                 {users.map((u) => (
@@ -304,7 +311,7 @@ export default function SettingsPage() {
                 return (
                   <label
                     key={opt.value}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    className={`flex min-h-[44px] items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                       selected ? opt.bg : 'border-gray-100 hover:bg-gray-50/50'
                     }`}
                   >
@@ -331,7 +338,7 @@ export default function SettingsPage() {
           <button
             onClick={handleGrant}
             disabled={!selectedUserId || submitting}
-            className="w-full py-2.5 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="staff-primary-control min-h-[44px] w-full py-2.5 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {submitting
               ? t('Сохранение...', 'Saqlanmoqda...')

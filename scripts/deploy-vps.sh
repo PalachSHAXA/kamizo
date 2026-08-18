@@ -30,6 +30,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+say "verifying nginx client-IP ownership and loopback-only app binding"
+"$REPO/scripts/preflight-backend-production.sh" --key "$KEY" --host "$HOST"
+
 # Apply migration first (if provided) — safer than after restart
 if [ -n "$MIGRATION_FILE" ]; then
   [ -f "$REPO/$MIGRATION_FILE" ] || die "Migration not found: $REPO/$MIGRATION_FILE"

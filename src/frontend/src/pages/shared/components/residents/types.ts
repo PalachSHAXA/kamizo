@@ -36,6 +36,7 @@ export interface ApiResident {
   phone?: string;
   address?: string;
   apartment?: string;
+  apartment_id?: string;
   building_id?: string;
   entrance?: string;
   floor?: string;
@@ -64,6 +65,7 @@ export interface MappedResident {
   phone?: string;
   address?: string;
   apartment?: string;
+  apartmentId?: string;
   buildingId?: string;
   entrance?: string;
   floor?: string;
@@ -84,10 +86,12 @@ export interface ResidentCardData {
   name: string;
   address?: string;
   apartment?: string;
+  apartmentId?: string;
   phone?: string;
   branch?: string;
   building?: string;
   buildingId?: string;
+  vehicle_count?: number;
 }
 
 export type { BuildingFull };

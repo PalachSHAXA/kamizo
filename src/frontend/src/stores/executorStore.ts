@@ -1,6 +1,34 @@
 import { create } from 'zustand';
-import type { Executor } from '../types';
+import { registerSessionStore } from './sessionRegistry';
+import type { Executor, ExecutorSpecialization } from '../types';
+import type { ExecutorDto } from '../services/api/executors';
 import { executorsApi, authApi, usersApi } from '../services/api';
+
+const executorSpecializations = new Set<string>([
+  'plumber', 'electrician', 'elevator', 'intercom', 'cleaning', 'security',
+  'trash', 'boiler', 'ac', 'courier', 'gardener', 'other',
+]);
+
+const isExecutorSpecialization = (value: string | undefined): value is ExecutorSpecialization =>
+  value !== undefined && executorSpecializations.has(value);
+
+const isExecutorStatus = (value: string | null | undefined): value is Executor['status'] =>
+  value === 'available' || value === 'busy' || value === 'offline';
+
+const mapExecutor = (executor: ExecutorDto): Executor => ({
+  id: executor.id,
+  name: executor.name,
+  phone: executor.phone,
+  login: executor.login,
+  specialization: isExecutorSpecialization(executor.specialization) ? executor.specialization : 'other',
+  status: isExecutorStatus(executor.status) ? executor.status : 'offline',
+  rating: executor.rating || 5.0,
+  completedCount: executor.completed_count || 0,
+  activeRequests: executor.active_requests || 0,
+  totalEarnings: executor.total_earnings || 0,
+  avgCompletionTime: executor.avg_completion_time || 0,
+  createdAt: executor.created_at || '',
+});
 
 interface ExecutorState {
   executors: Executor[];
@@ -23,20 +51,7 @@ export const useExecutorStore = create<ExecutorState>()(
       set({ isLoadingExecutors: true, executorsError: null });
       try {
         const response = await executorsApi.getAll(showAll);
-        const mappedExecutors: Executor[] = response.executors.map((e: Record<string, unknown>) => ({
-          id: e.id,
-          name: e.name,
-          phone: e.phone,
-          login: e.login,
-          specialization: e.specialization,
-          status: e.status || 'offline',
-          rating: e.rating || 5.0,
-          completedCount: e.completed_count || 0,
-          activeRequests: e.active_requests || 0,
-          totalEarnings: e.total_earnings || 0,
-          avgCompletionTime: e.avg_completion_time || 0,
-          createdAt: e.created_at,
-        } as Executor));
+        const mappedExecutors = response.executors.map(mapExecutor);
         set({ executors: mappedExecutors, isLoadingExecutors: false, executorsError: null });
       } catch (err: unknown) {
         console.error('Failed to fetch executors:', err);
@@ -62,7 +77,9 @@ export const useExecutorStore = create<ExecutorState>()(
             name: response.user.name,
             phone: response.user.phone || executorData.phone,
             login: response.user.login,
-            specialization: response.user.specialization || executorData.specialization,
+            specialization: isExecutorSpecialization(response.user.specialization)
+              ? response.user.specialization
+              : executorData.specialization,
             createdAt: new Date().toISOString(),
             rating: 5.0,
             completedCount: 0,
@@ -108,3 +125,5 @@ export const useExecutorStore = create<ExecutorState>()(
     },
   })
 );
+
+registerSessionStore(useExecutorStore);

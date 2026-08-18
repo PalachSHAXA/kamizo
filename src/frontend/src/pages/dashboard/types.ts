@@ -10,6 +10,61 @@ export interface TeamMember {
   avg_rating?: number;
 }
 
+export interface RatingSummaryData {
+  current?: {
+    avg_overall?: number;
+    avg_cleanliness?: number;
+    avg_responsiveness?: number;
+    avg_communication?: number;
+    count?: number;
+  };
+  trend: number;
+  monthly?: Array<{ period: string; avg_overall?: number; count?: number }>;
+  recentComments?: Array<{ overall: number; comment: string; created_at?: string }>;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toNumber = (value: unknown): number | undefined => {
+  const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(number) ? number : undefined;
+};
+
+export function parseRatingSummary(value: unknown): RatingSummaryData | null {
+  if (!isRecord(value)) return null;
+
+  const current = isRecord(value.current) ? {
+    avg_overall: toNumber(value.current.avg_overall),
+    avg_cleanliness: toNumber(value.current.avg_cleanliness),
+    avg_responsiveness: toNumber(value.current.avg_responsiveness),
+    avg_communication: toNumber(value.current.avg_communication),
+    count: toNumber(value.current.count),
+  } : undefined;
+
+  const monthly = Array.isArray(value.monthly)
+    ? value.monthly.flatMap((item) => {
+        if (!isRecord(item) || typeof item.period !== 'string') return [];
+        return [{ period: item.period, avg_overall: toNumber(item.avg_overall), count: toNumber(item.count) }];
+      })
+    : undefined;
+
+  const recentComments = Array.isArray(value.recentComments)
+    ? value.recentComments.flatMap((item) => {
+        if (!isRecord(item) || typeof item.comment !== 'string') return [];
+        const overall = toNumber(item.overall);
+        if (overall === undefined) return [];
+        return [{
+          overall,
+          comment: item.comment,
+          created_at: typeof item.created_at === 'string' ? item.created_at : undefined,
+        }];
+      })
+    : undefined;
+
+  return { current, trend: toNumber(value.trend) ?? 0, monthly, recentComments };
+}
+
 export interface TeamData {
   managers: TeamMember[];
   departmentHeads: TeamMember[];

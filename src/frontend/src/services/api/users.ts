@@ -1,15 +1,68 @@
 // Users API & Team API
 
 import { apiRequest, transformUser } from './client';
+import type { UserApiResponse } from './client';
+import type { ExecutorSpecialization, UserRole } from '../../types';
+
+export type TeamRole =
+  | 'admin'
+  | 'director'
+  | 'manager'
+  | 'advertiser'
+  | 'department_head'
+  | 'dispatcher'
+  | 'executor'
+  | 'security';
+
+export interface TeamListUser {
+  id: string;
+  login: string;
+  name: string;
+  phone: string | null;
+  role: TeamRole;
+  specialization: ExecutorSpecialization | null;
+  is_active: number;
+  created_at: string;
+  completed_count: number;
+  active_count: number;
+  avg_rating: number;
+}
+
+export interface TeamDetailUser {
+  id: string;
+  login: string;
+  name: string;
+  phone: string | null;
+  role: TeamRole;
+  specialization: ExecutorSpecialization | null;
+  status: string | null;
+  created_at: string;
+}
+
+export interface TeamListResponse {
+  directors: TeamListUser[];
+  admins: TeamListUser[];
+  managers: TeamListUser[];
+  departmentHeads: TeamListUser[];
+  executors: TeamListUser[];
+  total: number;
+}
+
+export interface ResetUserPasswordResponse {
+  success: boolean;
+  message: string;
+  temporaryPassword: string;
+  user: { id: string; login: string; name: string; role: UserRole };
+}
 
 export const usersApi = {
   getMe: async () => {
-    const data = await apiRequest<{ user: Record<string, unknown> }>('/api/users/me');
+    const data = await apiRequest<{ user: UserApiResponse }>('/api/users/me');
     return { user: transformUser(data.user) };
   },
 
   updateMe: async (updates: { phone?: string; name?: string; language?: string }) => {
-    const data = await apiRequest<{ user: Record<string, unknown> }>('/api/users/me', {
+    const data = await apiRequest<{ user: UserApiResponse }>('/api/users/me', {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -33,6 +86,12 @@ export const usersApi = {
     return apiRequest<{ success: boolean }>(`/api/users/${userId}/password`, {
       method: 'POST',
       body: JSON.stringify({ new_password: newPassword }),
+    });
+  },
+
+  resetUserPassword: async (userId: string) => {
+    return apiRequest<ResetUserPasswordResponse>(`/api/users/${userId}/reset-password`, {
+      method: 'POST',
     });
   },
 
@@ -90,18 +149,13 @@ export const usersApi = {
 export const teamApi = {
   getAll: async () => {
     // Always fetch fresh data, no caching
-    return apiRequest<{
-      admins: Record<string, unknown>[];
-      managers: Record<string, unknown>[];
-      departmentHeads: Record<string, unknown>[];
-      executors: Record<string, unknown>[];
-    }>('/api/team', { cache: 'no-store' });
+    return apiRequest<TeamListResponse>('/api/team', { cache: 'no-store' });
   },
 
-  // Get single staff member by ID (for live data refresh with password)
+  // Get single staff member by ID for live data refresh
   getById: async (userId: string) => {
     // Always fetch fresh data, no caching
-    return apiRequest<{ user: Record<string, unknown> }>(`/api/team/${userId}`, { cache: 'no-store' });
+    return apiRequest<{ user: TeamDetailUser }>(`/api/team/${userId}`, { cache: 'no-store' });
   },
 
   // Create new staff member (uses auth/register endpoint)
@@ -110,10 +164,10 @@ export const teamApi = {
     password: string;
     name: string;
     phone: string;
-    role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
+    role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser' | 'dispatcher' | 'security';
     specialization?: string;
   }) => {
-    return apiRequest<{ user: Record<string, unknown> }>('/api/auth/register', {
+    return apiRequest<{ user: TeamDetailUser }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -123,11 +177,10 @@ export const teamApi = {
     name?: string;
     phone?: string;
     login?: string;
-    password?: string;
     specialization?: string;
     status?: string;
   }) => {
-    return apiRequest<{ user: Record<string, unknown> }>(`/api/team/${userId}`, {
+    return apiRequest<{ user: TeamDetailUser }>(`/api/team/${userId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
@@ -137,17 +190,6 @@ export const teamApi = {
   delete: async (userId: string) => {
     return apiRequest<{ success: boolean }>(`/api/team/${userId}`, {
       method: 'DELETE',
-    });
-  },
-
-  // Reset passwords for all staff without password_plain (admin only, one-time operation)
-  resetAllPasswords: async () => {
-    return apiRequest<{
-      message: string;
-      updated: number;
-      staff: { id: string; login: string; name: string; password: string }[];
-    }>('/api/team/reset-all-passwords', {
-      method: 'POST',
     });
   },
 };

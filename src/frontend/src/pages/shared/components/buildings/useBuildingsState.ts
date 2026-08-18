@@ -347,10 +347,62 @@ export function useBuildingsState() {
 
   // CRUD: buildings
   const handleAddBuilding = async (data: Record<string, unknown>) => {
-    await addBuilding({ ...data, branchId: selectedBranch?.id, branchCode: selectedBranch?.code });
+    const buildingType: BuildingFull['buildingType'] =
+      data.buildingType === 'panel' || data.buildingType === 'brick' || data.buildingType === 'monolith'
+        || data.buildingType === 'block' || data.buildingType === 'wooden' || data.buildingType === 'mixed'
+        ? data.buildingType
+        : 'monolith';
+    const building: Parameters<typeof addBuilding>[0] = {
+      name: typeof data.name === 'string' ? data.name : '',
+      address: typeof data.address === 'string' ? data.address : '',
+      branchCode: selectedBranch?.code,
+      buildingNumber: typeof data.buildingNumber === 'string' ? data.buildingNumber : undefined,
+      floors: typeof data.floors === 'number' ? data.floors : 1,
+      entrances: typeof data.entrances === 'number' ? data.entrances : 1,
+      totalApartments: typeof data.totalApartments === 'number' ? data.totalApartments : 1,
+      totalArea: 0,
+      livingArea: 0,
+      commonArea: 0,
+      yearBuilt: typeof data.yearBuilt === 'number' ? data.yearBuilt : new Date().getFullYear(),
+      buildingType,
+      roofType: 'flat',
+      wallMaterial: '',
+      foundationType: '',
+      hasElevator: data.hasElevator === true,
+      elevatorCount: data.hasElevator === true ? 1 : 0,
+      hasGas: data.hasGas === true,
+      heatingType: 'central',
+      hasHotWater: data.hasHotWater === true,
+      waterSupplyType: 'central',
+      sewerageType: 'central',
+      hasIntercom: false,
+      hasVideoSurveillance: false,
+      hasConcierge: false,
+      hasParkingLot: data.hasParkingLot === true,
+      parkingSpaces: 0,
+      hasPlayground: false,
+      monthlyBudget: 0,
+      reserveFund: 0,
+      totalDebt: 0,
+      collectionRate: 0,
+      residentsCount: 0,
+      ownersCount: 0,
+      tenantsCount: 0,
+      vacantApartments: 0,
+      activeRequestsCount: 0,
+    };
+    await addBuilding(building);
     setShowAddBuildingModal(false);
     if (selectedBranch) fetchBuildingsForBranch(selectedBranch.id);
     fetchBranches();
+    // Онбординг: сразу предложить составить акт приёма-передачи в «Протоколах»,
+    // где выбирается дом, ставятся галочки (парковка/нежилые) и создаются ячейки.
+    if (window.confirm(t(
+      'Дом создан. Составить акт приёма-передачи в разделе «Протоколы»?',
+      'Uy yaratildi. «Protokollar» bo\'limida qabul-topshirish aktini tuzasizmi?',
+    ))) {
+      window.location.assign('/protocols');
+    }
   };
 
   const handleUpdateBuilding = async (id: string, data: Partial<BuildingFull>) => {

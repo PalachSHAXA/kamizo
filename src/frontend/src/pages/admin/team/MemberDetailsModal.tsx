@@ -1,25 +1,25 @@
 import { type ReactNode } from 'react';
 import {
-  X, Star, Award, Clock, Phone, Loader2, Eye, EyeOff, Check, Copy, Save, Edit3,
+  Star, Award, Clock, Phone, Loader2, Check, Copy, Save, Edit3, KeyRound,
 } from 'lucide-react';
 import type { ExecutorSpecialization } from '../../../types';
+import type { TeamRole } from '../../../services/api/users';
+import { Modal } from '../../../components/ui/Modal';
 
 // Sprint 19: extracted from TeamPage. Staff member details view with
 // inline edit form. Stays presentational — parent owns the
-// selectedMember + editForm + isEditing + isLoadingDetails +
-// showPassword state and all handlers. Render-props for the
+// selectedMember + editForm + isEditing state and all handlers. Render-props for the
 // role-label / role-color / spec-label / status-badge bits avoid
 // duplicating those tables here.
 
 export interface DetailsStaffMember {
   id: string;
   login: string;
-  password?: string;
   name: string;
-  phone: string;
-  role: 'admin' | 'manager' | 'department_head' | 'executor' | 'advertiser';
-  specialization?: ExecutorSpecialization;
-  status?: string;
+  phone: string | null;
+  role: TeamRole;
+  specialization?: ExecutorSpecialization | null;
+  status?: string | null;
   created_at: string;
   completed_count?: number;
   active_count?: number;
@@ -30,7 +30,6 @@ export interface EditForm {
   name: string;
   phone: string;
   login: string;
-  password: string;
   specialization: ExecutorSpecialization | '';
 }
 
@@ -38,8 +37,6 @@ interface MemberDetailsModalProps {
   member: DetailsStaffMember;
   language: string;
   isEditing: boolean;
-  isLoadingDetails: boolean;
-  showPassword: boolean;
   editForm: EditForm;
   setEditForm: (f: EditForm) => void;
   copiedField: string | null;
@@ -49,17 +46,18 @@ interface MemberDetailsModalProps {
   statusBadge: ReactNode;
   onClose: () => void;
   onToggleEditing: (editing: boolean) => void;
-  onTogglePassword: () => void;
   onSave: () => void;
   onCopy: (value: string, field: string) => void;
+  onResetPassword: (trigger: HTMLButtonElement) => void;
+  isResettingPassword: boolean;
+  canResetPassword: boolean;
+  canEdit?: boolean;
 }
 
 export function MemberDetailsModal({
   member,
   language,
   isEditing,
-  isLoadingDetails,
-  showPassword,
   editForm,
   setEditForm,
   copiedField,
@@ -69,39 +67,39 @@ export function MemberDetailsModal({
   statusBadge,
   onClose,
   onToggleEditing,
-  onTogglePassword,
   onSave,
   onCopy,
+  onResetPassword,
+  isResettingPassword,
+  canResetPassword,
+  canEdit = true,
 }: MemberDetailsModalProps) {
-  return (
-    <div className="modal-backdrop items-end sm:items-center" onClick={onClose}>
-      <div
-        className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center text-2xl font-medium text-primary-700">
-              {member.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">{member.name}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColorClass}`}>{roleLabel}</span>
-                {specLabel && <span className="text-sm text-gray-500">{specLabel}</span>}
-              </div>
-              {statusBadge}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-            aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
-          >
-            <X className="w-5 h-5" />
-          </button>
+  const title = (
+    <div className="flex items-center gap-3 min-w-0">
+      <div aria-hidden="true" className="w-12 h-12 sm:w-14 sm:h-14 bg-primary-100 rounded-full flex items-center justify-center text-lg sm:text-xl font-medium text-primary-700 shrink-0">
+        {member.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+      </div>
+      <div className="min-w-0">
+        <span className="block truncate">{member.name}</span>
+        <div aria-hidden="true" className="flex items-center gap-2 mt-1">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColorClass}`}>{roleLabel}</span>
+          {specLabel && <span className="text-sm font-normal text-gray-500 truncate">{specLabel}</span>}
         </div>
+        {statusBadge}
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={title}
+      ariaLabel={member.name}
+      size="lg"
+      panelClassName="max-h-[100dvh] sm:max-h-[90dvh] overflow-hidden flex flex-col"
+    >
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
 
         {/* Stats for executors */}
         {member.role === 'executor' && (
@@ -167,20 +165,6 @@ export function MemberDetailsModal({
                 className="input-field"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {language === 'ru' ? 'Новый пароль' : 'Yangi parol'}
-              </label>
-              <input
-                type="text"
-                value={editForm.password}
-                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                className="input-field"
-                placeholder={
-                  language === 'ru' ? 'Оставьте пустым, чтобы не менять' : "O'zgartirmaslik uchun bo'sh qoldiring"
-                }
-              />
-            </div>
             {(member.role === 'executor' || member.role === 'department_head') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -218,7 +202,9 @@ export function MemberDetailsModal({
                   <Phone className="w-4 h-4" />
                   <span className="text-sm">{language === 'ru' ? 'Телефон' : 'Telefon'}</span>
                 </div>
-                <span className="font-medium">{member.phone}</span>
+                <span className="font-medium">
+                  {member.phone || (language === 'ru' ? 'Не указан' : "Ko'rsatilmagan")}
+                </span>
               </div>
             </div>
 
@@ -234,8 +220,9 @@ export function MemberDetailsModal({
                   <code className="bg-white px-2 py-1 rounded text-sm font-mono">{member.login}</code>
                   <button
                     onClick={() => onCopy(member.login, 'login')}
-                    className="p-1 hover:bg-primary-100 rounded"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-primary-100 rounded-lg"
                     title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
+                    aria-label={language === 'ru' ? 'Копировать логин' : 'Loginni nusxalash'}
                   >
                     {copiedField === 'login' ? (
                       <Check className="w-4 h-4 text-green-500" />
@@ -246,58 +233,6 @@ export function MemberDetailsModal({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
-                <div className="flex items-center gap-2">
-                  {isLoadingDetails ? (
-                    <span className="flex items-center gap-2 text-sm text-gray-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {language === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}
-                    </span>
-                  ) : member.password ? (
-                    <>
-                      <code className="bg-white px-2 py-1 rounded text-sm font-mono">
-                        {showPassword ? member.password : '••••••••'}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onTogglePassword();
-                        }}
-                        className="p-2 hover:bg-primary-100 active:bg-primary-200 rounded touch-manipulation z-10"
-                        title={
-                          showPassword
-                            ? language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish'
-                            : language === 'ru' ? 'Показать пароль' : "Parolni ko'rsatish"
-                        }
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <Eye className="w-4 h-4 text-gray-400" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => onCopy(member.password || '', 'password')}
-                        className="p-1 hover:bg-primary-100 rounded"
-                        title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                      >
-                        {copiedField === 'password' ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-gray-400" />
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-sm text-gray-400 italic">
-                      {language === 'ru' ? 'Задайте через "Редактировать"' : '"Tahrirlash" orqali belgilang'}
-                    </span>
-                  )}
-                </div>
-              </div>
             </div>
 
             {/* Created date */}
@@ -308,8 +243,13 @@ export function MemberDetailsModal({
           </div>
         )}
 
+      </div>
+
         {/* Actions */}
-        <div className="flex gap-3 mt-6">
+        <div
+          className="flex gap-3 shrink-0 border-t border-gray-100 px-4 pt-3 sm:px-6 sm:pt-4"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
+        >
           {isEditing ? (
             <>
               <button onClick={() => onToggleEditing(false)} className="btn-secondary flex-1">
@@ -321,16 +261,31 @@ export function MemberDetailsModal({
               </button>
             </>
           ) : (
-            <button
-              onClick={() => onToggleEditing(true)}
-              className="btn-primary w-full flex items-center justify-center gap-2"
-            >
-              <Edit3 className="w-4 h-4" />
-              {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
-            </button>
+            <>
+              {canResetPassword && (
+                <button
+                  onClick={(event) => onResetPassword(event.currentTarget)}
+                  disabled={isResettingPassword}
+                  className="flex-1 min-h-[44px] rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-red-700 hover:bg-red-100 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {isResettingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                  {isResettingPassword
+                    ? language === 'ru' ? 'Сброс...' : 'Tiklanmoqda...'
+                    : language === 'ru' ? 'Сбросить пароль' : 'Parolni tiklash'}
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() => onToggleEditing(true)}
+                  className={`btn-primary flex items-center justify-center gap-2 ${canResetPassword ? 'flex-1' : 'w-full'}`}
+                >
+                  <Edit3 className="w-4 h-4" />
+                  {language === 'ru' ? 'Редактировать' : 'Tahrirlash'}
+                </button>
+              )}
+            </>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

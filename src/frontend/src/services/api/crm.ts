@@ -1,26 +1,136 @@
 // CRM APIs: Owners, Personal Accounts, CRM Residents, Meters, Meter Readings
 
 import { apiRequest } from './client';
+import type { Meter, MeterReading, Owner, PersonalAccount, Resident } from '../../types';
+
+export interface OwnerApiResponse extends Record<string, unknown> {
+  id: string;
+  type?: Owner['type'];
+  last_name: string;
+  first_name: string;
+  middle_name?: string;
+  full_name: string;
+  company_name?: string;
+  inn?: string;
+  kpp?: string;
+  ogrn?: string;
+  legal_address?: string;
+  director_name?: string;
+  passport_series?: string;
+  passport_number?: string;
+  passport_issued_by?: string;
+  passport_issued_date?: string;
+  birth_date?: string;
+  birth_place?: string;
+  registration_address?: string;
+  actual_address?: string;
+  phone: string;
+  additional_phone?: string;
+  email?: string;
+  preferred_contact?: Owner['preferredContact'];
+  ownership_type?: Owner['ownershipType'];
+  ownership_share?: number;
+  ownership_document?: string;
+  ownership_document_date?: string;
+  apartment_ids?: string;
+  personal_account_ids?: string;
+  is_active?: boolean | number;
+  is_verified?: boolean | number;
+  verified_at?: string;
+  verified_by?: string;
+  bank_name?: string;
+  bank_bik?: string;
+  bank_account?: string;
+  tags?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalAccountApiResponse extends Record<string, unknown> {
+  id: string;
+  number: string;
+  apartment_id: string;
+  building_id: string;
+  primary_owner_id: string;
+  owner_name: string;
+  apartment_number: string;
+  address: string;
+  total_area?: number;
+  residents_count?: number;
+  registered_count?: number;
+  balance?: number;
+  current_debt?: number;
+  penalty_amount?: number;
+  last_payment_date?: string;
+  last_payment_amount?: number;
+  last_charge_date?: string;
+  last_charge_amount?: number;
+  tariff_plan_id?: string;
+  has_subsidy?: boolean | number;
+  subsidy_percent?: number;
+  subsidy_end_date?: string;
+  has_discount?: boolean | number;
+  discount_percent?: number;
+  discount_reason?: string;
+  status?: PersonalAccount['status'];
+  closed_at?: string;
+  closed_reason?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResidentApiResponse extends Record<string, unknown> {
+  id: string;
+  apartment_id: string;
+  owner_id?: string;
+  last_name: string;
+  first_name: string;
+  middle_name?: string;
+  full_name: string;
+  birth_date?: string;
+  resident_type?: Resident['residentType'];
+  relation_to_owner?: string;
+  registration_type?: Resident['registrationType'];
+  registration_date?: string;
+  registration_end_date?: string;
+  phone?: string;
+  additional_phone?: string;
+  email?: string;
+  is_active?: boolean | number;
+  moved_in_date?: string;
+  moved_out_date?: string;
+  moved_out_reason?: string;
+  passport_series?: string;
+  passport_number?: string;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+}
 
 // Owners API (CRM)
 export const ownersApi = {
-  getAll: async (options?: { type?: string; search?: string; page?: number; limit?: number }) => {
+  getAll: async <T extends Record<string, unknown> = Record<string, unknown>>(options?: { type?: string; search?: string; page?: number; limit?: number }) => {
     const params = new URLSearchParams();
     if (options?.type) params.append('type', options.type);
     if (options?.search) params.append('search', options.search);
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ owners: Record<string, unknown>[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
+    return apiRequest<{ owners: T[]; pagination: { page: number; limit: number; total: number; pages: number } }>(
       `/api/owners${query}`
     );
   },
 
-  getById: async (id: string) => {
-    return apiRequest<{ owner: Record<string, unknown>; apartments: Record<string, unknown>[] }>(`/api/owners/${id}`);
+  getById: async <
+    O extends Record<string, unknown> = Record<string, unknown>,
+    A extends Record<string, unknown> = Record<string, unknown>,
+  >(id: string) => {
+    return apiRequest<{ owner: O; apartments: A[] }>(`/api/owners/${id}`);
   },
 
-  create: async (owner: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(owner: {
     type?: string;
     lastName?: string;
     firstName?: string;
@@ -31,7 +141,7 @@ export const ownersApi = {
     ownershipType?: string;
     ownershipShare?: number;
   }) => {
-    return apiRequest<{ owner: Record<string, unknown> }>('/api/owners', {
+    return apiRequest<{ owner: T }>('/api/owners', {
       method: 'POST',
       body: JSON.stringify(owner),
     });
@@ -47,7 +157,7 @@ export const ownersApi = {
     isActive: boolean;
     isVerified: boolean;
   }>) => {
-    return apiRequest<{ owner: Record<string, unknown> }>(`/api/owners/${id}`, {
+    return apiRequest<{ owner: OwnerApiResponse }>(`/api/owners/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -141,18 +251,18 @@ export const personalAccountsApi = {
 
 // CRM Residents API
 export const crmResidentsApi = {
-  getByApartment: async (apartmentId: string, options?: { isActive?: boolean }) => {
+  getByApartment: async <T extends Record<string, unknown> = Record<string, unknown>>(apartmentId: string, options?: { isActive?: boolean }) => {
     const params = new URLSearchParams();
     if (options?.isActive !== undefined) params.append('is_active', options.isActive.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ residents: Record<string, unknown>[] }>(`/api/apartments/${apartmentId}/residents${query}`);
+    return apiRequest<{ residents: T[] }>(`/api/apartments/${apartmentId}/residents${query}`);
   },
 
-  getById: async (id: string) => {
-    return apiRequest<{ resident: Record<string, unknown> }>(`/api/residents/${id}`);
+  getById: async <T extends Record<string, unknown> = Record<string, unknown>>(id: string) => {
+    return apiRequest<{ resident: T }>(`/api/residents/${id}`);
   },
 
-  create: async (apartmentId: string, resident: {
+  create: async <T extends Record<string, unknown> = Record<string, unknown>>(apartmentId: string, resident: {
     lastName?: string;
     firstName?: string;
     middleName?: string;
@@ -167,7 +277,7 @@ export const crmResidentsApi = {
     movedInDate?: string;
     ownerId?: string;
   }) => {
-    return apiRequest<{ resident: Record<string, unknown> }>(`/api/apartments/${apartmentId}/residents`, {
+    return apiRequest<{ resident: T }>(`/api/apartments/${apartmentId}/residents`, {
       method: 'POST',
       body: JSON.stringify(resident),
     });
@@ -186,7 +296,7 @@ export const crmResidentsApi = {
     movedOutDate: string;
     movedOutReason: string;
   }>) => {
-    return apiRequest<{ resident: Record<string, unknown> }>(`/api/residents/${id}`, {
+    return apiRequest<{ resident: ResidentApiResponse }>(`/api/residents/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -207,13 +317,57 @@ export const crmResidentsApi = {
 };
 
 // Meters API (CRM)
+export interface MeterDto {
+  id: string;
+  apartment_id?: string;
+  building_id?: string;
+  type: Meter['type'];
+  serial_number: string;
+  model?: string;
+  brand?: string;
+  install_date: string;
+  verification_date: string;
+  next_verification_date: string;
+  seal_number?: string;
+  install_location: string;
+  initial_value: number;
+  current_value: number;
+  last_reading_date?: string;
+  is_active: boolean | number;
+  is_common: boolean | number;
+  tariff_zone?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MeterReadingDto {
+  id: string;
+  meter_id: string;
+  value: number;
+  previous_value: number;
+  consumption: number;
+  reading_date: string;
+  source: MeterReading['source'];
+  submitted_by?: string;
+  submitted_at: string;
+  is_verified: boolean | number;
+  verified_by?: string;
+  verified_at?: string;
+  photo_url?: string;
+  status?: MeterReading['status'];
+  rejection_reason?: string;
+  notes?: string;
+  created_at?: string;
+}
+
 export const metersApi = {
   getByApartment: async (apartmentId: string, options?: { type?: string; isActive?: boolean }) => {
     const params = new URLSearchParams();
     if (options?.type) params.append('type', options.type);
     if (options?.isActive !== undefined) params.append('is_active', options.isActive.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ meters: Record<string, unknown>[] }>(`/api/apartments/${apartmentId}/meters${query}`);
+    return apiRequest<{ meters: MeterDto[] }>(`/api/apartments/${apartmentId}/meters${query}`);
   },
 
   getByBuilding: async (buildingId: string, options?: { type?: string; isCommon?: boolean }) => {
@@ -221,17 +375,17 @@ export const metersApi = {
     if (options?.type) params.append('type', options.type);
     if (options?.isCommon !== undefined) params.append('is_common', options.isCommon.toString());
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ meters: Record<string, unknown>[] }>(`/api/buildings/${buildingId}/meters${query}`);
+    return apiRequest<{ meters: MeterDto[] }>(`/api/buildings/${buildingId}/meters${query}`);
   },
 
   getById: async (id: string) => {
-    return apiRequest<{ meter: Record<string, unknown>; readings: Record<string, unknown>[] }>(`/api/meters/${id}`);
+    return apiRequest<{ meter: MeterDto; readings: MeterReadingDto[] }>(`/api/meters/${id}`);
   },
 
   create: async (meter: {
     apartmentId?: string;
     buildingId?: string;
-    type: 'cold_water' | 'hot_water' | 'electricity' | 'gas' | 'heating';
+    type: Meter['type'];
     isCommon?: boolean;
     serialNumber: string;
     model?: string;
@@ -243,7 +397,7 @@ export const metersApi = {
     nextVerificationDate?: string;
     sealNumber?: string;
   }) => {
-    return apiRequest<{ meter: Record<string, unknown> }>('/api/meters', {
+    return apiRequest<{ meter: MeterDto }>('/api/meters', {
       method: 'POST',
       body: JSON.stringify(meter),
     });
@@ -262,7 +416,7 @@ export const metersApi = {
     lastReadingDate: string;
     notes: string;
   }>) => {
-    return apiRequest<{ meter: Record<string, unknown> }>(`/api/meters/${id}`, {
+    return apiRequest<{ meter: MeterDto }>(`/api/meters/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -290,11 +444,11 @@ export const meterReadingsApi = {
     if (options?.offset) params.append('offset', options.offset.toString());
     if (options?.status) params.append('status', options.status);
     const query = params.toString() ? `?${params.toString()}` : '';
-    return apiRequest<{ readings: Record<string, unknown>[] }>(`/api/meters/${meterId}/readings${query}`);
+    return apiRequest<{ readings: MeterReadingDto[] }>(`/api/meters/${meterId}/readings${query}`);
   },
 
   getLastReading: async (meterId: string) => {
-    return apiRequest<{ reading: Record<string, unknown> | null }>(`/api/meters/${meterId}/last-reading`);
+    return apiRequest<{ reading: MeterReadingDto | null }>(`/api/meters/${meterId}/last-reading`);
   },
 
   submit: async (meterId: string, reading: {
@@ -303,7 +457,7 @@ export const meterReadingsApi = {
     photoUrl?: string;
     notes?: string;
   }) => {
-    return apiRequest<{ reading: Record<string, unknown> }>(`/api/meters/${meterId}/readings`, {
+    return apiRequest<{ reading: MeterReadingDto }>(`/api/meters/${meterId}/readings`, {
       method: 'POST',
       body: JSON.stringify(reading),
     });

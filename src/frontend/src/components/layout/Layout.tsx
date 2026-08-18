@@ -26,6 +26,13 @@ import { useFeatureFetch } from '../../stores/useFeatureFetch';
 import { OnboardingTooltips } from '../OnboardingTooltips';
 import { settingsApi } from '../../services/api/settings';
 import { Loader2, ArrowLeft, ShieldAlert, Home, MapPinOff } from 'lucide-react';
+import {
+  adminRouteRoles,
+  getRouteRoles,
+  isResidentGuestAccessRole,
+  isResidentMeetingsRole,
+  isStaffShellRole,
+} from '../../navigation/adminNavigation';
 
 // 404 / no-access page.
 // - Separates two distinct situations: truly missing route vs role has no access.
@@ -45,7 +52,7 @@ const NotFoundPage = () => {
   const restrictedPaths = [
     '/finance', '/executors', '/residents', '/team', '/reports',
     '/buildings', '/rentals', '/work-orders', '/vehicle-search',
-    '/settings', '/payments', '/my-stats', '/schedule',
+    '/settings', '/my-stats', '/schedule',
   ];
   const isRestricted = restrictedPaths.some(p => location.pathname.startsWith(p));
 
@@ -135,7 +142,6 @@ const ResidentRateEmployeesPage = lazyWithRetry(() => import('../../pages/Reside
 const WorkOrdersPage = lazyWithRetry(() => import('../../pages/WorkOrdersPage').then(m => ({ default: m.WorkOrdersPage })));
 const TrainingsPage = lazyWithRetry(() => import('../../pages/TrainingsPage'));
 const ColleaguesSection = lazyWithRetry(() => import('../../pages/ColleaguesSection').then(m => ({ default: m.ColleaguesSection })));
-const ResidentVehiclesPage = lazyWithRetry(() => import('../../pages/ResidentVehiclesPage').then(m => ({ default: m.ResidentVehiclesPage })));
 // v118.36 — AddCarPage is mounted as a TOP-LEVEL route in App.tsx
 // (outside the Layout shell) so it owns the whole viewport without
 // the app drawer header or bottom nav bar. The lazy import lives
@@ -177,9 +183,9 @@ const RentalListingDetailPage = lazyWithRetry(() => import('../../pages/rentals/
 const RentalCreatePage = lazyWithRetry(() => import('../../pages/rentals/RentalCreatePage').then(m => ({ default: m.RentalCreatePage })));
 const RentalMyListingsPage = lazyWithRetry(() => import('../../pages/rentals/RentalMyListingsPage').then(m => ({ default: m.RentalMyListingsPage })));
 const SuperAdminDashboard = lazyWithRetry(() => import('../../pages/admin/SuperAdminDashboard').then(m => ({ default: m.SuperAdminDashboard })));
-const PaymentsPage = lazyWithRetry(() => import('../../pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
 // Finance module pages
 const FinanceEstimatesPage = lazyWithRetry(() => import('../../pages/finance/EstimatesPage'));
+const ProtocolsPage = lazyWithRetry(() => import('../../pages/protocols/ProtocolsPage'));
 const FinanceChargesPage = lazyWithRetry(() => import('../../pages/finance/ChargesPage'));
 const FinanceDebtorsPage = lazyWithRetry(() => import('../../pages/finance/DebtorsPage'));
 const FinanceIncomePage = lazyWithRetry(() => import('../../pages/finance/IncomePage'));
@@ -205,6 +211,9 @@ export function Layout() {
   const hasCachedTenant = useTenantStore(s => !!s.config?.tenant);
   const refetchConfig = useTenantStore(s => s.fetchConfig);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [retainSidebarHeader, setRetainSidebarHeader] = useState(false);
+  const modalCount = useModalStore((s) => s.count);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   // Audit P0: was useDataStore() — subscribed to all 9 sub-stores so a
   // vehicle or rental update re-rendered the entire layout. Now focused.
   const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
@@ -285,9 +294,21 @@ export function Layout() {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!sidebarOpen && modalCount === 0) {
+      // Keep the hamburger mounted until the drawer lifecycle has restored
+      // focus and released its modal-presence count.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRetainSidebarHeader(false);
+    }
+  }, [sidebarOpen, modalCount]);
+
   // Listen for custom event to open sidebar (from ResidentDashboard custom header)
   useEffect(() => {
-    const handleOpenSidebar = () => setSidebarOpen(true);
+    const handleOpenSidebar = () => {
+      setRetainSidebarHeader(true);
+      setSidebarOpen(true);
+    };
     window.addEventListener('open-sidebar', handleOpenSidebar);
     return () => window.removeEventListener('open-sidebar', handleOpenSidebar);
   }, []);
@@ -437,7 +458,7 @@ export function Layout() {
 
   // Determine which meetings page to show based on role
   const getMeetingsPage = () => {
-    if (user?.role === 'resident') {
+    if (isResidentMeetingsRole(user?.role)) {
       return <ResidentMeetingsPage />;
     }
     return <MeetingsPage />;
@@ -445,13 +466,14 @@ export function Layout() {
 
   // Determine which guest access page to show based on role
   const getGuestAccessPage = () => {
-    if (user?.role === 'resident') {
+    if (isResidentGuestAccessRole(user?.role)) {
       return <ResidentGuestAccessPage />;
     }
     return <ManagerGuestAccessPage />;
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const isStaffShell = isStaffShellRole(user?.role);
 
   // Resident home renders the full Claude-Design §01 screen (own dark hero +
   // own floating TabBar). Hide the global MobileHeader and make the content
@@ -536,7 +558,6 @@ export function Layout() {
   // sheet's own "Создать заявку" title + X close button. Hiding the
   // mobile header for the duration of the modal fixes the overlap
   // without changing per-modal z-index plumbing across the app.
-  const modalCount = useModalStore((s) => s.count);
   const showMobileHeader = !isSuperAdmin
     && modalCount === 0
     && !isResidentFullBleed
@@ -544,6 +565,7 @@ export function Layout() {
     && location.pathname !== '/apartment-rentals'
     && location.pathname !== '/profile'
     && location.pathname !== '/chat';
+  const renderMobileHeader = showMobileHeader || (retainSidebarHeader && !isResidentFullBleed);
 
   // Sprint 87 splash-gate — рендер каркаса только после подгрузки
   // tenant config (или cached fallback). NativeSplashOverlay,
@@ -573,7 +595,8 @@ export function Layout() {
 
   return (
     <div
-      className="layout-root"
+      className={`layout-root${isStaffShell ? ' staff-shell' : ''}`}
+      data-shell={isStaffShell ? 'staff' : undefined}
       style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
     >
       {/* Offline detection banner */}
@@ -607,20 +630,26 @@ export function Layout() {
           onLogout={logout}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          returnFocusRef={menuButtonRef}
         />
       )}
 
       {/* Mobile Header - fixed at top; hidden for residents on home page, marketplace, and profile */}
-      {showMobileHeader && (
+      {renderMobileHeader && (
         <MobileHeader
-          onMenuClick={() => setSidebarOpen(true)}
+          onMenuClick={() => {
+            setRetainSidebarHeader(true);
+            setSidebarOpen(true);
+          }}
           unreadCount={unreadCount}
+          isMenuOpen={sidebarOpen}
+          menuButtonRef={menuButtonRef}
         />
       )}
 
       <div
         ref={mainContentRef}
-        className={`${isSuperAdmin ? "main-content-full" : "main-content"}${showMobileHeader ? ' has-mobile-header' : ''}`}
+        className={`${isSuperAdmin ? "main-content-full" : "main-content"}${renderMobileHeader ? ' has-mobile-header' : ''}`}
         style={impersonation && !showMobileHeader ? { paddingTop: '42px' } : undefined}
       >
         {/* Desktop Header */}
@@ -668,7 +697,7 @@ export function Layout() {
                 <Route path="/residents" element={<ResidentsPage />} />
               )}
               <Route path="/executors" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head', 'dispatcher']}>
+                <ProtectedRoute allowedRoles={adminRouteRoles('executors')}>
                   <ExecutorsPage />
                 </ProtectedRoute>
               } />
@@ -695,12 +724,12 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/work-orders" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director', 'department_head', 'executor']}>
+                <ProtectedRoute allowedRoles={adminRouteRoles('workOrders')}>
                   <WorkOrdersPage />
                 </ProtectedRoute>
               } />
               <Route path="/meetings" element={
-                <ProtectedRoute requiredFeature="meetings">{getMeetingsPage()}</ProtectedRoute>
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')} requiredFeature="meetings">{getMeetingsPage()}</ProtectedRoute>
               } />
               <Route path="/announcements" element={
                 <ProtectedRoute requiredFeature="announcements">{getAnnouncementsPage()}</ProtectedRoute>
@@ -732,7 +761,7 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/guest-access" element={
-                <ProtectedRoute requiredFeature="qr">{getGuestAccessPage()}</ProtectedRoute>
+                <ProtectedRoute allowedRoles={getRouteRoles('guestAccess')} requiredFeature="qr">{getGuestAccessPage()}</ProtectedRoute>
               } />
               <Route path="/qr-scanner" element={
                 <ProtectedRoute allowedRoles={['security']} requiredFeature="qr">
@@ -749,7 +778,9 @@ export function Layout() {
                     ? <SettingsPage />
                     : <StaffProfilePage />
               } />
-              <Route path="/contract" element={<ResidentContractPage />} />
+              <Route path="/contract" element={
+                <ProtectedRoute allowedRoles={getRouteRoles('contract')}><ResidentContractPage /></ProtectedRoute>
+              } />
               {/* v118.93 — dropped requiredFeature="useful-contacts" gate.
                   Most tenant `features` JSON blobs don't list this string,
                   so hasFeature() returned false → ProtectedRoute redirected
@@ -788,9 +819,11 @@ export function Layout() {
                   <SettingsPage />
                 </ProtectedRoute>
               } />
-              <Route path="/payments" element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'director']} requiredFeature="communal">
-                  <PaymentsPage />
+              <Route path="/payments" element={<Navigate to="/finance/charges" replace />} />
+              {/* Протоколы — акты приёма-передачи дома */}
+              <Route path="/protocols" element={
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
+                  <ProtocolsPage />
                 </ProtectedRoute>
               } />
               {/* Finance module */}
@@ -820,7 +853,7 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/finance/charges" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant']} requiredFeature="communal">
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'resident', 'tenant', 'commercial_owner']} requiredFeature="communal">
                   <FinanceChargesPage />
                 </ProtectedRoute>
               } />

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { persist } from 'zustand/middleware';
 import type {
   Partner,
@@ -657,6 +658,8 @@ export const useTrainingStore = create<TrainingState>()(
     }
   )
 );
+
+registerSessionStore(useTrainingStore);
 
 // ==================== Constants for UI ====================
 

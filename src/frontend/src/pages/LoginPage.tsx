@@ -1,71 +1,85 @@
-import { useState, useEffect, type ComponentType } from 'react';
-import { Eye, EyeOff, AlertCircle, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, type ComponentType } from 'react';
+import { Eye, EyeOff, AlertCircle, Users, UserCog, Wrench, ShieldCheck, Crown, Briefcase, Truck, Store, Building2, Home, ArrowLeft, ChevronRight, ChevronDown, Loader2, Megaphone } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore, type Language } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
+import { authApi } from '../services/api/auth';
+import type { DemoRole } from '../types/auth';
 
-// Demo account definitions (without passwords — passwords filled at click time)
-type DemoAccount = { login: string; role: string; labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string };
-
-const DEMO_ACCOUNTS: DemoAccount[] = [
-  { login: 'director', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-rose-600' },
-  { login: 'manager', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-blue-500' },
-  { login: 'department_head', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Crown, color: 'bg-indigo-500' },
-  { login: 'resident', role: 'resident', labelRu: 'Житель', labelUz: 'Aholi', icon: Users, color: 'bg-green-500' },
-  { login: 'executor', role: 'executor', labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'bg-amber-500' },
-  { login: 'dostavka', role: 'executor', labelRu: 'Курьер', labelUz: 'Kuryer', icon: Truck, color: 'bg-orange-500' },
-  { login: 'security', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-slate-500' },
-];
-
-// Kamizo Demo tenant accounts (shown on kamizo-demo subdomain)
-const KAMIZO_DEMO_ACCOUNTS: DemoAccount[] = [
-  { login: 'demo-director', role: 'director', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
-  { login: 'demo-manager', role: 'manager', labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog, color: 'bg-orange-500' },
-  { login: 'demo-admin', role: 'admin', labelRu: 'Администратор', labelUz: 'Administrator', icon: Crown, color: 'bg-orange-800' },
-  { login: 'demo-dept-head', role: 'department_head', labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Building2, color: 'bg-orange-700' },
-  { login: 'demo-dispatcher', role: 'dispatcher', labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Crown, color: 'bg-amber-600' },
-  { login: 'demo-shop', role: 'marketplace_manager', labelRu: 'Менеджер магазина', labelUz: 'Do\'kon menejeri', icon: Store, color: 'bg-amber-700' },
-  { login: 'demo-resident1', role: 'resident', labelRu: 'Житель (Азиза)', labelUz: 'Aholi (Aziza)', icon: Users, color: 'bg-amber-500' },
-  { login: 'demo-resident2', role: 'resident', labelRu: 'Житель (Фарход)', labelUz: 'Aholi (Farhod)', icon: Users, color: 'bg-amber-400' },
-  { login: 'demo-resident3', role: 'resident', labelRu: 'Житель (Малика)', labelUz: 'Aholi (Malika)', icon: Users, color: 'bg-yellow-500' },
-  { login: 'demo-executor', role: 'executor', labelRu: 'Сантехник', labelUz: 'Santexnik', icon: Wrench, color: 'bg-orange-400' },
-  { login: 'demo-electrician', role: 'executor', labelRu: 'Электрик', labelUz: 'Elektrik', icon: Wrench, color: 'bg-yellow-600' },
-  { login: 'demo-security', role: 'security', labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck, color: 'bg-orange-700' },
-  { login: 'demo-tenant', role: 'tenant', labelRu: 'Арендатор', labelUz: 'Ijarachi', icon: Home, color: 'bg-yellow-700' },
-];
-
-// ─── Two-step demo entrance — ONLY for tenant with slug === 'demo' ───
-// (1) Password gate: full-viewport overlay, one input, hardcoded check.
-//     Sentinel written to sessionStorage on success — no localStorage.
-// (2) After the gate: two role buttons («Директор», «Житель») do
-//     ONE-TAP login by calling the auth store's login() directly with
-//     hardcoded creds + tenantSlug='demo' (skips Path B disambig).
-// Credentials + gate password are visible in the JS bundle by design;
-// this is a throwaway demo tenant. Other tenants (myhelper, choko, …)
-// render the login page bit-identical to today: the DemoGate mount at
-// the top of return() and the DEMO_SLUG_ACCOUNTS block below are both
-// gated on `tenant?.slug === 'demo'`, and the pre-existing
-// `tenant?.is_demo` block picks up a `&& slug !== 'demo'` guard so it
-// stays available for any hypothetical future demo tenant that ISN'T
-// the demo slug.
-const DEMO_GATE_PASSWORD = 'Axelion27';
 const DEMO_GATE_SESSION_KEY = 'kamizo_demo_gate';
+const DEMO_GATE_DIGEST = '5532bcd984f55a53a1ab897267b9ac10323e17dcfea9fbf35b2fe46ea1c19864';
 
-type DemoSlugAccount = { login: string; password: string; labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string };
+export function shouldOpenDemoGate(hostname: string, localBootMarker: boolean, storedGate: string | null): boolean {
+  return storedGate !== '1' && (hostname === 'demo.kamizo.uz' || localBootMarker);
+}
 
-const DEMO_SLUG_ACCOUNTS: DemoSlugAccount[] = [
-  { login: 'demo-director', password: 'director1235', labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase, color: 'bg-orange-600' },
-  { login: '98765432',      password: 'OLM/8A/49',    labelRu: 'Житель',   labelUz: 'Aholi',    icon: Users,     color: 'bg-orange-500' },
-];
+type RolePresentation = {
+  labelRu: string;
+  labelUz: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+const ROLE_PRESENTATION: Record<string, RolePresentation> = {
+  director: { labelRu: 'Директор', labelUz: 'Direktor', icon: Briefcase },
+  manager: { labelRu: 'Управляющий', labelUz: 'Boshqaruvchi', icon: UserCog },
+  resident: { labelRu: 'Житель', labelUz: 'Aholi', icon: Users },
+  executor: { labelRu: 'Сантехник', labelUz: 'Santexnik', icon: Wrench },
+  security: { labelRu: 'Охранник', labelUz: 'Qo\'riqchi', icon: ShieldCheck },
+  marketplace_manager: { labelRu: 'Менеджер магазина', labelUz: 'Do\'kon menejeri', icon: Store },
+  admin: { labelRu: 'Администратор', labelUz: 'Administrator', icon: Crown },
+  department_head: { labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Building2 },
+  dispatcher: { labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Megaphone },
+  electrician: { labelRu: 'Электрик', labelUz: 'Elektrik', icon: Wrench },
+  courier: { labelRu: 'Курьер', labelUz: 'Kuryer', icon: Truck },
+  tenant: { labelRu: 'Арендатор', labelUz: 'Ijarachi', icon: Home },
+  advertiser: { labelRu: 'Рекламодатель', labelUz: 'Reklama beruvchi', icon: Megaphone },
+};
+
+async function sha256(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 function DemoGate({ onUnlock, language }: { onUnlock: () => void; language: Language }) {
   const [entry, setEntry] = useState('');
   const [err, setErr] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (entry === DEMO_GATE_PASSWORD) {
+    if (await sha256(entry) === DEMO_GATE_DIGEST) {
       try { sessionStorage.setItem(DEMO_GATE_SESSION_KEY, '1'); } catch { /* Safari private mode: skip storage, unlock anyway */ }
       onUnlock();
     } else {
@@ -74,11 +88,19 @@ function DemoGate({ onUnlock, language }: { onUnlock: () => void; language: Lang
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 px-4">
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="demo-gate-title"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="flex min-h-full items-center justify-center" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
         <div className="flex flex-col items-center mb-5">
           <AppLogo size="md" forceDefault />
-          <h1 className="mt-3 text-lg font-bold text-gray-900">Kamizo Demo</h1>
+          <h1 ref={titleRef} id="demo-gate-title" tabIndex={-1} className="mt-3 text-lg font-bold text-gray-900 outline-none">Kamizo Demo</h1>
           <p className="text-xs text-gray-500 mt-1 text-center">
             {language === 'ru'
               ? 'Введите пароль доступа к демо-версии'
@@ -90,9 +112,10 @@ function DemoGate({ onUnlock, language }: { onUnlock: () => void; language: Lang
             type="password"
             value={entry}
             onChange={(e) => { setEntry(e.target.value); setErr(''); }}
-            className="w-full px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 text-sm"
+            className="w-full min-h-[44px] px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 text-base"
             placeholder={language === 'ru' ? 'Пароль доступа' : 'Kirish paroli'}
-            autoFocus
+            aria-label={language === 'ru' ? 'Пароль доступа' : 'Kirish paroli'}
+            autoComplete="off"
           />
           {err && (
             <p className="flex items-center gap-1.5 text-xs text-red-600">
@@ -102,21 +125,34 @@ function DemoGate({ onUnlock, language }: { onUnlock: () => void; language: Lang
           )}
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-medium text-sm transition-colors"
+            className="w-full min-h-[44px] py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-medium text-sm transition-colors"
           >
             {language === 'ru' ? 'Войти в демо' : 'Kirish'}
           </button>
         </form>
+      </div>
       </div>
     </div>
   );
 }
 
 export function LoginPage() {
-  const { login, isLoading: authLoading, error: authError, pickerTenants, clearPicker } = useAuthStore();
-  const { language, setLanguage, t } = useLanguageStore();
-  const { config: tenantConfig, isConfigFetched } = useTenantStore();
+  const login = useAuthStore((state) => state.login);
+  const demoLogin = useAuthStore((state) => state.demoLogin);
+  const authLoading = useAuthStore((state) => state.isLoading);
+  const authError = useAuthStore((state) => state.error);
+  const pickerTenants = useAuthStore((state) => state.pickerTenants);
+  const clearPicker = useAuthStore((state) => state.clearPicker);
+  const language = useLanguageStore((state) => state.language);
+  const setLanguage = useLanguageStore((state) => state.setLanguage);
+  const t = useLanguageStore((state) => state.t);
+  const tenantConfig = useTenantStore((state) => state.config);
   const tenant = tenantConfig?.tenant;
+  const demoBootMarked = shouldOpenDemoGate(
+    window.location.hostname,
+    import.meta.env.VITE_DEMO_TENANT === '1',
+    null,
+  );
 
   // Tenant identity is logo + name only — UI chrome is uniform Kamizo
   // orange across all tenants. tenant.color / color_secondary are still
@@ -158,30 +194,55 @@ export function LoginPage() {
   // Demo entrance gate — only relevant when tenant.slug === 'demo'.
   // Default `true` = show gate; useEffect flips to false immediately if
   // this tab has already unlocked (sessionStorage sentinel).
-  const [demoGateOpen, setDemoGateOpen] = useState(true);
+  const [demoGateOpen, setDemoGateOpen] = useState(() => {
+    try {
+      return shouldOpenDemoGate(
+        window.location.hostname,
+        import.meta.env.VITE_DEMO_TENANT === '1' || tenant?.slug === 'demo',
+        sessionStorage.getItem(DEMO_GATE_SESSION_KEY),
+      );
+    } catch {
+      return window.location.hostname === 'demo.kamizo.uz' || import.meta.env.VITE_DEMO_TENANT === '1';
+    }
+  });
   useEffect(() => {
     try {
-      if (sessionStorage.getItem(DEMO_GATE_SESSION_KEY) === '1') {
-        setDemoGateOpen(false);
+      if (tenant?.slug === 'demo') {
+        setDemoGateOpen(sessionStorage.getItem(DEMO_GATE_SESSION_KEY) !== '1');
       }
     } catch { /* Safari private mode: leave gate open */ }
-  }, []);
+  }, [tenant?.slug]);
 
-  // Which demo role button is in-flight, so we spinner only that pill.
+  const [demoRoles, setDemoRoles] = useState<DemoRole[]>([]);
+  const [demoRolesLoading, setDemoRolesLoading] = useState(false);
+  const [demoRolesError, setDemoRolesError] = useState('');
+  const [demoRolesReload, setDemoRolesReload] = useState(0);
   const [demoLoggingIn, setDemoLoggingIn] = useState<string | null>(null);
 
-  // One-tap demo login. Third arg pins tenantSlug='demo' so a login
-  // string that happens to exist on another tenant doesn't drop us
-  // into the Path B disambiguation picker.
-  const handleDemoLogin = async (account: DemoSlugAccount) => {
-    if (demoLoggingIn) return;
-    setDemoLoggingIn(account.login);
+  useEffect(() => {
+    if (tenant?.slug !== 'demo' || demoGateOpen) return;
+    let cancelled = false;
+    setDemoRolesLoading(true);
+    setDemoRolesError('');
+    authApi.getDemoRoles().then((roles) => {
+      if (!cancelled) setDemoRoles([...roles].sort((a, b) => a.order - b.order));
+    }).catch((loadError: unknown) => {
+      if (!cancelled) {
+        setDemoRoles([]);
+        setDemoRolesError(loadError instanceof Error ? loadError.message : (language === 'ru' ? 'Не удалось загрузить роли' : 'Rollarni yuklab bo\'lmadi'));
+      }
+    }).finally(() => {
+      if (!cancelled) setDemoRolesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [tenant?.slug, demoGateOpen, demoRolesReload, language]);
+
+  const handleDemoLogin = async (roleKey: string) => {
+    if (demoLoggingIn || authLoading) return;
+    setDemoLoggingIn(roleKey);
     setError('');
     try {
-      await login(account.login, account.password, 'demo');
-      // outcome === 'success' → App re-renders with Layout.
-      // outcome === 'error'   → surfaced via displayError (authStore
-      //                         already mapped the server message).
+      await demoLogin(roleKey);
     } catch {
       setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
     } finally {
@@ -241,6 +302,40 @@ export function LoginPage() {
   };
 
   const displayError = error || authError;
+  const primaryDemoRoles = demoRoles.filter((role) => role.primary);
+  const secondaryDemoRoles = demoRoles.filter((role) => !role.primary);
+
+  const renderDemoRole = (role: DemoRole) => {
+    const presentation = ROLE_PRESENTATION[role.roleKey] ?? {
+      labelRu: role.roleKey,
+      labelUz: role.roleKey,
+      icon: Users,
+    };
+    const Icon = presentation.icon;
+    const label = language === 'ru' ? presentation.labelRu : presentation.labelUz;
+    const selected = demoLoggingIn === role.roleKey;
+    return (
+      <button
+        key={role.roleKey}
+        type="button"
+        disabled={authLoading || demoLoggingIn !== null}
+        onClick={() => handleDemoLogin(role.roleKey)}
+        aria-label={label}
+        className="flex min-h-[72px] min-w-0 items-center gap-3 rounded-xl border border-orange-100 bg-orange-50/70 px-3 py-3 text-left transition-colors hover:bg-orange-100/70 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 touch-manipulation"
+      >
+        <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-primary-500 text-white">
+          {selected ? (
+            <Loader2 data-role-spinner="true" className="h-5 w-5 animate-spin" />
+          ) : (
+            <Icon className="h-5 w-5" />
+          )}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-semibold leading-tight text-gray-900">{label}</span>
+        </span>
+      </button>
+    );
+  };
 
   // v118.116 — was: blank screen while tenant config loaded, "to
   // prevent flash of wrong layout". On a cold start with a slow VPS
@@ -261,7 +356,7 @@ export function LoginPage() {
         overlay so it fully occludes the login page beneath it.
         Every other tenant (myhelper, choko, my-humo, service, …) never
         mounts this — condition is exclusively `tenant?.slug === 'demo'`. */}
-    {tenant?.slug === 'demo' && demoGateOpen && (
+    {(demoBootMarked || tenant?.slug === 'demo') && demoGateOpen && (
       <DemoGate onUnlock={() => setDemoGateOpen(false)} language={language} />
     )}
     {/* Mobile app-shell in index.css locks body/#root/.layout-root to
@@ -272,6 +367,9 @@ export function LoginPage() {
         overflow-y:auto, with m-auto-on-flex-child centering so the card
         centers when it fits the viewport and scrolls when it overflows. */}
     <div
+      data-login-page
+      aria-hidden={demoGateOpen ? true : undefined}
+      {...(demoGateOpen ? { inert: '' } : {})}
       // v118.79 — kz-screen opts into the global iOS-like page-enter slide+fade.
       className="kz-screen relative bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50"
       style={{
@@ -345,7 +443,7 @@ export function LoginPage() {
               <button
                 key={lang.code}
                 onClick={() => setLanguage(lang.code)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-sm font-semibold transition-all touch-manipulation ${
+                className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 px-2.5 py-1.5 rounded-full text-sm font-semibold transition-all touch-manipulation ${
                   language === lang.code
                     ? 'bg-primary-500 text-white shadow-sm'
                     : 'text-gray-500 hover:text-gray-700'
@@ -358,6 +456,85 @@ export function LoginPage() {
           </div>
         </div>
 
+        {tenant?.slug === 'demo' && !demoGateOpen && (
+          <section aria-labelledby="demo-roles-title" className="mb-5">
+            <div className="mb-3">
+              <h2 id="demo-roles-title" className="text-[22px] font-extrabold leading-tight text-gray-900">
+                {language === 'ru' ? 'Выберите роль' : 'Rolni tanlang'}
+              </h2>
+              <p className="mt-1 text-[13px] text-gray-500">
+                {language === 'ru' ? 'Откройте демо одним нажатием' : 'Bir bosishda demo rejimini oching'}
+              </p>
+            </div>
+
+            {demoRolesLoading && (
+              <div className="space-y-2" aria-live="polite">
+                <p className="text-sm text-gray-500">{language === 'ru' ? 'Загрузка ролей...' : 'Rollar yuklanmoqda...'}</p>
+                <div className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="h-[72px] animate-pulse rounded-xl bg-gray-100" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!demoRolesLoading && demoRolesError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>{demoRolesError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDemoRolesReload((value) => value + 1)}
+                  className="mt-2 min-h-[44px] rounded-lg px-3 font-semibold text-red-700 hover:bg-red-100 touch-manipulation"
+                >
+                  {language === 'ru' ? 'Повторить' : 'Qayta urinish'}
+                </button>
+              </div>
+            )}
+
+            {!demoRolesLoading && !demoRolesError && demoRoles.length === 0 && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-600">
+                {language === 'ru' ? 'Демо-роли пока недоступны' : 'Demo rollar hozircha mavjud emas'}
+              </div>
+            )}
+
+            {!demoRolesLoading && !demoRolesError && primaryDemoRoles.length > 0 && (
+              <div role="group" aria-label={language === 'ru' ? 'Основные роли' : 'Asosiy rollar'} className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+                {primaryDemoRoles.map(renderDemoRole)}
+              </div>
+            )}
+
+            {!demoRolesLoading && secondaryDemoRoles.length > 0 && (
+              <details className="mt-3 group">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between rounded-xl px-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 touch-manipulation">
+                  <span>{language === 'ru' ? 'Другие роли' : 'Boshqa rollar'}</span>
+                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div role="group" aria-label={language === 'ru' ? 'Другие роли' : 'Boshqa rollar'} className="mt-2 grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+                  {secondaryDemoRoles.map(renderDemoRole)}
+                </div>
+              </details>
+            )}
+
+            {displayError && !demoRolesError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700" role="alert">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{displayError}</span>
+              </div>
+            )}
+          </section>
+        )}
+
+        <details open={tenant?.slug !== 'demo' || undefined}>
+          {tenant?.slug === 'demo' && (
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between rounded-xl border-t border-gray-200 px-1 pt-4 text-sm font-semibold text-gray-600 touch-manipulation">
+              <span>{language === 'ru' ? 'Войти вручную' : 'Qo\'lda kirish'}</span>
+              <ChevronDown className="h-4 w-4" />
+            </summary>
+          )}
+          <div className={tenant?.slug === 'demo' ? 'pt-4' : undefined}>
         {/* Welcome text */}
         <div className="mb-5">
           <h2 className="text-[22px] font-extrabold text-gray-900 leading-tight">
@@ -378,7 +555,7 @@ export function LoginPage() {
               value={loginValue}
               onChange={(e) => setLoginValue(normalizeAuthField(e.target.value))}
               placeholder={language === 'ru' ? 'Введите логин' : 'Login kiriting'}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
               aria-label={language === 'ru' ? 'Логин' : 'Login'}
               autoComplete="username"
               // Mobile soft keyboards (Android GBoard, iOS, Samsung) default
@@ -404,7 +581,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(normalizeAuthField(e.target.value))}
                 placeholder={language === 'ru' ? 'Введите пароль' : 'Parol kiriting'}
-                className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-base text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
                 aria-label={language === 'ru' ? 'Пароль' : 'Parol'}
                 autoComplete="current-password"
                 // type=password defaults to autoCapitalize=off on most
@@ -460,6 +637,8 @@ export function LoginPage() {
         <p className="text-center text-xs text-gray-300 mt-4">
           {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'} · Kamizo CRM
         </p>
+          </div>
+        </details>
 
         {/* DEV bypass — visible only when running under `vite` (import.meta.env.DEV).
             Stuffs a fake resident user + token directly into the zustand-persist
@@ -514,88 +693,6 @@ export function LoginPage() {
           </div>
         )}
 
-        {/* ─── DEMO SLUG 2-button one-tap login (tenant.slug === 'demo' ONLY) ───
-            All other tenants (myhelper, choko, my-humo, service,
-            qa-limited, qa-rentals) render the login page bit-identical
-            to what shipped before this change — this block is
-            gated on the slug, not on is_demo. */}
-        {tenant?.slug === 'demo' && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3">
-              {language === 'ru' ? 'Быстрый вход в демо:' : 'Namoyishga tez kirish:'}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_SLUG_ACCOUNTS.map((account) => {
-                const Icon = account.icon;
-                const inFlight = demoLoggingIn === account.login;
-                return (
-                  <button
-                    key={account.login}
-                    type="button"
-                    disabled={demoLoggingIn !== null}
-                    onClick={() => handleDemoLogin(account)}
-                    className="flex flex-col items-center gap-1.5 px-3 py-3.5 rounded-xl bg-primary-50 hover:bg-primary-100/70 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait transition-all touch-manipulation"
-                  >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary-400 to-primary-600`}>
-                      {inFlight
-                        ? <Loader2 className="w-5 h-5 text-white animate-spin" />
-                        : <Icon className="w-5 h-5 text-white" />}
-                    </div>
-                    <span className="text-[13px] font-semibold text-gray-800 leading-tight">
-                      {language === 'ru' ? account.labelRu : account.labelUz}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Demo Accounts Section - only on demo tenants (is_demo flag).
-            NOTE: excluded on tenant.slug === 'demo' — that tenant gets
-            the trimmed 2-button DEMO_SLUG_ACCOUNTS block above (with
-            real per-role passwords + one-tap login). This block stays
-            available for any hypothetical future demo tenant on a
-            different slug. */}
-        {tenant?.is_demo && tenant.slug !== 'demo' && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3">
-              {language === 'ru' ? 'Демо-входы для тестирования:' : 'Test uchun demo-kirish:'}
-            </p>
-            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-2 sm:gap-2">
-              {(tenant?.is_demo ? KAMIZO_DEMO_ACCOUNTS : DEMO_ACCOUNTS).map((account) => {
-                const Icon = account.icon;
-                const isDemoTenant = tenant?.is_demo;
-                return (
-                  <button
-                    key={account.login}
-                    type="button"
-                    onClick={() => {
-                      setLoginValue(account.login);
-                      setPassword('kamizo');
-                    }}
-                    className={`flex items-center gap-2 px-2.5 py-2 min-h-[40px] sm:min-h-[44px] rounded-xl transition-colors touch-manipulation text-left ${
-                      isDemoTenant
-                        ? 'bg-primary-50 hover:bg-primary-100/70'
-                        : 'bg-gray-50 hover:bg-gray-100 active:bg-gray-200'
-                    }`}
-                  >
-                    <div
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isDemoTenant ? 'bg-gradient-to-br from-primary-400 to-primary-600' : account.color
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                    </div>
-                    <span className="text-xs sm:text-xs font-medium text-gray-700 truncate leading-tight">
-                      {language === 'ru' ? account.labelRu : account.labelUz}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
       </div>
 

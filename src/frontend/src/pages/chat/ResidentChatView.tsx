@@ -44,7 +44,7 @@ import { useRequestStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { MessageContent } from '../../components/common';
-import { formatDateSeparator, formatMessageTime, type ChatChannel, type ChatMessage } from './chatUtils';
+import { formatDateSeparator, formatMessageTime, mapChatMessage, type ChatChannel, type ChatMessage } from './chatUtils';
 
 interface Props {
   channel: ChatChannel;
@@ -105,8 +105,8 @@ export function ResidentChatView({ channel, onBack }: Props) {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await chatApi.getMessages(channel.id, 100) as { messages?: Record<string, unknown>[] };
-      const list = (res.messages || []) as unknown as ChatMessage[];
+      const res = await chatApi.getMessages(channel.id, 100);
+      const list = (res.messages || []).map(mapChatMessage);
       setMessages(list);
       firstFetchDoneRef.current = true;
       // v118.132 — any successful fetch clears the first-load failure strip.
@@ -607,7 +607,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
             placeholder={language === 'ru' ? 'Сообщение для УК…' : 'УКga xabar…'}
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
-              fontSize: 14,
+              fontSize: 16,
               color: 'var(--chat-input-text, #1C1917)',
               fontFamily: 'inherit',
               minWidth: 0,

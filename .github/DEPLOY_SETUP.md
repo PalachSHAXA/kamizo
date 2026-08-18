@@ -39,10 +39,22 @@ GitHub Actions автоматически деплоит UK-CRM на Cloudflare 
 
 3. Нажмите **"New repository secret"**
 
-4. Создайте секрет:
+4. Создайте секрет Cloudflare:
    - **Name:** `CLOUDFLARE_API_TOKEN`
    - **Secret:** ваш токен из Шага 1
    - Нажмите **"Add secret"**
+
+5. Для обязательной read-only проверки backend ingress создайте ещё два
+   repository secret:
+   - `KAMIZO_VPS_SSH_KEY` — приватный ключ deploy-пользователя `kamizo`.
+   - `KAMIZO_VPS_KNOWN_HOSTS` — заранее проверенная строка host key VPS для
+     `95.46.96.209`; не получайте её вслепую внутри workflow.
+
+Workflow использует эти секреты только для `nginx -T` и `ss`: проверяет, что
+nginx перезаписывает `X-Real-IP` через `$remote_addr`, добавляет
+`X-Forwarded-For`, а приложение слушает порт `3000` только на loopback.
+Проверка не изменяет nginx, systemd или приложение и блокирует deploy при
+любом drift.
 
 ---
 

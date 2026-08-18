@@ -309,7 +309,7 @@ if (IS_MOCK) {
       admin_phone: '+998 71 000 00 00',
     },
     features: Array.from(featureSet),
-    context: (currentConfig?.context ?? 'tenant') as const,
+    context: currentConfig?.context ?? 'tenant',
   };
 
   useTenantStore.setState({

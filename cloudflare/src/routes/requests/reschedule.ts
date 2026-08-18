@@ -4,6 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import { sendPushNotification, isExecutorRole } from '../../index';
+import { broadcastWithConnectionManager } from '../../utils/connection-manager';
 
 // Sprint 60 P1: strict format validators. Without these, concatenating
 // `proposed_date || 'T' || proposed_time || ':00'` produces invalid
@@ -190,24 +191,19 @@ route('POST', '/api/reschedule-requests/:id/respond', async (request, env, param
     ...(tenantId ? [tenantId] : [])
   ).run();
 
-  try {
-    const connManagerId = env.CONNECTION_MANAGER.idFromName('global');
-    const connManager = env.CONNECTION_MANAGER.get(connManagerId);
-    // Sprint 76 P0/F2: internal secret required by DO.
-    await connManager.fetch('http://internal/broadcast', {
-      method: 'POST',
-      headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
-      body: JSON.stringify({
-        type: 'notification', userId: reschedule.initiator_id,
-        data: {
-          id: notificationId, type: accepted ? 'reschedule_accepted' : 'reschedule_rejected',
-          title: notificationTitle, message: notificationBody,
-          requestId: reschedule.request_id, createdAt: new Date().toISOString()
-        },
-        tenantId: tenantId || undefined,
-      })
-    });
-  } catch (e) { /* WebSocket broadcast is non-critical */ }
+  await broadcastWithConnectionManager(env, request, 'request_reschedule_notification', 'http://internal/broadcast', {
+    method: 'POST',
+    headers: { 'x-internal-secret': (env as any).INTERNAL_RPC_SECRET || env.JWT_SECRET || '' },
+    body: JSON.stringify({
+      type: 'notification', userId: reschedule.initiator_id,
+      data: {
+        id: notificationId, type: accepted ? 'reschedule_accepted' : 'reschedule_rejected',
+        title: notificationTitle, message: notificationBody,
+        requestId: reschedule.request_id, createdAt: new Date().toISOString()
+      },
+      tenantId: tenantId || undefined,
+    })
+  });
 
   sendPushNotification(env, reschedule.initiator_id, {
     title: notificationTitle, body: notificationBody, type: 'reschedule_responded',

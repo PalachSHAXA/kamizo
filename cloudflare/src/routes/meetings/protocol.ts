@@ -5,29 +5,36 @@ import {
   invalidateCache, json, error, generateId,
   generateVoteHash, createRequestLogger
 } from './helpers';
+import {
+  canApproveProtocol,
+  canGenerateProtocol,
+  hasMeetingTenantContext,
+  isProtocolApproverRole,
+  isProtocolGeneratorRole,
+} from './security';
 
 export function registerProtocolRoutes() {
 
 // Generate protocol
 route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params) => {
-  const fc = await requireFeature('meetings', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
   const log = createRequestLogger(request);
 
   try {
     const authUser = await getUser(request, env);
     if (!authUser) return error('Unauthorized', 401);
-    if (!['admin', 'director', 'manager'].includes(authUser.role)) return error('Forbidden', 403);
     const tenantId = getTenantId(request);
+    if (!hasMeetingTenantContext(tenantId)) return error('Forbidden', 403);
+    const fc = await requireFeature('meetings', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+    if (!isProtocolGeneratorRole(authUser.role)) return error('Forbidden', 403);
 
-    const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
+    const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first() as any;
     if (!meeting) return error('Meeting not found', 404);
-
-    if (meeting.protocol_id) await env.DB.prepare('DELETE FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).run();
+    if (!canGenerateProtocol(authUser.role, meeting.status)) return error('Protocol cannot be generated in the current state', 400);
 
     const protocolId = generateId();
     const protocolNumber = `${meeting.number}/${new Date().getFullYear()}`;
-    const { results: protocolAgendaItems } = await env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY item_order').bind(params.id).all();
+    const { results: protocolAgendaItems } = await env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? AND tenant_id = ? ORDER BY item_order').bind(params.id, tenantId).all();
 
     let content = `# ПРОТОКОЛ №${meeting.number}\n## Общего собрания собственников помещений\n### ${meeting.building_address}\n\n`;
     content += `**Дата проведения:** ${meeting.confirmed_date_time ? new Date(meeting.confirmed_date_time).toLocaleDateString('ru-RU') : 'Не указана'}\n\n`;
@@ -47,8 +54,8 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
     let allComments: any[] = [];
     if (agendaItemIds.length > 0) {
       const [voteAggResult, commentsResult] = await Promise.all([
-        env.DB.prepare(`SELECT v.agenda_item_id, v.choice, COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.agenda_item_id IN (${agendaPlaceholders}) AND v.is_revote = 0 GROUP BY v.agenda_item_id, v.choice`).bind(...agendaItemIds).all(),
-        env.DB.prepare(`SELECT * FROM meeting_agenda_comments WHERE agenda_item_id IN (${agendaPlaceholders}) ORDER BY created_at`).bind(...agendaItemIds).all(),
+        env.DB.prepare(`SELECT v.agenda_item_id, v.choice, COUNT(*) as count, COALESCE(SUM(COALESCE(u.total_area, v.vote_weight)), 0) as weight FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id AND u.tenant_id = ? WHERE v.agenda_item_id IN (${agendaPlaceholders}) AND v.is_revote = 0 AND v.tenant_id = ? GROUP BY v.agenda_item_id, v.choice`).bind(tenantId, ...agendaItemIds, tenantId).all(),
+        env.DB.prepare(`SELECT * FROM meeting_agenda_comments WHERE agenda_item_id IN (${agendaPlaceholders}) AND tenant_id = ? ORDER BY created_at`).bind(...agendaItemIds, tenantId).all(),
       ]);
       allVoteAggs = voteAggResult.results || [];
       allComments = commentsResult.results || [];
@@ -105,78 +112,107 @@ route('POST', '/api/meetings/:id/generate-protocol', async (request, env, params
       content += `**РЕШЕНИЕ: ${i.is_approved ? 'ПРИНЯТО' : 'НЕ ПРИНЯТО'}**\n\n`;
     }
 
-    const { results: voteRecords } = await env.DB.prepare(`SELECT DISTINCT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.meeting_id = ? AND v.is_revote = 0 GROUP BY v.voter_id ORDER BY v.voter_name`).bind(params.id).all();
+    const { results: voteRecords } = await env.DB.prepare(`SELECT DISTINCT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id AND u.tenant_id = ? WHERE v.meeting_id = ? AND v.is_revote = 0 AND v.tenant_id = ? GROUP BY v.voter_id ORDER BY v.voter_name`).bind(tenantId, params.id, tenantId).all();
 
     content += `---\n\n## ПРИЛОЖЕНИЕ: РЕЕСТР ПРОГОЛОСОВАВШИХ\n\n| № | ФИО | Квартира | Площадь (кв.м) | Время голоса |\n|---|-----|----------|----------------|---------------|\n`;
     for (let idx = 0; idx < voteRecords.length; idx++) { const v = voteRecords[idx] as any; content += `| ${idx + 1} | ${v.voter_name} | ${v.apartment_number || '-'} | ${v.vote_weight || '-'} | ${new Date(v.voted_at).toLocaleString('ru-RU')} |\n`; }
     content += `\n---\n\n## ПОДПИСИ\n\nПротокол сформирован автоматически системой УК\nДата формирования: ${new Date().toLocaleString('ru-RU')}\n\n_Председатель собрания: ____________________\n\n_Секретарь: ____________________\n\n_Члены счётной комиссии: ____________________\n`;
 
     const protocolHash = generateVoteHash({ meetingId: params.id, generatedAt: new Date().toISOString() });
-    await env.DB.prepare(`INSERT INTO meeting_protocols (id, meeting_id, protocol_number, content, protocol_hash, tenant_id) VALUES (?, ?, ?, ?, ?, ?)`).bind(protocolId, params.id, protocolNumber, content, protocolHash, getTenantId(request)).run();
-    await env.DB.prepare(`UPDATE meetings SET status = 'protocol_generated', protocol_id = ?, protocol_generated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).bind(protocolId, params.id).run();
+    const protocolMutation = meeting.protocol_id
+      ? env.DB.prepare(`UPDATE meeting_protocols SET id = ?, protocol_number = ?, content = ?, protocol_hash = ?, created_at = datetime('now'), signed_by_uk_user_id = NULL, signed_by_uk_name = NULL, signed_by_uk_role = NULL, signed_by_uk_at = NULL, uk_signature_hash = NULL WHERE id = ? AND meeting_id = ? AND tenant_id = ? AND EXISTS (SELECT 1 FROM meetings m WHERE m.id = ? AND m.tenant_id = ? AND m.status = 'protocol_generated' AND m.protocol_id = ?)`)
+          .bind(protocolId, protocolNumber, content, protocolHash, meeting.protocol_id, params.id, tenantId, params.id, tenantId, protocolId)
+      : env.DB.prepare(`INSERT INTO meeting_protocols (id, meeting_id, protocol_number, content, protocol_hash, tenant_id) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM meetings m WHERE m.id = ? AND m.tenant_id = ? AND m.status = 'protocol_generated' AND m.protocol_id = ?) AND NOT EXISTS (SELECT 1 FROM meeting_protocols p WHERE p.meeting_id = ? AND p.tenant_id = ?)`)
+          .bind(protocolId, params.id, protocolNumber, content, protocolHash, tenantId, params.id, tenantId, protocolId, params.id, tenantId);
+    const meetingCas = meeting.protocol_id
+      ? env.DB.prepare(`UPDATE meetings SET status = 'protocol_generated', protocol_id = ?, protocol_generated_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND status = ? AND protocol_id = ? AND EXISTS (SELECT 1 FROM meeting_protocols p WHERE p.id = ? AND p.meeting_id = meetings.id AND p.tenant_id = ?)`)
+          .bind(protocolId, params.id, tenantId, meeting.status, meeting.protocol_id, meeting.protocol_id, tenantId)
+      : env.DB.prepare(`UPDATE meetings SET status = 'protocol_generated', protocol_id = ?, protocol_generated_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND status = ? AND protocol_id IS NULL AND NOT EXISTS (SELECT 1 FROM meeting_protocols p WHERE p.meeting_id = meetings.id AND p.tenant_id = ?)`)
+          .bind(protocolId, params.id, tenantId, meeting.status, tenantId);
+    const [meetingResult, protocolResult] = await env.DB.batch([meetingCas, protocolMutation]);
+    if (!protocolResult.meta?.changes || !meetingResult.meta?.changes) {
+      return error('Protocol changed concurrently', 409);
+    }
 
     invalidateCache('meetings:');
-    const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(protocolId).first();
+    const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ? AND tenant_id = ?').bind(protocolId, tenantId).first();
     return json({ protocol }, 201);
-  } catch (err: any) { log.error('Generate protocol error', err); return error(`Protocol generation failed: ${err?.message}`, 500); }
+  } catch (err: any) { log.error('Generate protocol error', err); return error('Protocol generation failed', 500); }
 });
 
 // Approve protocol
 route('POST', '/api/meetings/:id/approve-protocol', async (request, env, params) => {
-  const fc = await requireFeature('meetings', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
-  const authUser = await getUser(request, env);
-  if (!authUser) return error('Unauthorized', 401);
-  const tenantId = getTenantId(request);
+  const log = createRequestLogger(request);
+  try {
+    const authUser = await getUser(request, env);
+    if (!authUser) return error('Unauthorized', 401);
+    const tenantId = getTenantId(request);
+    if (!hasMeetingTenantContext(tenantId)) return error('Forbidden', 403);
+    const fc = await requireFeature('meetings', env, request);
+    if (!fc.allowed) return error(fc.error!, 403);
+    if (!isProtocolApproverRole(authUser.role)) return error('Forbidden', 403);
 
-  const meeting = await env.DB.prepare(`SELECT protocol_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
-  if (!meeting?.protocol_id) return error('Protocol not found', 404);
+    const meeting = await env.DB.prepare('SELECT status, protocol_id FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first() as any;
+    if (!meeting?.protocol_id) return error('Protocol not found', 404);
+    if (!canApproveProtocol(authUser.role, meeting.status)) return error('Protocol cannot be approved in the current state', 400);
 
-  const signatureHash = generateVoteHash({ userId: authUser.id, signedAt: new Date().toISOString() });
-  await env.DB.prepare(`UPDATE meeting_protocols SET signed_by_uk_user_id = ?, signed_by_uk_name = ?, signed_by_uk_role = ?, signed_by_uk_at = datetime('now'), uk_signature_hash = ? WHERE id = ?`).bind(authUser.id, authUser.name, authUser.role, signatureHash, meeting.protocol_id).run();
-  await env.DB.prepare(`UPDATE meetings SET status = 'protocol_approved', protocol_approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).bind(params.id).run();
+    const signatureHash = generateVoteHash({ userId: authUser.id, signedAt: new Date().toISOString() });
+    const protocolUpdate = env.DB.prepare(`UPDATE meeting_protocols SET signed_by_uk_user_id = ?, signed_by_uk_name = ?, signed_by_uk_role = ?, signed_by_uk_at = datetime('now'), uk_signature_hash = ? WHERE id = ? AND tenant_id = ? AND signed_by_uk_at IS NULL AND EXISTS (SELECT 1 FROM meetings m WHERE m.id = ? AND m.tenant_id = ? AND m.status = 'protocol_approved' AND m.protocol_id = meeting_protocols.id)`)
+      .bind(authUser.id, authUser.name, authUser.role, signatureHash, meeting.protocol_id, tenantId, params.id, tenantId);
+    const meetingCas = env.DB.prepare(`UPDATE meetings SET status = 'protocol_approved', protocol_approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND status = 'protocol_generated' AND protocol_id = ? AND EXISTS (SELECT 1 FROM meeting_protocols p WHERE p.id = meetings.protocol_id AND p.tenant_id = ? AND p.signed_by_uk_at IS NULL)`)
+      .bind(params.id, tenantId, meeting.protocol_id, tenantId);
+    const [meetingResult, protocolResult] = await env.DB.batch([meetingCas, protocolUpdate]);
+    if (!protocolResult.meta?.changes || !meetingResult.meta?.changes) {
+      return error('Protocol changed concurrently', 409);
+    }
 
-  invalidateCache('meetings:');
-  const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ?').bind(params.id).first();
-  return json({ meeting: updated });
+    invalidateCache('meetings:');
+    const updated = await env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.id, tenantId).first();
+    return json({ meeting: updated });
+  } catch (err: any) {
+    log.error('Approve protocol error', err);
+    return error('Protocol approval failed', 500);
+  }
 });
 
 // Get protocol
 route('GET', '/api/meetings/:meetingId/protocol', async (request, env, params) => {
-  const fc = await requireFeature('meetings', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
+  if (!hasMeetingTenantContext(tenantId)) return error('Forbidden', 403);
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
-  const meeting = await env.DB.prepare(`SELECT protocol_id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
+  const meeting = await env.DB.prepare('SELECT protocol_id FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.meetingId, tenantId).first() as any;
   if (!meeting?.protocol_id) return error('Protocol not found', 404);
 
-  const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).first();
+  const protocol = await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ? AND tenant_id = ?').bind(meeting.protocol_id, tenantId).first();
   return json({ protocol });
 });
 
 // Get protocol data as JSON for frontend DOCX generation
 route('GET', '/api/meetings/:meetingId/protocol/data', async (request, env, params) => {
-  const fc = await requireFeature('meetings', env, request);
-  if (!fc.allowed) return error(fc.error!, 403);
   const authUser = await getUser(request, env);
   if (!authUser) return error('Unauthorized', 401);
   const tenantId = getTenantId(request);
+  if (!hasMeetingTenantContext(tenantId)) return error('Forbidden', 403);
+  const fc = await requireFeature('meetings', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
 
-  const meeting = await env.DB.prepare(`SELECT * FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.meetingId, ...(tenantId ? [tenantId] : [])).first() as any;
+  const meeting = await env.DB.prepare('SELECT * FROM meetings WHERE id = ? AND tenant_id = ?').bind(params.meetingId, tenantId).first() as any;
   if (!meeting) return error('Meeting not found', 404);
 
-  const protocol = meeting.protocol_id ? await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ?').bind(meeting.protocol_id).first() as any : null;
-  const { results: agendaItems } = await env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? ORDER BY item_order').bind(params.meetingId).all();
+  const protocol = meeting.protocol_id ? await env.DB.prepare('SELECT * FROM meeting_protocols WHERE id = ? AND tenant_id = ?').bind(meeting.protocol_id, tenantId).first() as any : null;
+  const { results: agendaItems } = await env.DB.prepare('SELECT * FROM meeting_agenda_items WHERE meeting_id = ? AND tenant_id = ? ORDER BY item_order').bind(params.meetingId, tenantId).all();
 
-  const { results: voteRecords } = await env.DB.prepare(`SELECT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) GROUP BY v.voter_id ORDER BY v.voter_name`).bind(params.meetingId).all();
+  const { results: voteRecords } = await env.DB.prepare(`SELECT v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, MIN(v.voted_at) as voted_at FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id AND u.tenant_id = ? WHERE v.meeting_id = ? AND v.tenant_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) GROUP BY v.voter_id ORDER BY v.voter_name`).bind(tenantId, params.meetingId, tenantId).all();
 
   // Load ALL item votes for the meeting in one query, then group by agenda_item_id.
   // Sprint 61 P1: column is `c.content` not `c.comment`; joined on `c.resident_id`
   // not `c.user_id`. Previously this LEFT JOIN matched nothing → protocol had
   // no comments attached.
-  const { results: allItemVotes } = await env.DB.prepare(`SELECT v.agenda_item_id, v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.content as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.resident_id = v.voter_id WHERE v.meeting_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind(params.meetingId).all();
+  const { results: allItemVotes } = await env.DB.prepare(`SELECT v.agenda_item_id, v.voter_id, v.voter_name, v.apartment_number, COALESCE(u.total_area, v.vote_weight) as vote_weight, v.choice, v.voted_at, c.content as comment FROM meeting_vote_records v LEFT JOIN users u ON u.id = v.voter_id AND u.tenant_id = ? LEFT JOIN meeting_agenda_comments c ON c.agenda_item_id = v.agenda_item_id AND c.resident_id = v.voter_id AND c.meeting_id = ? AND c.tenant_id = ? WHERE v.meeting_id = ? AND v.tenant_id = ? AND (v.is_revote = 0 OR v.is_revote IS NULL) ORDER BY v.voter_name`).bind(tenantId, params.meetingId, tenantId, params.meetingId, tenantId).all();
 
   const votesByItem: Record<string, any[]> = {};
   for (const vote of (allItemVotes || []) as any[]) {

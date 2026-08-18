@@ -4,6 +4,7 @@ import type { User } from '../../types';
 import { route } from '../../router';
 import { verifyJWT } from '../../utils/crypto';
 import { error } from '../../utils/helpers';
+import { getConnectionManager } from '../../utils/connection-manager';
 
 export function registerWebSocketRoutes() {
 
@@ -44,8 +45,8 @@ route('GET', '/api/ws', async (request, env) => {
   const user = result as unknown as User;
 
   // Single global DO shard — all connections in one instance for reliable broadcasts
-  const id = env.CONNECTION_MANAGER.idFromName('global');
-  const stub = env.CONNECTION_MANAGER.get(id);
+  const stub = getConnectionManager(env, request, 'websocket_connect');
+  if (!stub) return error('Realtime service unavailable', 503);
 
   // Forward request to Durable Object with user info (clean URL — no token in logs)
   const doUrl = new URL(request.url);

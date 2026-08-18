@@ -9,9 +9,7 @@ import { X, ChevronRight, User, Building2, GitBranch, MapPin } from 'lucide-reac
 import { useLanguageStore } from '../../stores/languageStore';
 import { useModalPresence } from '../../stores/modalStore';
 import { branchesApi, buildingsApi, usersApi } from '../../services/api';
-import { formatAddress } from '../../utils/formatAddress';
 import type { ExecutorSpecialization, RequestPriority } from '../../types';
-import { SPECIALIZATION_LABELS } from '../../types';
 
 interface Branch {
   id: string;
@@ -34,6 +32,25 @@ interface Resident {
   apartment: string;
   building_id: string;
 }
+
+const isBranch = (value: Record<string, unknown>): value is Record<string, unknown> & Branch =>
+  typeof value.id === 'string' && typeof value.code === 'string' && typeof value.name === 'string';
+
+const isBuilding = (value: Record<string, unknown>): value is Record<string, unknown> & Building =>
+  typeof value.id === 'string' && typeof value.name === 'string' &&
+  typeof value.address === 'string' && typeof value.branch_code === 'string';
+
+const toResident = (value: Record<string, unknown>): Resident | null => {
+  if (typeof value.id !== 'string' || typeof value.name !== 'string') return null;
+  return {
+    id: value.id,
+    name: value.name,
+    phone: typeof value.phone === 'string' ? value.phone : '',
+    address: typeof value.address === 'string' ? value.address : '',
+    apartment: typeof value.apartment === 'string' ? value.apartment : '',
+    building_id: typeof value.building_id === 'string' ? value.building_id : '',
+  };
+};
 
 // Create Request Modal for managers/admins
 // Trash type options
@@ -142,7 +159,7 @@ export function CreateRequestModal({
       setLoadingBranches(true);
       try {
         const data = await branchesApi.getAll();
-        setBranches(data.branches || []);
+        setBranches((data.branches || []).filter(isBranch));
       } catch (error) {
         console.error('Failed to load branches:', error);
       } finally {
@@ -169,9 +186,9 @@ export function CreateRequestModal({
       setSelectedResident(null);
       try {
         const data = await buildingsApi.getAll();
-        const filteredBuildings = (data.buildings || []).filter(
-          (b: Building) => b.branch_code === selectedBranch
-        );
+        const filteredBuildings = (data.buildings || [])
+          .filter(isBuilding)
+          .filter(b => b.branch_code === selectedBranch);
         setBuildings(filteredBuildings);
       } catch (error) {
         console.error('Failed to load buildings:', error);
@@ -195,7 +212,7 @@ export function CreateRequestModal({
       setSelectedResident(null);
       try {
         const data = await usersApi.getAll({ role: 'resident', building_id: selectedBuilding, limit: 500 });
-        setResidents(data.users || []);
+        setResidents((data.users || []).map(toResident).filter((resident): resident is Resident => resident !== null));
       } catch (error) {
         console.error('Failed to load residents:', error);
       } finally {

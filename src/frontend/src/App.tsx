@@ -11,7 +11,6 @@ import {
 } from './stores/dataStore';
 import { useTenantStore } from './stores/tenantStore';
 import { applyTenantBrand } from './utils/tenantBrand';
-import { Layout } from './components/layout';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
@@ -21,6 +20,39 @@ import Toast from './components/Toast';
 import { ThemeProvider } from './components/common/ThemeProvider';
 import { NativeSplashOverlay } from './components/NativeSplashOverlay';
 import { NavigationDirectionTracker } from './components/NavigationDirectionTracker';
+import { getRouteRoles, isResidentMeetingsRole } from './navigation/adminNavigation';
+
+const Layout = lazyWithRetry(() =>
+  import('./components/layout/Layout').then((module) => ({ default: module.Layout }))
+);
+
+const AppShellFallback = () => (
+  <div
+    className="min-h-[100dvh] bg-[var(--app-bg,#F4F0E8)]"
+    aria-busy="true"
+    aria-label="Загрузка приложения"
+  >
+    <div className="h-16 border-b border-black/5 bg-white/70 px-4 flex items-center gap-3">
+      <div className="h-9 w-9 rounded-xl bg-black/10 animate-pulse" />
+      <div className="h-4 w-28 rounded-full bg-black/10 animate-pulse" />
+    </div>
+    <div className="mx-auto flex max-w-7xl">
+      <div className="hidden md:block w-60 shrink-0 p-5 space-y-3" aria-hidden="true">
+        {[72, 88, 64, 80].map((width) => (
+          <div key={width} className="h-9 rounded-xl bg-black/[0.06] animate-pulse" style={{ width: `${width}%` }} />
+        ))}
+      </div>
+      <div className="flex-1 p-4 sm:p-6 space-y-4" aria-hidden="true">
+        <div className="h-7 w-44 rounded-full bg-black/10 animate-pulse" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="h-28 rounded-2xl border border-black/5 bg-white/60 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 // v118.36 — AddCarPage is rendered OUTSIDE the Layout shell so it
 // gets the full screen with no top app header (drawer / logo / bell)
@@ -51,46 +83,11 @@ const NotificationsPage = lazyWithRetry(() =>
 );
 // v118.77 — /meetings standalone page for residents. Role-split shape
 // matches /announcements (v118.67) and /notifications (v118.72): resident
-// → full-screen ResidentMeetingsPage; staff/tenant/commercial_owner fall
-// through to Layout (whose nested /meetings Route hands them off to
-// MeetingsPage via getMeetingsPage()).
+// → full-screen ResidentMeetingsPage; commercial owners use the same
+// ownership experience, while staff/tenant fall through to Layout.
 const ResidentMeetingsPage = lazyWithRetry(() =>
   import('./pages/ResidentMeetingsPage').then((m) => ({ default: m.ResidentMeetingsPage }))
 );
-
-// Handle auto_auth parameter from super admin impersonation
-// Must run before React mounts to set localStorage before zustand rehydrates
-(() => {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const autoAuth = params.get('auto_auth');
-    if (autoAuth) {
-      const decoded = JSON.parse(decodeURIComponent(atob(autoAuth)));
-      if (decoded?.state?.user && decoded?.state?.token) {
-        // Set zustand persist storage
-        localStorage.setItem('uk-auth-storage', JSON.stringify(decoded));
-        // Set auth_token for API requests
-        localStorage.setItem('auth_token', decoded.state.token);
-        // Store impersonation metadata for the banner
-        if (decoded.is_impersonated) {
-          localStorage.setItem('kamizo_impersonation', JSON.stringify({
-            origin_url: decoded.super_admin_url || '',
-            tenant_name: decoded.tenant_name || '',
-          }));
-        } else {
-          localStorage.removeItem('kamizo_impersonation');
-        }
-        // Remove the param from URL and reload cleanly
-        params.delete('auto_auth');
-        const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-        window.history.replaceState({}, '', cleanUrl);
-        window.location.reload();
-      }
-    }
-  } catch (e) {
-    console.error('Auto-auth failed:', e);
-  }
-})();
 
 // v118.67 — AnnouncementsRoleSplit: top-level route element для
 // /announcements. Resident-роли получают full-screen ResidentAnnouncementsPage,
@@ -127,14 +124,11 @@ function NotificationsRoleSplit() {
   return <Layout />;
 }
 
-// v118.77 — MeetingsRoleSplit. Narrower role check than the others:
-// ONLY 'resident' (NOT tenant/commercial_owner) gets the standalone
-// page because Layout's existing getMeetingsPage() helper only routes
-// 'resident' to ResidentMeetingsPage; tenant + commercial_owner already
-// see the staff MeetingsPage today, and we mustn't regress them.
+// v118.77 — MeetingsRoleSplit. Owners use the standalone voting page;
+// tenants remain non-voting users and staff keep the management page.
 function MeetingsRoleSplit() {
   const { user } = useAuthStore();
-  if (user?.role === 'resident') {
+  if (isResidentMeetingsRole(user?.role)) {
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
         <ResidentMeetingsPage />
@@ -263,7 +257,8 @@ function App() {
           {/* v118.79 — stamps body.dataset.nav with push/pop so CSS
               can pick the correct slide direction on each route change. */}
           <NavigationDirectionTracker />
-          <Routes>
+          <Suspense fallback={<AppShellFallback />}>
+            <Routes>
             <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
             {/* v118.36 — full-screen chrome-less routes go HERE, before
                 the Layout-wrapped /* catch-all. AddCarPage owns the whole
@@ -316,10 +311,10 @@ function App() {
                 <NotificationsRoleSplit />
               </ProtectedRoute>
             } />
-            {/* v118.77 — /meetings standalone fullscreen for residents.
-                Staff/tenant/commercial_owner fall through to Layout. */}
+            {/* /meetings is standalone for resident and commercial owners;
+                staff and tenants fall through to Layout. */}
             <Route path="/meetings" element={
-              <ProtectedRoute requiredFeature="meetings">
+              <ProtectedRoute allowedRoles={getRouteRoles('meetings')} requiredFeature="meetings">
                 <MeetingsRoleSplit />
               </ProtectedRoute>
             } />
@@ -329,7 +324,8 @@ function App() {
                 <PushNotificationPrompt />
               </ProtectedRoute>
             } />
-          </Routes>
+            </Routes>
+          </Suspense>
           <SWUpdateBanner />
         </BrowserRouter>
       </ErrorBoundary>

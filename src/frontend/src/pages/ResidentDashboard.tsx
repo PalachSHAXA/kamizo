@@ -448,10 +448,10 @@ export function ResidentDashboard() {
       {false && (
         <HomeTab
           language={language}
-          user={user}
+          user={user ? { ...user } : null}
           activeRequests={activeRequests}
-          latestAnnouncements={latestAnnouncements}
-          activeMeetings={activeMeetings}
+          latestAnnouncements={latestAnnouncements.map(announcement => ({ ...announcement }))}
+          activeMeetings={activeMeetings.map(meeting => ({ ...meeting }))}
           financeBalance={financeBalance}
           tenantName={tenantName}
           switchTab={switchTab}

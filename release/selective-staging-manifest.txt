@@ -1,0 +1,54 @@
+# Coherent hardening, finance, demo, admin UX, and release-safety source scope.
+# This manifest intentionally uses source roots; the helper is a dry-run guard
+# and never stages files itself.
+.github/DEPLOY_SETUP.md
+.github/workflows/deploy.yml
+.github/workflows/e2e-isolated.yml
+.gitignore
+README.md
+cloudflare/.env.example
+cloudflare/migrations/059_finance_estimate_periodic_optional.sql
+cloudflare/migrations/060_finance_estimate_staff_vacation.sql
+cloudflare/migrations/061_finance_estimate_vat.sql
+cloudflare/migrations/062_building_acts.sql
+cloudflare/migrations/063_finance_estimate_complex.sql
+cloudflare/migrations/064_drop_password_plain.sql
+cloudflare/schema.sql
+cloudflare/schema_no_fk.sql
+cloudflare/src
+cloudflare/wrangler.toml
+cloudflare/wrangler.staging.toml
+deploy/README.md
+deploy/systemd
+docs/operations
+docs/superpowers/plans
+docs/superpowers/specs
+release/selective-staging-manifest.txt
+scripts/backup.sh
+scripts/deploy-staging.sh
+scripts/deploy-vps.sh
+scripts/preflight-backend-production.sh
+scripts/preflight-staging-config.sh
+scripts/release-selective-staging.sh
+scripts/restore.sh
+scripts/tests
+scripts/verify-frontend-bundle.sh
+src/frontend/e2e
+src/frontend/e2e-smoke
+src/frontend/package-lock.json
+src/frontend/package.json
+src/frontend/playwright.config.ts
+src/frontend/playwright.demo-isolated.config.ts
+src/frontend/playwright.isolated.config.ts
+src/frontend/playwright.marketplace-isolated.config.ts
+src/frontend/playwright.rentals-isolated.config.ts
+src/frontend/playwright.smoke.config.ts
+src/frontend/public/demo
+src/frontend/scripts
+src/frontend/src
+src/frontend/vite.config.ts
+src/frontend/vitest.config.ts
+
+# Deliberately excluded from release staging:
+# .superpowers/**, *.xlsx, local HTML reports, cloudflare/public/**,
+# src/frontend/e2e/isolated/REPORT.md, dist, test-results, Playwright reports.

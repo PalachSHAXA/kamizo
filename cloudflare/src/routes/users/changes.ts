@@ -1,11 +1,10 @@
 // Resident data change routes: change-with-reason, change history, deactivate
 import { route } from '../../router';
-import { getUser } from '../../middleware/auth';
+import { getAuditAttribution, getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
 import { invalidateOnChange } from '../../cache';
 import { json, error, generateId, isManagement } from '../../utils/helpers';
-import { hashPassword } from '../../utils/crypto';
 
 export function registerChangesRoutes() {
 
@@ -23,7 +22,14 @@ route('POST', '/api/users/:id/change-with-reason', async (request, env, params) 
     document_number?: string;
     document_date?: string;
     comment?: string;
+    password?: unknown;
+    new_password?: unknown;
   };
+
+  const hasPasswordMutation = Object.prototype.hasOwnProperty.call(body, 'password')
+    || Object.prototype.hasOwnProperty.call(body, 'new_password')
+    || body.changes?.some(change => change.field === 'password' || change.field === 'new_password');
+  if (hasPasswordMutation) return error('Use /api/users/:id/password to change a password', 400);
 
   if (!body.changes || body.changes.length === 0) return error('No changes specified');
   if (!body.reason) return error('Reason is required');
@@ -52,22 +58,6 @@ route('POST', '/api/users/:id/change-with-reason', async (request, env, params) 
       generateId(), tenantId || '', params.id, authUser!.id,
       change.field === 'name' ? 'name_change' : change.field === 'status' ? 'status_change' : 'data_change',
       change.field, oldValue, newValue, body.reason,
-      body.document_number || null, body.document_date || null, body.comment || null
-    ).run();
-  }
-
-  // Handle password change separately
-  const passwordChange = body.changes.find(c => c.field === 'password');
-  if (passwordChange && passwordChange.value) {
-    const hashed = await hashPassword(passwordChange.value);
-    updates.push('password_hash = ?');
-    values.push(hashed);
-    await env.DB.prepare(
-      `INSERT INTO resident_changes_log (id, tenant_id, resident_id, changed_by, change_type, field_name, old_value, new_value, reason, document_number, document_date, comment)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      generateId(), tenantId || '', params.id, authUser!.id,
-      'password_reset', 'password', '***', '***', body.reason,
       body.document_number || null, body.document_date || null, body.comment || null
     ).run();
   }
@@ -136,13 +126,14 @@ route('POST', '/api/users/:id/deactivate', async (request, env, params) => {
     (resident.status as string) || 'active', body.reason, body.comment || null
   ).run();
 
+  const audit = getAuditAttribution(authUser!, { reason: body.reason || 'manual' });
   await env.DB.prepare(
     `INSERT INTO audit_log (id, tenant_id, actor_id, actor_name, actor_role, action, target_type, target_id, details, ip_address)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
-    generateId(), tenantId || null, authUser!.id, authUser!.name, authUser!.role,
+    generateId(), tenantId || null, audit.actorId, audit.actorName, audit.actorRole,
     'user_deactivated', 'user', params.id,
-    JSON.stringify({ reason: body.reason || 'manual' }),
+    JSON.stringify(audit.details),
     request.headers.get('CF-Connecting-IP')
   ).run();
 

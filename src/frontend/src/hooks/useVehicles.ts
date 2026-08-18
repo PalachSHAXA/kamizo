@@ -1,24 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { vehiclesApi } from '../services/api';
-
-export interface Vehicle {
-  id: string;
-  user_id: string;
-  plate_number: string;
-  brand?: string;
-  model?: string;
-  color?: string;
-  is_primary?: boolean;
-  created_at?: string;
-  // For search results
-  owner_name?: string;
-  owner_phone?: string;
-  apartment?: string;
-  address?: string;
-}
+import type { VehicleDto } from '../services/api/vehicles';
 
 export function useVehicles() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

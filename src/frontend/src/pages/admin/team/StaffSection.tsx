@@ -18,6 +18,7 @@ interface StaffSectionProps {
   onToggle: () => void;
   onOpenMember: (m: StaffMember) => void;
   onDeleteMember: (m: StaffMember) => void;
+  allowDelete?: boolean;
   getSpecLabel: (spec: ExecutorSpecialization) => string;
   getStatusBadge: (status?: string) => ReactNode;
 }
@@ -30,15 +31,16 @@ export function StaffSection({
   onToggle,
   onOpenMember,
   onDeleteMember,
+  allowDelete = true,
   getSpecLabel,
   getStatusBadge,
 }: StaffSectionProps) {
   const { language } = useLanguageStore();
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card min-w-0 max-w-full overflow-hidden">
       <button
-        className="w-full p-3 sm:p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+        className="staff-primary-control w-full p-3 sm:p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
         onClick={onToggle}
       >
         <div className="flex items-center gap-2 sm:gap-3">
@@ -68,13 +70,14 @@ export function StaffSection({
               }
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {members.map((m) => (
                 <StaffCard
                   key={m.id}
                   member={m}
                   onOpen={onOpenMember}
                   onDelete={onDeleteMember}
+                  allowDelete={allowDelete}
                   getSpecLabel={getSpecLabel}
                   getStatusBadge={getStatusBadge}
                 />

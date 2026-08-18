@@ -1,8 +1,80 @@
 import { create } from 'zustand';
-import type { GuestAccessCode, GuestAccessLog, GuestAccessStats, VisitorType, AccessType, UserRole } from '../types';
+import { registerSessionStore } from './sessionRegistry';
+import type { GuestAccessCode, GuestAccessLog, GuestAccessStats, GuestAccessStatus, VisitorType, AccessType, UserRole } from '../types';
+import type { GuestAccessCodeDto } from '../services/api/guests';
 import { guestCodesApi } from '../services/api';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const isVisitorType = (value: string): value is VisitorType =>
+  value === 'courier' || value === 'guest' || value === 'taxi' || value === 'other';
+
+const isAccessType = (value: string): value is AccessType =>
+  value === 'single_use' || value === 'day' || value === 'week' || value === 'custom';
+
+const isGuestAccessStatus = (value: string): value is GuestAccessStatus =>
+  value === 'active' || value === 'expired' || value === 'used' || value === 'revoked';
+
+const mapGuestAccessCode = (code: GuestAccessCodeDto): GuestAccessCode => ({
+  id: code.id,
+  residentId: code.user_id,
+  residentName: code.resident_name || '',
+  residentPhone: code.resident_phone || '',
+  residentApartment: code.resident_apartment || '',
+  residentAddress: code.resident_address || '',
+  visitorType: isVisitorType(code.visitor_type) ? code.visitor_type : 'guest',
+  visitorName: code.visitor_name || undefined,
+  visitorPhone: code.visitor_phone || undefined,
+  visitorVehiclePlate: code.visitor_vehicle_plate || undefined,
+  accessType: isAccessType(code.access_type) ? code.access_type : 'single_use',
+  validFrom: code.valid_from,
+  validUntil: code.valid_until,
+  maxUses: code.max_uses,
+  currentUses: code.current_uses || 0,
+  qrToken: code.qr_token,
+  status: isGuestAccessStatus(code.status) ? code.status : 'active',
+  notes: code.notes || undefined,
+  createdAt: code.created_at,
+  updatedAt: code.updated_at || undefined,
+  revokedAt: code.revoked_at || undefined,
+  revokedBy: code.revoked_by || undefined,
+  revocationReason: code.revoked_reason || undefined,
+  creatorName: code.creator_name || undefined,
+  creatorApartment: code.creator_apartment || undefined,
+  creatorPhone: code.creator_phone || undefined,
+});
+
+interface GuestPassTokenDto {
+  i: string;
+  rn?: string;
+  rp?: string;
+  ra?: string;
+  rd?: string;
+  vt: VisitorType;
+  vn?: string;
+  vp?: string;
+  vv?: string;
+  at: AccessType;
+  vf: number;
+  vu: number;
+  mx: number;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const optionalString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value ? value : undefined;
+
+const isGuestPassToken = (value: unknown): value is GuestPassTokenDto => {
+  if (!isRecord(value)) return false;
+  return typeof value.i === 'string'
+    && typeof value.vt === 'string' && isVisitorType(value.vt)
+    && typeof value.at === 'string' && isAccessType(value.at)
+    && typeof value.vf === 'number' && Number.isFinite(value.vf)
+    && typeof value.vu === 'number' && Number.isFinite(value.vu)
+    && typeof value.mx === 'number' && Number.isFinite(value.mx);
+};
 
 interface GuestAccessState {
   guestAccessCodes: GuestAccessCode[];
@@ -45,36 +117,7 @@ export const useGuestAccessStore = create<GuestAccessState>()(
       set({ isLoadingGuestCodes: true });
       try {
         const response = await guestCodesApi.getAll();
-        const codes = response.codes || [];
-        const mappedCodes: GuestAccessCode[] = codes.map((c: Record<string, unknown>) => ({
-          id: c.id,
-          residentId: c.user_id,
-          residentName: c.resident_name || '',
-          residentPhone: c.resident_phone || '',
-          residentApartment: c.resident_apartment || '',
-          residentAddress: c.resident_address || '',
-          visitorType: c.visitor_type as VisitorType,
-          visitorName: c.visitor_name || undefined,
-          visitorPhone: c.visitor_phone || undefined,
-          visitorVehiclePlate: c.visitor_vehicle_plate || undefined,
-          accessType: c.access_type as AccessType,
-          validFrom: c.valid_from,
-          validUntil: c.valid_until,
-          maxUses: c.max_uses,
-          currentUses: c.current_uses || 0,
-          qrToken: c.qr_token,
-          status: c.status as 'active' | 'used' | 'expired' | 'revoked',
-          notes: c.notes || undefined,
-          createdAt: c.created_at,
-          updatedAt: c.updated_at || undefined,
-          revokedAt: c.revoked_at || undefined,
-          revokedBy: c.revoked_by || undefined,
-          revocationReason: c.revoked_reason || undefined,
-          // Creator info (for management view)
-          creatorName: c.creator_name || undefined,
-          creatorApartment: c.creator_apartment || undefined,
-          creatorPhone: c.creator_phone || undefined,
-        } as GuestAccessCode));
+        const mappedCodes = (response.codes || []).map(mapGuestAccessCode);
         set({ guestAccessCodes: mappedCodes, isLoadingGuestCodes: false });
       } catch (error) {
         console.error('Failed to fetch guest codes:', error);
@@ -104,27 +147,14 @@ export const useGuestAccessStore = create<GuestAccessState>()(
           console.error('Guest access API returned no code data');
           return null;
         }
-        const newCode: GuestAccessCode = {
-          id: c.id,
-          residentId: c.user_id || data.residentId,
-          residentName: c.resident_name || data.residentName,
-          residentPhone: c.resident_phone || data.residentPhone,
-          residentApartment: c.resident_apartment || data.residentApartment,
-          residentAddress: c.resident_address || data.residentAddress,
-          visitorType: c.visitor_type as VisitorType,
-          visitorName: c.visitor_name || undefined,
-          visitorPhone: c.visitor_phone || undefined,
-          visitorVehiclePlate: c.visitor_vehicle_plate || undefined,
-          accessType: c.access_type as AccessType,
-          validFrom: c.valid_from,
-          validUntil: c.valid_until,
-          maxUses: c.max_uses,
-          currentUses: c.current_uses || 0,
-          qrToken: c.qr_token,
-          status: c.status as 'active' | 'used' | 'expired' | 'revoked',
-          notes: c.notes || undefined,
-          createdAt: c.created_at,
-        };
+        const newCode = mapGuestAccessCode({
+          ...c,
+          user_id: c.user_id || data.residentId,
+          resident_name: c.resident_name || data.residentName,
+          resident_phone: c.resident_phone || data.residentPhone,
+          resident_apartment: c.resident_apartment || data.residentApartment,
+          resident_address: c.resident_address || data.residentAddress,
+        });
 
         set((state) => ({
           guestAccessCodes: [newCode, ...state.guestAccessCodes],
@@ -261,21 +291,25 @@ export const useGuestAccessStore = create<GuestAccessState>()(
           // Decode UTF-8 bytes to string
           const decoder = new TextDecoder('utf-8');
           const utf8Decoded = decoder.decode(bytes);
-          const tokenData = JSON.parse(utf8Decoded);
+          const parsedToken: unknown = JSON.parse(utf8Decoded);
+          if (!isGuestPassToken(parsedToken)) {
+            return { valid: false, error: 'invalid' };
+          }
+          const tokenData = parsedToken;
 
           // Create a GuestAccessCode object from the token data
           const code: GuestAccessCode = {
             id: tokenData.i,
             residentId: 'from-token',
-            residentName: tokenData.rn,
-            residentPhone: tokenData.rp,
-            residentApartment: tokenData.ra,
-            residentAddress: tokenData.rd,
-            visitorType: tokenData.vt as VisitorType,
-            visitorName: tokenData.vn || undefined,
-            visitorPhone: tokenData.vp || undefined,
-            visitorVehiclePlate: tokenData.vv || undefined,
-            accessType: tokenData.at as AccessType,
+            residentName: optionalString(tokenData.rn) || '',
+            residentPhone: optionalString(tokenData.rp) || '',
+            residentApartment: optionalString(tokenData.ra) || '',
+            residentAddress: optionalString(tokenData.rd) || '',
+            visitorType: tokenData.vt,
+            visitorName: optionalString(tokenData.vn),
+            visitorPhone: optionalString(tokenData.vp),
+            visitorVehiclePlate: optionalString(tokenData.vv),
+            accessType: tokenData.at,
             validFrom: new Date(tokenData.vf).toISOString(),
             validUntil: new Date(tokenData.vu).toISOString(),
             maxUses: tokenData.mx,
@@ -469,3 +503,5 @@ export const useGuestAccessStore = create<GuestAccessState>()(
     },
   })
 );
+
+registerSessionStore(useGuestAccessStore);

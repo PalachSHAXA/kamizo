@@ -2,8 +2,7 @@ import { Phone, Star, Check, Clock, Trash2 } from 'lucide-react';
 import { formatName } from '../../../utils/formatName';
 import { useLanguageStore } from '../../../stores/languageStore';
 import type { StatusTone } from '../../../theme';
-import { StatusBadge } from '../../../components/common';
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import type { ExecutorSpecialization } from '../../../types';
 import {
   type StaffMember,
@@ -21,6 +20,7 @@ interface StaffCardProps {
   member: StaffMember;
   onOpen: (m: StaffMember) => void;
   onDelete: (m: StaffMember) => void;
+  allowDelete?: boolean;
   /** Render the spec label using parent's getSpecLabel so the
    *  translation table stays in one place. */
   getSpecLabel: (spec: ExecutorSpecialization) => string;
@@ -29,7 +29,7 @@ interface StaffCardProps {
   getStatusBadge: (status?: string) => ReactNode;
 }
 
-export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBadge }: StaffCardProps) {
+export function StaffCard({ member, onOpen, onDelete, allowDelete = true, getSpecLabel, getStatusBadge }: StaffCardProps) {
   const { language } = useLanguageStore();
   const ROLE_LABELS = language === 'ru' ? ROLE_LABELS_RU : ROLE_LABELS_UZ;
 
@@ -38,14 +38,16 @@ export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBad
       className="glass-card p-3 sm:p-4 hover:shadow-lg transition-shadow cursor-pointer relative group"
       onClick={() => onOpen(member)}
     >
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(member); }}
-        className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
-        title={language === 'ru' ? 'Удалить сотрудника' : "Xodimni o'chirish"}
-        aria-label={language === 'ru' ? 'Удалить сотрудника' : "Xodimni o'chirish"}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+      {allowDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(member); }}
+          className="staff-primary-control absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+          title={language === 'ru' ? 'Удалить сотрудника' : "Xodimni o'chirish"}
+          aria-label={language === 'ru' ? 'Удалить сотрудника' : "Xodimni o'chirish"}
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
 
       <div className="flex items-start justify-between mb-2 sm:mb-3 pr-8">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -63,7 +65,7 @@ export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBad
             const inner = member.specialization
               ? SPECIALIZATION_ICONS[member.specialization]
               : RoleI
-                ? <RoleI className="w-5 h-5 sm:w-6 sm:h-6" />
+                ? createElement(RoleI, { className: 'w-5 h-5 sm:w-6 sm:h-6' })
                 : initialsOf(member.name);
             return (
               <div
@@ -92,7 +94,7 @@ export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBad
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[member.role]}`}>
             {ROLE_LABELS[member.role]}
           </span>
-          {getStatusBadge(member.status)}
+          {getStatusBadge(member.status ?? undefined)}
         </div>
       </div>
 
@@ -101,7 +103,7 @@ export function StaffCard({ member, onOpen, onDelete, getSpecLabel, getStatusBad
           <a
             href={`tel:${member.phone}`}
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
+            className="flex min-h-[44px] -my-2 items-center gap-2 hover:text-primary-600 active:text-primary-700 touch-manipulation"
             aria-label={language === 'ru' ? `Позвонить ${member.phone}` : `Qo'ng'iroq ${member.phone}`}
           >
             <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />

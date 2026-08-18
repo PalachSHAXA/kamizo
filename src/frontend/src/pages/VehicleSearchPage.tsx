@@ -10,6 +10,8 @@ import { apiRequest, usersApi } from '../services/api';
 import type { Vehicle, VehicleType, VehicleOwnerType } from '../types';
 import { VEHICLE_TYPE_LABELS, VEHICLE_OWNER_TYPE_LABELS } from '../types';
 import { SearchPlateInput, PlateNumberInput, parsePlateNumber, combinePlateNumber, validatePlateNumber, formatPlateDisplay } from './vehicles';
+import { mapResidentSearchDtos, mapVehicleDtos } from './shared/components/residents/dtoMappers';
+import type { ResidentSearchItem } from './shared/components/residents/dtoMappers';
 
 
 // Guest vehicle result shape (from guestAccessCodes with vehicle plate)
@@ -74,8 +76,8 @@ export function VehicleSearchPage() {
 
   // Resident search state
   const [residentSearch, setResidentSearch] = useState('');
-  const [residentResults, setResidentResults] = useState<Array<{ id: string; name: string; phone?: string; apartment?: string; address?: string }>>([]);
-  const [selectedResidentUser, setSelectedResidentUser] = useState<{ id: string; name: string; phone?: string; apartment?: string; address?: string } | null>(null);
+  const [residentResults, setResidentResults] = useState<ResidentSearchItem[]>([]);
+  const [selectedResidentUser, setSelectedResidentUser] = useState<ResidentSearchItem | null>(null);
   const [residentSearchLoading, setResidentSearchLoading] = useState(false);
 
   const resetForm = () => {
@@ -129,14 +131,13 @@ export function VehicleSearchPage() {
       try {
         const res = await usersApi.getAll({ role: 'resident', limit: 20 });
         const query = residentSearch.toLowerCase();
-        const filtered = (res.users || [])
-          .filter((u: { name?: string; apartment?: string; phone?: string }) =>
+        const filtered = mapResidentSearchDtos(res.users || [])
+          .filter(u =>
             u.name?.toLowerCase().includes(query) ||
             u.apartment?.toLowerCase().includes(query) ||
             u.phone?.includes(query)
           )
-          .slice(0, 10)
-          .map((u: { id: string; name: string; phone?: string; apartment?: string; address?: string }) => ({ id: u.id, name: u.name, phone: u.phone, apartment: u.apartment, address: u.address }));
+          .slice(0, 10);
         setResidentResults(filtered);
       } catch {
         setResidentResults([]);
@@ -183,34 +184,8 @@ export function VehicleSearchPage() {
     // Search via API for accurate results across all vehicles
     const doSearch = async () => {
       try {
-        interface VehicleApiItem {
-          id: string; user_id: string; owner_name?: string; owner_phone?: string;
-          apartment?: string; address?: string; plate_number: string;
-          brand?: string; model?: string; color?: string; year?: number;
-          vehicle_type?: string; owner_type?: string; company_name?: string;
-          parking_spot?: string; notes?: string; created_at: string; updated_at?: string;
-        }
-        const res = await apiRequest<{ vehicles: VehicleApiItem[] }>(`/api/vehicles/search?q=${encodeURIComponent(searchQuery)}`);
-        const mapped: Vehicle[] = (res.vehicles || []).map((v: VehicleApiItem) => ({
-          id: v.id,
-          ownerId: v.user_id,
-          ownerName: v.owner_name || '',
-          ownerPhone: v.owner_phone || '',
-          apartment: v.apartment || '',
-          address: v.address || '',
-          plateNumber: v.plate_number,
-          brand: v.brand || '',
-          model: v.model || '',
-          color: v.color || '',
-          year: v.year || undefined,
-          type: (v.vehicle_type || 'car') as Vehicle['type'],
-          ownerType: (v.owner_type || 'individual') as Vehicle['ownerType'],
-          companyName: v.company_name || undefined,
-          parkingSpot: v.parking_spot || undefined,
-          notes: v.notes || undefined,
-          createdAt: v.created_at,
-          updatedAt: v.updated_at || undefined,
-        }));
+        const res = await apiRequest<{ vehicles: unknown[] }>(`/api/vehicles/search?q=${encodeURIComponent(searchQuery)}`);
+        const mapped = mapVehicleDtos(res.vehicles || []);
 
         setFilteredVehicles(mapped);
         setHasSearched(true);

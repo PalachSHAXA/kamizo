@@ -9,8 +9,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useRequestStore, useExecutorStore, useNotificationStore, useVehicleStore, useAnnouncementStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { SPECIALIZATION_LABELS, SPECIALIZATION_LABELS_UZ } from '../../types';
-import type { ExecutorSpecialization, User } from '../../types';
-import type { Vehicle } from '../../hooks/useVehicles';
+import type { ExecutorSpecialization, User, Vehicle } from '../../types';
 import { useLanguageStore } from '../../stores/languageStore';
 
 // Onboarding tasks for residents
@@ -40,7 +39,7 @@ export const markOnboardingComplete = (_userId: string, _action: string): void =
 const ONBOARDING_TASKS: OnboardingTask[] = [];
 
 // Page title mapping for breadcrumb
-const PAGE_TITLES: Record<string, Record<string, string>> = {
+const PAGE_TITLES: Record<'ru' | 'uz', Record<string, string>> = {
   ru: {
     '/': 'Главная',
     '/requests': 'Заявки',
@@ -135,7 +134,7 @@ export function Header() {
   const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Get current page title for breadcrumb
-  const currentPageTitle = PAGE_TITLES[language]?.[location.pathname] || PAGE_TITLES['ru'][location.pathname] || '';
+  const currentPageTitle = PAGE_TITLES[language][location.pathname] || PAGE_TITLES.ru[location.pathname] || '';
   const isHomePage = location.pathname === '/';
 
   // Get pending onboarding tasks for residents - tasks stay until completed
@@ -252,7 +251,9 @@ export function Header() {
         // Parse scheduled time (format: "09:00-12:00" or "14:00")
         const timeStr = request.scheduledTime!;
         const startTime = timeStr.split('-')[0]; // Take start time
+        if (!startTime) return;
         const [hours, minutes] = startTime.split(':').map(Number);
+        if (hours === undefined || minutes === undefined) return;
 
         const scheduledDateTime = new Date(request.scheduledDate!);
         scheduledDateTime.setHours(hours, minutes, 0, 0);
@@ -495,7 +496,7 @@ export function Header() {
 
         {/* Search - show when on home page or requests-related pages */}
         {!isRentalUser && !isAdvertiserRole && user?.role !== 'super_admin' && user?.role !== 'marketplace_manager' && (
-        <div className="relative">
+        <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -603,7 +604,7 @@ export function Header() {
         </div>
         )}
 
-        <div className="text-right max-w-[150px] lg:max-w-[200px]">
+        <div className="hidden text-right max-w-[150px] lg:max-w-[200px] xl:block">
           <div className="text-sm xl:text-base font-medium truncate">{user?.name}</div>
           <div className="text-xs text-gray-500 truncate">{getRoleLabel()}</div>
         </div>

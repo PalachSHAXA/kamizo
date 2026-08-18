@@ -8,6 +8,7 @@ import {
 import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import type { Request } from '../../types';
+import type { PieLabelRenderProps } from 'recharts';
 
 interface HealthCheck {
   status: 'healthy' | 'degraded' | 'down';
@@ -56,6 +57,12 @@ interface CacheStats {
     operations: number;
     estimatedSize: string;
   };
+}
+
+interface MetricsResponse {
+  health: HealthCheck;
+  performance: PerformanceStats;
+  cache: CacheStats;
 }
 
 // Chart colors
@@ -206,7 +213,7 @@ export function MonitoringPage() {
         throw new Error('Failed to fetch metrics');
       }
 
-      const data = await response.json();
+      const data: MetricsResponse = await response.json();
       setHealth(data.health);
       setPerformance(data.performance);
       setCache(data.cache);
@@ -455,8 +462,8 @@ export function MonitoringPage() {
                     labelLine={false}
                     outerRadius={100}
                     dataKey="value"
-                    label={({ name, percent }: { name: string; percent: number }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
+                    label={({ name, percent }: PieLabelRenderProps) =>
+                      `${String(name ?? '')} ${((percent ?? 0) * 100).toFixed(0)}%`
                     }
                   >
                     {requestsByStatus.map((entry, index) => (

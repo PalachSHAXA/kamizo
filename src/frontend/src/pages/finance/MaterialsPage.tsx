@@ -3,8 +3,10 @@ import { Package, Plus, MinusCircle, Filter, AlertTriangle, X, Paperclip } from 
 import { useFinanceStore } from '../../stores/financeStore';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
+import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
 const UNITS = ['шт', 'м', 'кг', 'л', 'упак'] as const;
 
@@ -16,9 +18,28 @@ interface BatchItem {
   min_quantity: number;
 }
 
+interface FinanceMaterialRow {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  price_per_unit: number;
+  min_quantity: number;
+}
+
+const toMaterialRow = (row: Record<string, unknown>): FinanceMaterialRow => ({
+  id: String(row.id ?? ''),
+  name: String(row.name ?? ''),
+  unit: String(row.unit ?? ''),
+  quantity: Number(row.quantity) || 0,
+  price_per_unit: Number(row.price_per_unit) || 0,
+  min_quantity: Number(row.min_quantity) || 0,
+});
+
 export default function MaterialsPage() {
   const language = useLanguageStore((s) => s.language);
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
+  const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
 
   const materials = useFinanceStore((s) => s.materials);
   const materialsLoading = useFinanceStore((s) => s.materialsLoading);
@@ -33,7 +54,7 @@ export default function MaterialsPage() {
   const [selectedBuilding, setSelectedBuilding] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
-  const [writeOffItem, setWriteOffItem] = useState<Record<string, unknown> | null>(null);
+  const [writeOffItem, setWriteOffItem] = useState<FinanceMaterialRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Batch add state
@@ -75,7 +96,7 @@ export default function MaterialsPage() {
   }, [selectedBuilding, setFilters, fetchMaterials]);
 
   const handleAddToList = useCallback(() => {
-    if (!addForm.name) return;
+    if (isDemoSession || !addForm.name) return;
     setBatchItems(prev => [...prev, {
       name: addForm.name,
       unit: addForm.unit,
@@ -84,14 +105,14 @@ export default function MaterialsPage() {
       min_quantity: Number(addForm.min_quantity) || 0,
     }]);
     setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' });
-  }, [addForm]);
+  }, [addForm, isDemoSession]);
 
   const removeBatchItem = useCallback((idx: number) => {
     setBatchItems(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
   const handleBatchSubmit = useCallback(async () => {
-    if (!batchBuildingId || batchItems.length === 0) return;
+    if (isDemoSession || !batchBuildingId || batchItems.length === 0) return;
     setSubmitting(true);
     try {
       for (const item of batchItems) {
@@ -113,17 +134,18 @@ export default function MaterialsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [batchItems, batchBuildingId, createMaterial, fetchMaterials, selectedBuilding]);
+  }, [batchItems, batchBuildingId, createMaterial, fetchMaterials, selectedBuilding, isDemoSession]);
 
-  const openWriteOff = useCallback((item: Record<string, unknown>) => {
+  const openWriteOff = useCallback((item: FinanceMaterialRow) => {
+    if (isDemoSession) return;
     setWriteOffItem(item);
     setWriteOffForm({ quantity: '', description: '' });
     setWriteOffError('');
     setWriteOffOpen(true);
-  }, []);
+  }, [isDemoSession]);
 
   const handleWriteOffSubmit = useCallback(async () => {
-    if (!writeOffItem) return;
+    if (isDemoSession || !writeOffItem) return;
     const qty = Number(writeOffForm.quantity);
     if (!qty || qty <= 0) {
       setWriteOffError(t('Введите количество', 'Miqdorni kiriting'));
@@ -145,17 +167,19 @@ export default function MaterialsPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [writeOffItem, writeOffForm, consumeMaterial, fetchMaterials, selectedBuilding, t]);
+  }, [writeOffItem, writeOffForm, consumeMaterial, fetchMaterials, selectedBuilding, t, isDemoSession]);
 
   const formatPrice = useCallback((val: number) => {
     return val.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' сум';
   }, []);
 
-  const rowClass = useCallback((m: Record<string, unknown>) => {
+  const rowClass = useCallback((m: FinanceMaterialRow) => {
     if (m.quantity === 0) return 'bg-red-50';
     if (m.quantity < m.min_quantity && m.quantity > 0) return 'bg-yellow-50';
     return '';
   }, []);
+
+  const materialRows = materials.map(toMaterialRow);
 
   if (materialsLoading) {
     return <PageSkeleton variant="list" />;
@@ -168,14 +192,16 @@ export default function MaterialsPage() {
         <h1 className="text-xl font-bold text-gray-900">
           {t('Материалы', 'Materiallar')}
         </h1>
-        <button
+        {!isDemoSession && <button
           onClick={() => setAddOpen(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
           {t('Добавить материал', 'Material qo\'shish')}
-        </button>
+        </button>}
       </div>
+
+      {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filter */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
@@ -206,13 +232,13 @@ export default function MaterialsPage() {
       </div>
 
       {/* Table / Empty */}
-      {loadError && materials.length === 0 ? (
+      {loadError && materialRows.length === 0 ? (
         <EmptyState
           icon={<AlertTriangle className="w-12 h-12" />}
           title={t('Ошибка загрузки', 'Yuklashda xatolik')}
           description={t('Попробуйте обновить страницу', 'Sahifani yangilang')}
         />
-      ) : materials.length === 0 ? (
+      ) : materialRows.length === 0 ? (
         <EmptyState
           icon={<Package className="w-12 h-12" />}
           title={t('Нет материалов', 'Materiallar yo\'q')}
@@ -230,11 +256,11 @@ export default function MaterialsPage() {
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('Цена за ед.', 'Narxi')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('Мин. кол-во', 'Min. miqdor')}</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">{t('Общая стоимость', 'Umumiy qiymati')}</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">{t('Действия', 'Amallar')}</th>
+                  {!isDemoSession && <th className="text-center px-4 py-3 font-medium text-gray-600">{t('Действия', 'Amallar')}</th>}
                 </tr>
               </thead>
               <tbody>
-                {materials.map((m) => (
+                {materialRows.map((m) => (
                   <tr key={m.id} className={`border-b border-gray-50 ${rowClass(m)}`}>
                     <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
                     <td className="px-4 py-3 text-gray-600">{m.unit}</td>
@@ -244,7 +270,7 @@ export default function MaterialsPage() {
                     <td className="px-4 py-3 text-right font-medium text-gray-900">
                       {formatPrice(m.quantity * m.price_per_unit)}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    {!isDemoSession && <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => openWriteOff(m)}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -252,7 +278,7 @@ export default function MaterialsPage() {
                         <MinusCircle className="w-3.5 h-3.5" />
                         {t('Списать', 'Hisobdan chiqarish')}
                       </button>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>
@@ -262,7 +288,7 @@ export default function MaterialsPage() {
       )}
 
       {/* Add Material Modal — batch mode */}
-      <Modal isOpen={addOpen} onClose={() => { setAddOpen(false); setBatchItems([]); setBatchBuildingId(''); setBatchFile(null); setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' }); }} title={t('Добавить материалы', 'Materiallar qo\'shish')} size="lg">
+      <Modal isOpen={!isDemoSession && addOpen} onClose={() => { setAddOpen(false); setBatchItems([]); setBatchBuildingId(''); setBatchFile(null); setAddForm({ name: '', unit: 'шт', quantity: '', price_per_unit: '', min_quantity: '' }); }} title={t('Добавить материалы', 'Materiallar qo\'shish')} size="lg">
         <div className="flex flex-col" style={{ maxHeight: '75vh' }}>
           {/* TOP — Added items table */}
           {batchItems.length > 0 && (
@@ -432,7 +458,7 @@ export default function MaterialsPage() {
       </Modal>
 
       {/* Write-off Modal */}
-      <Modal isOpen={writeOffOpen} onClose={() => setWriteOffOpen(false)} title={t('Списание материала', 'Materialni hisobdan chiqarish')} size="sm">
+      <Modal isOpen={!isDemoSession && writeOffOpen} onClose={() => setWriteOffOpen(false)} title={t('Списание материала', 'Materialni hisobdan chiqarish')} size="sm">
         <div className="space-y-4">
           {writeOffItem && (
             <p className="text-sm text-gray-500">

@@ -25,7 +25,7 @@
 // `downloadBlob(blob, filename)` and the platform routing happens here.
 
 import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useToastStore } from '../stores/toastStore';
 
 export interface DownloadOptions {

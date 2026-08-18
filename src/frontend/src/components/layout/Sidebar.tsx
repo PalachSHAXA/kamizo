@@ -1,19 +1,17 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  LayoutDashboard, FileText, Users, Wrench, Building2, Settings,
-  LogOut, User, Home, Shield, BarChart3,
+  LayoutDashboard, FileText, Users, Building2, Settings,
+  LogOut, User, Home, BarChart3,
   Megaphone, Vote, GraduationCap,
   CalendarDays, Car, QrCode, MessageCircle, ScrollText, Key,
-  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Package, Headphones, Lock, CreditCard,
-  FileSpreadsheet, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, ShieldCheck, ShieldAlert,
+  X as CloseIcon, Star, StickyNote, Phone, ShoppingBag, Headphones, Lock, CreditCard,
   ChevronDown, ChevronRight, Globe, Send, Check
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { useLanguageStore } from '../../stores/languageStore';
-import { useModalPresence } from '../../stores/modalStore';
 import { useRequestStore, useAnnouncementStore, useExecutorStore, useVehicleStore, useGuestAccessStore } from '../../stores/dataStore';
 import { useMeetingStore } from '../../stores/meetingStore';
 import { useTenantStore } from '../../stores/tenantStore';
@@ -24,19 +22,17 @@ import { chatApi } from '../../services/api';
 import { FeatureLockedModal } from '../FeatureLockedModal';
 import { ConfirmDialog } from '../common';
 import { formatName } from '../../utils/formatName';
+import { getAdminNavigation, isAdminNavigationRole } from '../../navigation/adminNavigation';
+import { useModalLifecycle } from '../ui/useModalLifecycle';
 
 interface SidebarProps {
   onLogout: () => void;
   isOpen: boolean;
   onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement>;
 }
 
-export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
-  // Drawer is an overlay — hide the global BottomBar while it's open via the
-  // shared modal-presence registry. Gated on isOpen so the bar reappears on
-  // close / backdrop tap / swipe-to-dismiss / unmount.
-  useModalPresence(isOpen);
-
+export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarProps) {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
@@ -63,10 +59,16 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     }
   }, [user?.buildingId, residentBuilding, fetchBuildingById]);
   const isMobile = useIsMobile();
+  const { panelRef, layerRef, isTopLayer } = useModalLifecycle({
+    active: isMobile && isOpen,
+    onClose,
+    returnFocus: returnFocusRef?.current,
+  });
   const vehicles = useVehicleStore(s => s.vehicles);
   const guestAccessCodes = useGuestAccessStore(s => s.guestAccessCodes);
   const [lockedFeatureName, setLockedFeatureName] = useState<string | null>(null);
   const [lockedFeatureKey, setLockedFeatureKey] = useState<string | null>(null);
+
   // Collapsible sidebar sections — persisted per session
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const toggleSection = (section: string) => {
@@ -86,17 +88,21 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
   const [touchAxis, setTouchAxis] = useState<'h' | 'v' | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX);
-    setTouchStartY(e.touches[0].clientY);
-    setTouchCurrentX(e.touches[0].clientX);
+    const touch = e.touches[0];
+    if (!touch) return;
+    setTouchStartX(touch.clientX);
+    setTouchStartY(touch.clientY);
+    setTouchCurrentX(touch.clientX);
     setIsSwiping(false);
     setTouchAxis(null);
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (touchStartX === null || touchStartY === null) return;
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const currentX = touch.clientX;
+    const currentY = touch.clientY;
     const diffX = touchStartX - currentX;  // positive = swipe left
     const diffY = Math.abs(currentY - touchStartY);
 
@@ -320,6 +326,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       ];
     }
 
+    if (isAdminNavigationRole(user?.role)) {
+      return getAdminNavigation(user.role, language === 'ru' ? 'ru' : 'uz', {
+        demoSession: user.demoSession,
+      });
+    }
+
     if (user?.role === 'executor' || user?.role === 'security') {
       const isSecurity = user?.role === 'security' || user?.specialization === 'security';
       return [
@@ -388,128 +400,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         { path: '/settings', icon: Settings, label: language === 'ru' ? 'Настройки' : 'Sozlamalar' },
       ];
     }
-    if (user?.role === 'admin') {
-      return [
-        // Операции
-        { path: '/', icon: Shield, label: t('nav.monitoring'), section: language === 'ru' ? 'Операции' : 'Operatsiyalar' },
-        { path: '/requests', icon: FileText, label: t('nav.requests') },
-        { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-        // Люди
-        { path: '/team', icon: Users, label: language === 'ru' ? 'Персонал' : 'Xodimlar', section: language === 'ru' ? 'Люди' : 'Odamlar' },
-        { path: '/residents', icon: Users, label: t('nav.residents') },
-        // Объекты и доступ
-        { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
-        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari' },
-        { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
-        // Коммуникации
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
-        { path: '/meetings', icon: Vote, label: t('meetings.title') },
-        { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
-        // Финансы
-        { path: '/finance/estimates', icon: FileSpreadsheet, label: language === 'ru' ? 'Смета' : 'Smeta', section: language === 'ru' ? 'Финансы' : 'Moliya' },
-        { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
-        { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
-        { path: '/finance/income', icon: TrendingUp, label: language === 'ru' ? 'Доходы УК' : 'UK daromadlari' },
-        { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
-        { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
-        { path: '/finance/settings', icon: ShieldCheck, label: language === 'ru' ? 'Доступ' : 'Kirish' },
-        // Управление
-        { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
-        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
-        { path: '/settings', icon: Settings, label: t('nav.settings') },
-      ];
-    }
-    // Director (Управляющий директор) - обзор всей компании
-    if (user?.role === 'director') {
-      return [
-        // Обзор
-        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Обзор компании' : 'Kompaniya sharhi', section: language === 'ru' ? 'Обзор' : 'Umumiy' },
-        { path: '/reports', icon: BarChart3, label: t('nav.reports') },
-        { path: '/requests', icon: FileText, label: t('nav.requests') },
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-        // Люди
-        { path: '/team', icon: Users, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar', section: language === 'ru' ? 'Люди' : 'Odamlar' },
-        { path: '/residents', icon: Users, label: t('nav.residents') },
-        // Объекты
-        { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
-        { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
-        { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-        { path: '/rentals', icon: Key, label: language === 'ru' ? 'Договоры краткосрочной аренды' : 'Qisqa muddatli ijara shartnomalari' },
-        { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
-        // Коммуникации
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
-        { path: '/meetings', icon: Vote, label: t('meetings.title') },
-        // Финансы
-        { path: '/finance/estimates', icon: FileSpreadsheet, label: language === 'ru' ? 'Смета' : 'Smeta', section: language === 'ru' ? 'Финансы' : 'Moliya' },
-        { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
-        { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
-        { path: '/finance/income', icon: TrendingUp, label: language === 'ru' ? 'Доходы УК' : 'UK daromadlari' },
-        { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
-        { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
-        { path: '/finance/settings', icon: ShieldCheck, label: language === 'ru' ? 'Доступ' : 'Kirish' },
-        // Управление
-        { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
-        // Прочее
-        { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot', section: language === 'ru' ? 'Прочее' : 'Boshqa' },
-        { path: '/settings', icon: Settings, label: t('nav.settings') },
-      ];
-    }
-    // Department Head (Глава отдела) - limited manager view for their department
-    if (user?.role === 'department_head') {
-      return [
-        // Отдел
-        { path: '/', icon: LayoutDashboard, label: language === 'ru' ? 'Мой отдел' : 'Mening bo\'limim', section: language === 'ru' ? 'Отдел' : 'Bo\'lim' },
-        { path: '/requests', icon: FileText, label: language === 'ru' ? 'Заявки' : 'Arizalar' },
-        { path: '/executors', icon: Wrench, label: language === 'ru' ? 'Сотрудники' : 'Xodimlar' },
-        { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat' },
-        // Прочее — /vehicle-search removed: dept_head doesn't have access (was silently
-        // redirecting to /), so clicking the drawer link felt like a broken app.
-        { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Прочее' : 'Boshqa' },
-        { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
-        { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Коллеги' : 'Hamkasblar' },
-        { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Блокнот' : 'Bloknot' },
-        { path: '/settings', icon: Settings, label: t('nav.settings') },
-      ];
-    }
-    // Manager - оптимизированное меню с секциями
-    return [
-      // Операции
-      { path: '/', icon: LayoutDashboard, label: t('nav.dashboard'), section: language === 'ru' ? 'Операции' : 'Operatsiyalar' },
-      { path: '/requests', icon: FileText, label: t('nav.requests') },
-      { path: '/work-orders', icon: Wrench, label: t('nav.workOrders') },
-      { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чаты' : 'Chatlar' },
-      // Люди
-      { path: '/executors', icon: Wrench, label: t('nav.executors'), section: language === 'ru' ? 'Люди' : 'Odamlar' },
-      { path: '/residents', icon: Users, label: t('nav.residents') },
-      { path: '/colleagues', icon: Users, label: language === 'ru' ? 'Мои коллеги' : 'Hamkasblar' },
-      // Объекты и доступ
-      { path: '/buildings', icon: Building2, label: t('nav.buildings'), section: language === 'ru' ? 'Объекты' : 'Obyektlar' },
-      { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
-      { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
-      { path: '/rentals', icon: Key, label: t('nav.rentals') },
-      { path: '/rentals-moderation', icon: ShieldAlert, label: language === 'ru' ? 'Модерация объявлений' : "E'lonlarni moderatsiya" },
-      // Коммуникации
-      { path: '/announcements', icon: Megaphone, label: t('announcements.title'), section: language === 'ru' ? 'Коммуникации' : 'Aloqalar' },
-      { path: '/meetings', icon: Vote, label: t('meetings.title') },
-      { path: '/trainings', icon: GraduationCap, label: t('nav.trainings') },
-      // Маркетплейс
-      { path: '/marketplace-orders', icon: ShoppingBag, label: language === 'ru' ? 'Заказы магазина' : 'Do\'kon buyurtmalari', section: language === 'ru' ? 'Маркетплейс' : 'Marketplace' },
-      { path: '/marketplace-products', icon: Package, label: language === 'ru' ? 'Товары и склад' : 'Mahsulotlar va ombor' },
-      // Финансы
-      { path: '/finance/estimates', icon: FileSpreadsheet, label: language === 'ru' ? 'Смета' : 'Smeta', section: language === 'ru' ? 'Финансы' : 'Moliya' },
-      { path: '/finance/charges', icon: ClipboardList, label: language === 'ru' ? 'Начисления' : 'Hisob-kitob' },
-      { path: '/finance/debtors', icon: AlertTriangle, label: language === 'ru' ? 'Должники' : 'Qarzdorlar' },
-      { path: '/finance/expenses', icon: TrendingDown, label: language === 'ru' ? 'Расходы' : 'Xarajatlar' },
-      { path: '/finance/materials', icon: Package, label: language === 'ru' ? 'Материалы' : 'Materiallar' },
-      // Управление
-      { path: '/payments', icon: CreditCard, label: language === 'ru' ? 'Платежи' : 'To\'lovlar', section: language === 'ru' ? 'Управление' : 'Boshqaruv' },
-      { path: '/reports', icon: BarChart3, label: t('nav.reports') },
-      { path: '/notepad', icon: StickyNote, label: language === 'ru' ? 'Заметки' : 'Eslatmalar' },
-      { path: '/settings', icon: Settings, label: t('nav.settings') },
-    ];
+    return [];
   };
 
   // Feature to menu path mapping
@@ -526,7 +417,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     'vehicles': ['/vehicles', '/vehicle-search'],
     'useful-contacts': ['/useful-contacts'],
     'notepad': ['/notepad'],
-    'communal': ['/payments', '/finance/estimates', '/finance/charges', '/finance/debtors', '/finance/income', '/finance/expenses', '/finance/materials', '/finance/settings'],
+    'communal': ['/finance/estimates', '/finance/charges', '/finance/debtors', '/finance/income', '/finance/expenses', '/finance/materials', '/finance/settings'],
   };
 
   // Always-allowed paths that are never locked
@@ -566,7 +457,6 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       '/notepad': { ru: 'Заметки', uz: 'Eslatmalar' },
       '/qr-scanner': { ru: 'QR сканер', uz: 'QR skaner' },
       '/guest-access': { ru: 'Гостевые пропуска', uz: 'Mehmon ruxsatnomalari' },
-      '/payments': { ru: 'Платежи', uz: 'To\'lovlar' },
     };
     const lang = language === 'ru' ? 'ru' : 'uz';
     return nameMap[path]?.[lang] || (language === 'ru' ? 'Функция' : 'Funksiya');
@@ -612,7 +502,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
     // ── counts wired to real stores ──
     const activeRequestCount = badges['/'] || 0;
     const unreadAnnouncementCount = badges['/announcements'] || 0;
-    const vehicleCount = vehicles.filter(v => v.residentId === user!.id).length;
+    const vehicleCount = vehicles.filter(v => v.ownerId === user!.id).length;
     const activeGuestPassCount = guestAccessCodes.filter(
       c => c.residentId === user!.id && c.status === 'active'
     ).length;
@@ -625,7 +515,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
       const parts = displayName.trim().split(/\s+/);
       if (!parts[0]) return '·';
       if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-      return (parts[0][0] + parts[1][0]).toUpperCase();
+      const [first, second] = parts;
+      return ((first?.[0] || '') + (second?.[0] || '')).toUpperCase();
     })();
     // Prefer the building's real name (ЖК) from the buildings API, then
     // its address, then the legacy single-string fields on the user
@@ -655,11 +546,12 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
     const TEXT_ON_DARK = '#F4F0E8';
 
+    const mobileClosed = isMobile && !isOpen;
     return createPortal(
-      <>
+      <div ref={layerRef}>
         {/* ── Backdrop ── */}
         <div
-          onClick={onClose}
+          onClick={() => { if (isTopLayer()) onClose(); }}
           aria-hidden="true"
           style={{
             position: 'fixed', inset: 0, zIndex: 60,
@@ -674,17 +566,21 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
 
         {/* ── Drawer panel ── */}
         <aside
+          ref={panelRef}
+          id="app-sidebar"
           role="navigation"
           aria-label={language === 'ru' ? 'Главное меню' : 'Asosiy menyu'}
+          aria-hidden={mobileClosed ? true : undefined}
+          {...(mobileClosed ? { inert: '' } : {})}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           style={{
             position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 61,
-            width: 326, maxWidth: '90vw',
+            width: isMobile ? 326 : 272, maxWidth: isMobile ? '90vw' : undefined,
             background: 'var(--app-bg)',
             boxShadow: '0 0 50px rgba(28,25,23,0.22)',
-            transform: isOpen ? `translateX(-${swipeOffset}px)` : 'translateX(-100%)',
+            transform: !isMobile || isOpen ? `translateX(-${swipeOffset}px)` : 'translateX(-100%)',
             transition: swipeOffset > 0 ? 'none' : 'transform 0.28s var(--ease-emphasized, cubic-bezier(0.2,0,0,1))',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             // Round the right edge of the drawer (its outer edge once
@@ -694,8 +590,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
             // overflow:hidden on this panel clips the brown header's
             // top-right corner against the panel's rounded edge so the
             // visual reads as one coherent floating card.
-            borderTopRightRadius: 24,
-            borderBottomRightRadius: 24,
+            borderTopRightRadius: isMobile ? 24 : 0,
+            borderBottomRightRadius: isMobile ? 24 : 0,
           }}
         >
           {/* ── Dark stone header ──
@@ -1070,20 +966,23 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
           onClose={() => setShowLogoutConfirm(false)}
           onConfirm={() => { setShowLogoutConfirm(false); onClose(); onLogout(); }}
         />
-      </>,
+      </div>,
       document.body,
     );
   }
 
+  const mobileClosed = isMobile && !isOpen;
   return createPortal(
-    <>
+    <div ref={layerRef}>
       {/* Mobile overlay — rendered at document.body level to avoid scroll/stacking issues */}
       <div
         className={`sidebar-overlay touch-manipulation ${isOpen ? 'open' : ''}`}
-        onClick={onClose}
+        onClick={() => { if (isTopLayer()) onClose(); }}
       />
 
       <div
+        ref={panelRef}
+        id="app-sidebar"
         className={`sidebar ${isOpen ? 'open' : ''}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -1091,6 +990,8 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         style={swipeOffset > 0 ? { transform: `translateX(-${swipeOffset}px)`, transition: 'none' } : undefined}
         role="navigation"
         aria-label={language === 'ru' ? 'Главное меню' : 'Asosiy menyu'}
+        aria-hidden={mobileClosed ? true : undefined}
+        {...(mobileClosed ? { inert: '' } : {})}
       >
         {/* Compact header - logo + name in one row like Click app */}
         <div className="px-4 pb-3 sidebar-safe-top">
@@ -1247,7 +1148,7 @@ export function Sidebar({ onLogout, isOpen, onClose }: SidebarProps) {
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={() => { setShowLogoutConfirm(false); onLogout(); }}
       />
-    </>,
+    </div>,
     document.body
   );
 }

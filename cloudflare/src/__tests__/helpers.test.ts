@@ -9,9 +9,33 @@ import {
   generateId,
   getPaginationParams,
   createPaginatedResponse,
+  accessDenied,
   isManagement,
   isAdminLevel,
 } from '../utils/helpers'
+
+describe('accessDenied audit context', () => {
+  it('logs the verified impersonation actor and target session user', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const request = new Request('https://api.kamizo.uz/api/users', { method: 'POST' })
+
+    accessDenied(request, {
+      id: 'tenant-admin-1',
+      role: 'admin',
+      tenant_id: 'tenant-1',
+      isImpersonated: true,
+      impersonatedBy: 'super-admin-1',
+    }, 'management_required')
+
+    expect(JSON.parse(String(warnSpy.mock.calls[0][0]))).toMatchObject({
+      actorId: 'super-admin-1',
+      impersonatedSessionUserId: 'tenant-admin-1',
+      isImpersonated: true,
+      userId: 'tenant-admin-1',
+    })
+    warnSpy.mockRestore()
+  })
+})
 
 describe('generateId', () => {
   it('returns a string', () => {

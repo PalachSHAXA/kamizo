@@ -44,10 +44,23 @@ export function bilingualError(ru: string, uz: string, status = 400) {
 // without every guard site having to spell them out inline.
 export function accessDenied(
   request: Request,
-  user: { id?: string; role?: string; tenant_id?: string | null } | null | undefined,
+  user: {
+    id?: string;
+    role?: string;
+    tenant_id?: string | null;
+    isImpersonated?: true;
+    impersonatedBy?: string;
+  } | null | undefined,
   reason: string,
 ) {
   const url = new URL(request.url);
+  const impersonationContext = user?.isImpersonated === true && typeof user.impersonatedBy === 'string'
+    ? {
+        actorId: user.impersonatedBy,
+        impersonatedSessionUserId: user.id ?? null,
+        isImpersonated: true,
+      }
+    : {};
   // Structured log — same JSON shape createRequestLogger emits so it's
   // grep-able out of /opt/kamizo/logs/api.log with the same tools.
   console.warn(JSON.stringify({
@@ -57,6 +70,7 @@ export function accessDenied(
     userId: user?.id ?? null,
     role: user?.role ?? null,
     tenantId: user?.tenant_id ?? null,
+    ...impersonationContext,
     method: request.method,
     path: url.pathname,
     timestamp: new Date().toISOString(),

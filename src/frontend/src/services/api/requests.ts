@@ -1,6 +1,124 @@
 // Requests API, Reschedule API, Ratings API, UK Ratings API, Categories API, Stats API, Work Orders API
 
 import { apiRequest, cachedGet, invalidateCache, CACHE_TTL } from './client';
+import type { ExecutorSpecialization, RequestPriority, RequestStatus } from '../../types/common';
+import type {
+  RescheduleInitiator,
+  RescheduleReason,
+  RescheduleRequestStatus,
+} from '../../types/reschedule';
+
+export interface RequestApiRecord {
+  id?: string;
+  request_number?: string | number;
+  number?: string | number;
+  title?: string;
+  description?: string;
+  category_id?: ExecutorSpecialization;
+  status?: RequestStatus;
+  priority?: RequestPriority;
+  resident_id?: string;
+  resident_name?: string;
+  resident_phone?: string;
+  address?: string;
+  apartment?: string;
+  executor_id?: string;
+  executor_name?: string;
+  executor_phone?: string;
+  access_info?: string;
+  scheduled_at?: string;
+  created_at?: string;
+  assigned_at?: string;
+  accepted_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  approved_at?: string;
+  rating?: number;
+  feedback?: string;
+  work_duration?: number;
+  building_id?: string;
+  building_name?: string;
+  photos?: unknown;
+  is_paused?: number | boolean;
+  paused_at?: string;
+  pause_reason?: string;
+  total_paused_time?: number;
+}
+
+export interface CreatedRequestApiRecord extends RequestApiRecord {
+  id: string;
+  title: string;
+  description: string;
+  category_id: ExecutorSpecialization;
+  status: RequestStatus;
+  resident_id: string;
+  resident_name: string;
+  resident_phone: string;
+  address: string;
+  apartment: string;
+  created_at: string;
+}
+
+export interface RescheduleApiRecord {
+  id: string;
+  request_id: string;
+  request_number?: string | number;
+  request_title?: string;
+  initiator: RescheduleInitiator;
+  initiator_id: string;
+  initiator_name: string;
+  recipient_id: string;
+  recipient_name: string;
+  recipient_role: 'resident' | 'executor';
+  current_date?: string;
+  current_time?: string;
+  proposed_date: string;
+  proposed_time: string;
+  reason: RescheduleReason;
+  reason_text?: string;
+  status: RescheduleRequestStatus;
+  response_note?: string;
+  created_at: string;
+  responded_at?: string;
+  expires_at: string;
+}
+
+export interface WorkOrderApiRecord extends Record<string, unknown> {
+  id: string;
+  number: string;
+  title: string;
+  description?: string;
+  type: 'planned' | 'preventive' | 'emergency' | 'seasonal';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  building_id?: string;
+  buildingId?: string;
+  apartment_id?: string;
+  apartmentId?: string;
+  assigned_to?: string;
+  assignedTo?: string;
+  scheduled_date?: string;
+  scheduledDate?: string;
+  scheduled_time?: string;
+  scheduledTime?: string;
+  started_at?: string;
+  startedAt?: string;
+  completed_at?: string;
+  completedAt?: string;
+  estimated_duration?: number;
+  estimatedDuration?: number;
+  actual_duration?: number;
+  actualDuration?: number;
+  materials?: string | Array<{ name: string; quantity: number; unit?: string }>;
+  checklist?: string | Array<{ item: string; completed: boolean }>;
+  notes?: string;
+  request_id?: string;
+  requestId?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
 
 // Requests API
 export const requestsApi = {
@@ -10,7 +128,7 @@ export const requestsApi = {
     if (category) params.append('category', category);
     const queryString = params.toString();
     // Use cached GET with short TTL (10s) - requests change frequently
-    return cachedGet<{ requests: Record<string, unknown>[] }>(`/api/requests${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
+    return cachedGet<{ requests: RequestApiRecord[] }>(`/api/requests${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
   },
 
   create: async (request: {
@@ -24,7 +142,7 @@ export const requestsApi = {
     resident_id?: string;
     photos?: string[];
   }) => {
-    const result = await apiRequest<{ request: Record<string, unknown> }>('/api/requests', {
+    const result = await apiRequest<{ request: CreatedRequestApiRecord }>('/api/requests', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -150,14 +268,14 @@ export const requestsApi = {
     reason: string;
     reason_text?: string;
   }) => {
-    return apiRequest<{ reschedule: Record<string, unknown> }>(`/api/requests/${requestId}/reschedule`, {
+    return apiRequest<{ reschedule: RescheduleApiRecord }>(`/api/requests/${requestId}/reschedule`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   getReschedules: async (requestId: string) => {
-    return apiRequest<{ reschedules: Record<string, unknown>[] }>(`/api/requests/${requestId}/reschedule`);
+    return apiRequest<{ reschedules: RescheduleApiRecord[] }>(`/api/requests/${requestId}/reschedule`);
   },
 };
 
@@ -165,7 +283,7 @@ export const requestsApi = {
 export const rescheduleApi = {
   // Get pending reschedules for current user
   getPending: async () => {
-    return apiRequest<{ reschedules: Record<string, unknown>[] }>('/api/reschedule-requests');
+    return apiRequest<{ reschedules: RescheduleApiRecord[] }>('/api/reschedule-requests');
   },
 
   // Respond to reschedule request.
@@ -174,7 +292,7 @@ export const rescheduleApi = {
   // requests cache stale would show the old time for up to ~10s after
   // the resident accepts/rejects (audit P0 fix).
   respond: async (rescheduleId: string, accepted: boolean, responseNote?: string) => {
-    const result = await apiRequest<{ reschedule: Record<string, unknown> }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
+    const result = await apiRequest<{ reschedule: RescheduleApiRecord }>(`/api/reschedule-requests/${rescheduleId}/respond`, {
       method: 'POST',
       body: JSON.stringify({ accepted, response_note: responseNote }),
     });
@@ -238,7 +356,7 @@ export const workOrdersApi = {
     if (filters?.priority) params.append('priority', filters.priority);
     if (filters?.buildingId) params.append('building_id', filters.buildingId);
     const queryString = params.toString();
-    return cachedGet<{ workOrders: Record<string, unknown>[] }>(`/api/work-orders${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
+    return cachedGet<{ workOrders: WorkOrderApiRecord[] }>(`/api/work-orders${queryString ? '?' + queryString : ''}`, CACHE_TTL.SHORT);
   },
 
   create: async (data: {

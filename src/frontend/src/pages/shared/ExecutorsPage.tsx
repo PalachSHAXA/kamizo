@@ -1,12 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Phone, Star, X, Eye, EyeOff, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Phone, Star, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench } from 'lucide-react';
 import { EmptyState } from '../../components/common';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 import { useExecutorStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { executorsApi } from '../../services/api';
 import type { Executor, ExecutorSpecialization } from '../../types';
+import { DemoReadOnlyBanner } from '../../components/demo/DemoReadOnlyBanner';
 
 export function ExecutorsPage() {
   const { user } = useAuthStore();
@@ -21,6 +24,8 @@ export function ExecutorsPage() {
 
   // Check if user is department head - they can only see and manage their department's executors
   const isDepartmentHead = user?.role === 'department_head';
+  const isDemoSession = user?.demoSession === true;
+  const canAddExecutor = user?.role !== 'dispatcher' && !isDemoSession;
   const userSpecialization = user?.specialization;
 
   // Filter executors by department if user is department head
@@ -39,16 +44,12 @@ export function ExecutorsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [createdPasswords, setCreatedPasswords] = useState<Record<string, string>>({});
-  // @ts-expect-error - used in modal
   const [showCredentialsModal, setShowCredentialsModal] = useState<{ login: string; password: string } | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     phone: '',
     login: '',
-    password: '',
     specialization: 'plumber' as ExecutorSpecialization,
   });
   const [newExecutor, setNewExecutor] = useState<{
@@ -69,7 +70,8 @@ export function ExecutorsPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [, setIsLoadingDetails] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const addTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Specialization labels with language support
   const specLabels: Record<ExecutorSpecialization, string> = language === 'ru' ? {
@@ -107,79 +109,65 @@ export function ExecutorsPage() {
       name: executor.name,
       phone: executor.phone,
       login: executor.login,
-      password: executor.password || '',
       specialization: executor.specialization,
     });
     setIsEditing(false);
-    setShowPassword(false);
 
-    // Then fetch fresh data from API (including password)
-    setIsLoadingDetails(true);
+    // Then fetch fresh profile data from the API.
     try {
       const response = await executorsApi.getById(executor.id);
       if (response.executor) {
-        const freshData = {
-          ...executor,
-          ...response.executor,
-          // Map API field names to frontend field names
-          createdAt: response.executor.created_at || executor.createdAt,
+        const freshData: Executor = {
+          id: response.executor.id,
+          name: response.executor.name,
+          phone: response.executor.phone,
+          login: response.executor.login,
+          specialization: response.executor.specialization,
+          status: response.executor.status ?? executor.status,
+          rating: response.executor.rating ?? executor.rating,
+          completedCount: response.executor.completed_count ?? executor.completedCount,
+          activeRequests: response.executor.active_requests ?? executor.activeRequests,
+          totalEarnings: response.executor.total_earnings ?? executor.totalEarnings,
+          avgCompletionTime: response.executor.avg_completion_time ?? executor.avgCompletionTime,
+          createdAt: response.executor.created_at ?? executor.createdAt,
         };
         setSelectedExecutor(freshData);
         setEditForm({
           name: freshData.name,
           phone: freshData.phone,
           login: freshData.login,
-          password: freshData.password || '',
           specialization: freshData.specialization,
         });
       }
     } catch (err) {
       console.error('Failed to fetch executor details:', err);
-    } finally {
-      setIsLoadingDetails(false);
     }
   };
 
   const handleCloseDetails = () => {
+    setShowDeleteConfirm(false);
     setSelectedExecutor(null);
     setIsEditing(false);
-    setShowPassword(false);
-  };
-
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleSaveChanges = () => {
-    if (!selectedExecutor) return;
+    if (isDemoSession || !selectedExecutor) return;
     updateExecutor(selectedExecutor.id, editForm);
-
-    // Save password locally if it was changed
-    if (editForm.password) {
-      setCreatedPasswords(prev => ({
-        ...prev,
-        [selectedExecutor.id]: editForm.password
-      }));
-    }
 
     setSelectedExecutor({ ...selectedExecutor, ...editForm });
     setIsEditing(false);
   };
 
   const handleDeleteExecutor = async () => {
-    if (!selectedExecutor) return;
-    if (confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этого исполнителя?' : 'Ushbu ijrochini o\'chirishni xohlaysizmi?')) {
-      setIsDeleting(true);
-      try {
-        await deleteExecutor(selectedExecutor.id);
-        handleCloseDetails();
-      } catch (error: unknown) {
-        addToast('error', (error instanceof Error ? error.message : null) || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
-      } finally {
-        setIsDeleting(false);
-      }
+    if (isDemoSession || !selectedExecutor) return;
+    setIsDeleting(true);
+    try {
+      await deleteExecutor(selectedExecutor.id);
+      handleCloseDetails();
+    } catch (error: unknown) {
+      addToast('error', (error instanceof Error ? error.message : null) || (language === 'ru' ? 'Ошибка при удалении' : 'O\'chirishda xatolik'));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -193,6 +181,7 @@ export function ExecutorsPage() {
   };
 
   const handleAddExecutor = async () => {
+    if (isDemoSession) return;
     if (!newExecutor.name || !newExecutor.phone || !newExecutor.login || !newExecutor.password) {
       setAddError(language === 'ru' ? 'Заполните все обязательные поля' : 'Barcha majburiy maydonlarni to\'ldiring');
       return;
@@ -200,12 +189,7 @@ export function ExecutorsPage() {
     setIsAdding(true);
     setAddError(null);
     try {
-      const result = await addExecutor(newExecutor);
-
-      // Save password locally for this user
-      if (result?.id) {
-        setCreatedPasswords(prev => ({ ...prev, [result.id]: newExecutor.password }));
-      }
+      await addExecutor(newExecutor);
 
       // Show credentials modal
       setShowCredentialsModal({
@@ -225,9 +209,9 @@ export function ExecutorsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip pb-24 md:pb-0">
+      <div className="flex flex-col min-[361px]:flex-row min-[361px]:items-center min-[361px]:justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {isDepartmentHead
               ? (language === 'ru' ? 'Мои сотрудники' : 'Mening xodimlarim')
@@ -239,17 +223,21 @@ export function ExecutorsPage() {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <button
+            type="button"
             onClick={() => fetchExecutors()}
             className="btn-secondary p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95"
             title={language === 'ru' ? 'Обновить' : 'Yangilash'}
+            aria-label={language === 'ru' ? 'Обновить список исполнителей' : 'Ijrochilar ro\'yxatini yangilash'}
             disabled={isLoadingExecutors}
           >
             <RefreshCw className={`w-5 h-5 ${isLoadingExecutors ? 'animate-spin' : ''}`} />
           </button>
-          {/* Department heads can add executors of their department */}
-          <button
+          {/* Department heads can add executors of their department. Dispatchers are read-only. */}
+          {canAddExecutor && <button
+            ref={addTriggerRef}
+            type="button"
             onClick={() => {
               // For department heads, pre-set specialization to their department
               if (isDepartmentHead && userSpecialization) {
@@ -261,12 +249,14 @@ export function ExecutorsPage() {
               }
               setShowAddModal(true);
             }}
-            className="btn-primary min-h-[44px] touch-manipulation active:scale-95"
+            className="btn-primary min-h-[44px] min-w-0 max-w-full touch-manipulation active:scale-95 whitespace-nowrap"
+            aria-label={language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
           >
             + {language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
-          </button>
+          </button>}
         </div>
       </div>
+      {isDemoSession && <DemoReadOnlyBanner />}
       {isLoadingExecutors ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
@@ -282,19 +272,19 @@ export function ExecutorsPage() {
         {filteredExecutors.map((executor) => (
           <div
             key={executor.id}
-            className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl hover:shadow-lg transition-shadow"
+            className="glass-card min-w-0 max-w-full overflow-hidden p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl hover:shadow-lg transition-shadow"
           >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
+            <div className="mb-3 flex min-w-0 items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center text-lg font-medium text-primary-700">
                   {executor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
-                <div>
-                  <h3 className="font-semibold">{executor.name}</h3>
-                  <div className="text-sm text-gray-500">{specLabels[executor.specialization] || (language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan')}</div>
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold" title={executor.name}>{executor.name}</h3>
+                  <div className="truncate text-sm text-gray-500">{specLabels[executor.specialization] || (language === 'ru' ? 'Не указана' : 'Ko\'rsatilmagan')}</div>
                 </div>
               </div>
-              {getStatusBadge(executor.status)}
+              <div className="shrink-0">{getStatusBadge(executor.status)}</div>
             </div>
             <div className="space-y-2 text-sm text-gray-600 mb-3">
               <a
@@ -324,14 +314,21 @@ export function ExecutorsPage() {
       )}
 
       {/* Add Executor Modal */}
-      {showAddModal && (
-        <div className="modal-backdrop items-end sm:items-center">
-          <div className="modal-content p-4 sm:p-6 w-full max-w-md sm:mx-4 rounded-t-2xl sm:rounded-2xl">
-            <h2 className="text-xl font-bold mb-4">
-              {isDepartmentHead
-                ? (language === 'ru' ? 'Добавить сотрудника в отдел' : 'Bo\'limga xodim qo\'shish')
-                : (language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish')}
-            </h2>
+      <Modal
+        open={showAddModal}
+        onClose={() => {
+          if (isAdding) return;
+          setShowAddModal(false);
+          setAddError(null);
+        }}
+        title={isDepartmentHead
+          ? (language === 'ru' ? 'Добавить сотрудника в отдел' : 'Bo\'limga xodim qo\'shish')
+          : (language === 'ru' ? 'Добавить сотрудника' : 'Xodim qo\'shish')}
+        size="md"
+        returnFocus={addTriggerRef.current}
+        panelClassName="flex flex-col !overflow-hidden"
+      >
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {isDepartmentHead && userSpecialization && (
               <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
                 {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: <strong>{specLabels[userSpecialization as ExecutorSpecialization]}</strong>
@@ -423,7 +420,12 @@ export function ExecutorsPage() {
                 </div>
               )}
             </div>
-            <div className="flex gap-3 mt-6">
+        </div>
+        {!isDemoSession && (
+          <div
+            className="flex gap-3 border-t border-gray-100 bg-white px-4 pt-3 sm:px-6"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+          >
               <button
                 onClick={() => { setShowAddModal(false); setAddError(null); }}
                 className="btn-secondary flex-1"
@@ -445,17 +447,22 @@ export function ExecutorsPage() {
                   language === 'ru' ? 'Добавить' : 'Qo\'shish'
                 )}
               </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Executor Details Modal */}
       {selectedExecutor && (
-        <div className="modal-backdrop items-end sm:items-center" onClick={handleCloseDetails}>
-          <div className="modal-content p-4 sm:p-6 w-full max-w-lg sm:mx-4 rounded-t-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+        <Modal
+          open
+          onClose={handleCloseDetails}
+          title={selectedExecutor.name}
+          size="lg"
+          panelClassName="flex flex-col !overflow-hidden sm:!max-w-lg"
+        >
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {/* Header */}
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start mb-6">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center text-2xl font-medium text-primary-700">
                   {selectedExecutor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -466,9 +473,6 @@ export function ExecutorsPage() {
                   {getStatusBadge(selectedExecutor.status)}
                 </div>
               </div>
-              <button onClick={handleCloseDetails} className="p-2 hover:bg-gray-100 rounded-lg" aria-label="Закрыть">
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Stats */}
@@ -527,16 +531,6 @@ export function ExecutorsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Новый пароль' : 'Yangi parol'}</label>
-                  <input
-                    type="text"
-                    value={editForm.password}
-                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                    className="input-field"
-                    placeholder={language === 'ru' ? 'Оставьте пустым, чтобы не менять' : 'O\'zgartirmaslik uchun bo\'sh qoldiring'}
-                  />
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Специализация' : 'Mutaxassislik'}</label>
                   <select
                     value={editForm.specialization}
@@ -576,70 +570,6 @@ export function ExecutorsPage() {
                   </div>
                 </div>
 
-                {/* Credentials — shown ONLY when there's a fresh password in session
-                    (i.e., executor was just created or password reset in this session).
-                    For existing executors, credentials stay hidden to prevent accidental
-                    leakage of login names to everyone with manager access. */}
-                {(() => {
-                  const freshPassword = selectedExecutor.password || createdPasswords[selectedExecutor.id];
-                  if (!freshPassword) return null;
-                  return (
-                    <div className="bg-blue-50 rounded-xl p-4 space-y-3">
-                      <div className="text-sm font-medium text-blue-800 mb-2">{language === 'ru' ? 'Данные для входа' : 'Kirish ma\'lumotlari'}</div>
-                      <div className="text-xs text-blue-600 mb-2">
-                        {language === 'ru'
-                          ? 'Скопируйте и передайте сотруднику. После закрытия карточки пароль будет недоступен.'
-                          : 'Nusxalang va xodimga bering. Kartochkani yopgandan keyin parol ko\'rinmaydi.'}
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{language === 'ru' ? 'Логин' : 'Login'}</span>
-                        <div className="flex items-center gap-2">
-                          <code className="bg-white px-2 py-1 rounded text-sm font-mono">{selectedExecutor.login}</code>
-                          <button
-                            onClick={() => handleCopy(selectedExecutor.login, 'login')}
-                            className="p-1 hover:bg-blue-100 rounded"
-                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                            aria-label={language === 'ru' ? 'Копировать логин' : 'Loginni nusxalash'}
-                          >
-                            {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{language === 'ru' ? 'Пароль' : 'Parol'}</span>
-                        <div className="flex items-center gap-2">
-                          <code className="bg-white px-2 py-1 rounded text-sm font-mono">
-                            {showPassword ? freshPassword : '••••••••'}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setShowPassword(!showPassword);
-                            }}
-                            className="p-2 hover:bg-blue-100 active:bg-blue-200 rounded touch-manipulation z-10"
-                            title={showPassword ? (language === 'ru' ? 'Скрыть' : 'Yashirish') : (language === 'ru' ? 'Показать' : 'Ko\'rsatish')}
-                            aria-label={showPassword ? (language === 'ru' ? 'Скрыть пароль' : 'Parolni yashirish') : (language === 'ru' ? 'Показать пароль' : 'Parolni ko\'rsatish')}
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                          </button>
-                          <button
-                            onClick={() => handleCopy(freshPassword, 'password')}
-                            className="p-1 hover:bg-blue-100 rounded"
-                            title={language === 'ru' ? 'Копировать' : 'Nusxalash'}
-                            aria-label={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
-                          >
-                            {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
                 {/* Created date */}
                 <div className="text-sm text-gray-500 text-center">
                   {language === 'ru' ? 'Добавлен' : 'Qo\'shilgan'}: {new Date(selectedExecutor.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ')}
@@ -647,8 +577,13 @@ export function ExecutorsPage() {
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex gap-3 mt-6">
+          </div>
+          {/* Actions */}
+          {!isDemoSession && (
+            <div
+              className="flex gap-3 border-t border-gray-100 bg-white px-4 pt-3 sm:px-6"
+              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+            >
               {isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(false)} className="btn-secondary flex-1">
@@ -664,7 +599,7 @@ export function ExecutorsPage() {
                   {/* Department heads can't delete executors - only admins/managers */}
                   {!isDepartmentHead && (
                     <button
-                      onClick={handleDeleteExecutor}
+                      onClick={() => setShowDeleteConfirm(true)}
                       className="btn-secondary text-red-600 hover:bg-red-50 flex-1 flex items-center justify-center gap-2"
                       disabled={isDeleting}
                     >
@@ -685,14 +620,22 @@ export function ExecutorsPage() {
                 </>
               )}
             </div>
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
 
       {/* Credentials Modal - shows after creating new executor */}
       {showCredentialsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6 animate-fade-in">
+        <Modal
+          open
+          onClose={() => setShowCredentialsModal(null)}
+          ariaLabel={language === 'ru' ? 'Исполнитель создан!' : 'Ijrochi yaratildi!'}
+          size="md"
+          hideCloseButton
+          returnFocus={addTriggerRef.current}
+          panelClassName="flex flex-col !overflow-hidden"
+        >
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="w-8 h-8 text-green-600" />
@@ -709,12 +652,14 @@ export function ExecutorsPage() {
                     {showCredentialsModal.login}
                   </code>
                   <button
+                    type="button"
+                    aria-label={language === 'ru' ? 'Копировать логин' : 'Loginni nusxalash'}
                     onClick={() => {
                       navigator.clipboard.writeText(showCredentialsModal.login);
                       setCopiedField('cred-login');
                       setTimeout(() => setCopiedField(null), 2000);
                     }}
-                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 transition-colors hover:bg-gray-200"
                   >
                     {copiedField === 'cred-login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
@@ -728,12 +673,14 @@ export function ExecutorsPage() {
                     {showCredentialsModal.password}
                   </code>
                   <button
+                    type="button"
+                    aria-label={language === 'ru' ? 'Копировать пароль' : 'Parolni nusxalash'}
                     onClick={() => {
                       navigator.clipboard.writeText(showCredentialsModal.password);
                       setCopiedField('cred-password');
                       setTimeout(() => setCopiedField(null), 2000);
                     }}
-                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-1.5 transition-colors hover:bg-gray-200"
                   >
                     {copiedField === 'cred-password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
                   </button>
@@ -746,18 +693,38 @@ export function ExecutorsPage() {
                 {language === 'ru'
                   ? '⚠️ Сохраните эти данные! Пароль показывается только один раз.'
                   : '⚠️ Bu ma\'lumotlarni saqlang! Parol faqat bir marta ko\'rsatiladi.'}
-              </p>
-            </div>
-
+                </p>
+              </div>
+          </div>
+          <div
+            className="border-t border-gray-100 bg-white px-4 pt-3 sm:px-6"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+          >
             <button
+              type="button"
               onClick={() => setShowCredentialsModal(null)}
-              className="btn-primary w-full mt-6"
+              className="btn-primary w-full"
             >
               {language === 'ru' ? 'Готово' : 'Tayyor'}
             </button>
           </div>
-        </div>
+        </Modal>
       )}
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm && Boolean(selectedExecutor)}
+        title={language === 'ru' ? 'Удалить исполнителя?' : 'Ijrochini o\'chirasizmi?'}
+        description={language === 'ru'
+          ? 'Это действие нельзя отменить.'
+          : 'Bu amalni bekor qilib bo\'lmaydi.'}
+        confirmLabel={language === 'ru' ? 'Удалить исполнителя' : 'Ijrochini o\'chirish'}
+        cancelLabel={language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+        onConfirm={handleDeleteExecutor}
+        onClose={() => {
+          if (!isDeleting) setShowDeleteConfirm(false);
+        }}
+        confirmDisabled={isDeleting}
+      />
     </div>
   );
 }

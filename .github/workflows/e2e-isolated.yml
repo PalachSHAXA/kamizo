@@ -1,0 +1,86 @@
+name: Isolated E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            src/frontend/package-lock.json
+            cloudflare/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix src/frontend
+          npm ci --prefix cloudflare
+
+      - name: Verify harness helpers
+        run: npm --prefix src/frontend run test:e2e:harness
+
+  playwright:
+    needs: harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            config: playwright.isolated.config.ts
+            report: playwright-report-isolated
+          - name: demo
+            config: playwright.demo-isolated.config.ts
+            report: playwright-report-demo
+          - name: rentals
+            config: playwright.rentals-isolated.config.ts
+            report: playwright-report-rentals
+          - name: marketplace
+            config: playwright.marketplace-isolated.config.ts
+            report: playwright-report-marketplace
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            src/frontend/package-lock.json
+            cloudflare/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix src/frontend
+          npm ci --prefix cloudflare
+
+      - name: Install Chromium
+        working-directory: src/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run ${{ matrix.name }} isolated E2E
+        working-directory: src/frontend
+        run: npx playwright test --config "${{ matrix.config }}"
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-e2e-${{ matrix.name }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            src/frontend/test-results/
+            src/frontend/${{ matrix.report }}/
+          retention-days: 7

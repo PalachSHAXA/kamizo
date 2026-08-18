@@ -35,7 +35,6 @@ const BORDER = 'var(--themed-border-c, #E6DFD2)';
 const HAIRLINE = 'var(--themed-hairline, rgba(28,25,23,0.06))';
 const SHADOW_SM = 'var(--themed-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 const INK = 'var(--themed-text-primary, #1C1917)';
-const TEXT_ON_DARK = '#F4F0E8';
 const BRAND = '#F97316';
 const BRAND_DARK = '#EA580C';
 const BRAND_TINT = 'var(--themed-brand-tint, #FFF3EA)';

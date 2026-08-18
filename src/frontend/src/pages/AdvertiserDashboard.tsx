@@ -35,6 +35,29 @@ interface AdCategory {
 }
 
 type DurationType = 'week' | '2weeks' | 'month' | '3months' | '6months' | 'year' | 'custom';
+type SelectableDurationType = Exclude<DurationType, 'custom'>;
+
+interface AdForm {
+  category_id: string;
+  title: string;
+  description: string;
+  phone: string;
+  phone2: string;
+  telegram: string;
+  instagram: string;
+  facebook: string;
+  website: string;
+  address: string;
+  work_hours: string;
+  work_days: string;
+  logo_url: string;
+  discount_percent: number;
+  duration_type: DurationType;
+  target_type: 'all' | 'branches' | 'buildings';
+  badges: { recommended: boolean; new: boolean; hot: boolean; verified: boolean };
+  target_branches: string[];
+  target_buildings: string[];
+}
 
 interface Ad {
   id: string;
@@ -143,7 +166,7 @@ export function AdvertiserDashboard() {
   const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [adForm, setAdForm] = useState({
+  const [adForm, setAdForm] = useState<AdForm>({
     category_id: '',
     title: '',
     description: '',
@@ -158,7 +181,7 @@ export function AdvertiserDashboard() {
     work_days: '',
     logo_url: '',
     discount_percent: 10,
-    duration_type: 'month' as 'week' | '2weeks' | 'month' | '3months' | '6months' | 'year',
+    duration_type: 'month',
     target_type: 'all' as 'all' | 'branches' | 'buildings',
     badges: { recommended: false, new: true, hot: false, verified: false },
     target_branches: [] as string[],
@@ -898,18 +921,18 @@ export function AdvertiserDashboard() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{language === 'ru' ? 'Срок размещения' : 'Joylashtirish muddati'}</label>
                 <div className="grid grid-cols-3 xl:grid-cols-3 gap-2 xl:gap-3">
-                  {[
+                  {([
                     { value: 'week', label: language === 'ru' ? '1 неделя' : '1 hafta' },
                     { value: '2weeks', label: language === 'ru' ? '2 недели' : '2 hafta' },
                     { value: 'month', label: language === 'ru' ? '1 месяц' : '1 oy' },
                     { value: '3months', label: language === 'ru' ? '3 месяца' : '3 oy' },
                     { value: '6months', label: language === 'ru' ? '6 месяцев' : '6 oy' },
                     { value: 'year', label: language === 'ru' ? '1 год' : '1 yil' },
-                  ].map(opt => (
+                  ] satisfies Array<{ value: SelectableDurationType; label: string }>).map(opt => (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setAdForm({ ...adForm, duration_type: opt.value as DurationType })}
+                      onClick={() => setAdForm({ ...adForm, duration_type: opt.value })}
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                         adForm.duration_type === opt.value
                           ? 'bg-primary-600 text-white shadow-lg shadow-primary-200'

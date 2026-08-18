@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { registerSessionStore } from './sessionRegistry';
 import { persist } from 'zustand/middleware';
 import type { ChatChannel, ChatMessage } from '../types';
 
@@ -294,3 +295,5 @@ export const useChatStore = create<ChatState>()(
     }
   )
 );
+
+registerSessionStore(useChatStore);

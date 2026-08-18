@@ -5,10 +5,16 @@ import {
   getCached, setCache,
   json, error
 } from './helpers';
+import { hasMeetingTenantContext } from './security';
 
 export function registerMeetingListRoutes() {
 
 route('GET', '/api/meetings', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+  const tenantId = getTenantId(request);
+  if (!hasMeetingTenantContext(tenantId)) return error('Forbidden', 403);
+
   const fc = await requireFeature('meetings', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
 
@@ -17,9 +23,6 @@ route('GET', '/api/meetings', async (request, env) => {
   const status = url.searchParams.get('status');
   const organizerId = url.searchParams.get('organizer_id');
   const onlyActive = url.searchParams.get('only_active') === 'true';
-  const tenantId = getTenantId(request);
-
-  const authUser = await getUser(request, env);
   // Resident-like roles (resident, tenant, commercial_owner) see meetings:
   //   - announced specifically for THEIR building, AND
   //   - announced for the WHOLE TENANT (building_id NULL/empty —
@@ -45,10 +48,8 @@ route('GET', '/api/meetings', async (request, env) => {
     return json({ meetings: cached });
   }
 
-  let query = 'SELECT * FROM meetings WHERE 1=1';
-  const params: any[] = [];
-
-  if (tenantId) { query += ' AND tenant_id = ?'; params.push(tenantId); }
+  let query = 'SELECT * FROM meetings WHERE tenant_id = ?';
+  const params: any[] = [tenantId];
   if (residentScope === 'own_or_tenant_wide') {
     // Own building OR whole-tenant (NULL/empty building_id).
     query += " AND (building_id = ? OR building_id IS NULL OR building_id = '')";
@@ -73,18 +74,18 @@ route('GET', '/api/meetings', async (request, env) => {
   if (meetingIds.length === 0) return json({ meetings: [] });
 
   const [allOptions, allAgenda, allParticipation, allAgendaVotes] = await Promise.all([
-    env.DB.prepare(`SELECT * FROM meeting_schedule_options WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')})`).bind(...meetingIds).all(),
-    env.DB.prepare(`SELECT * FROM meeting_agenda_items WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) ORDER BY item_order`).bind(...meetingIds).all(),
-    env.DB.prepare(`SELECT meeting_id, COUNT(DISTINCT user_id) as count FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) GROUP BY meeting_id`).bind(...meetingIds).all(),
-    env.DB.prepare(`SELECT meeting_id, agenda_item_id, choice, voter_id, vote_weight FROM meeting_vote_records WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND is_revote = 0`).bind(...meetingIds).all()
+    env.DB.prepare(`SELECT * FROM meeting_schedule_options WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND tenant_id = ?`).bind(...meetingIds, tenantId).all(),
+    env.DB.prepare(`SELECT * FROM meeting_agenda_items WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND tenant_id = ? ORDER BY item_order`).bind(...meetingIds, tenantId).all(),
+    env.DB.prepare(`SELECT meeting_id, COUNT(DISTINCT user_id) as count FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND tenant_id = ? GROUP BY meeting_id`).bind(...meetingIds, tenantId).all(),
+    env.DB.prepare(`SELECT meeting_id, agenda_item_id, choice, voter_id, vote_weight FROM meeting_vote_records WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND tenant_id = ? AND is_revote = 0`).bind(...meetingIds, tenantId).all()
   ]);
 
   const optionIds = (allOptions.results as any[]).map(o => o.id);
   let allVotes: any[] = [];
   if (optionIds.length > 0) {
     const votesResult = await env.DB.prepare(
-      `SELECT option_id, user_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')})`
-    ).bind(...optionIds).all();
+      `SELECT option_id, user_id, vote_weight FROM meeting_schedule_votes WHERE option_id IN (${optionIds.map(() => '?').join(',')}) AND tenant_id = ?`
+    ).bind(...optionIds, tenantId).all();
     allVotes = votesResult.results as any[];
   }
 
@@ -121,8 +122,8 @@ route('GET', '/api/meetings', async (request, env) => {
   for (const p of allParticipation.results as any[]) participationMap.set(p.meeting_id, p.count);
 
   const participatedVotersResult = await env.DB.prepare(
-    `SELECT DISTINCT meeting_id, user_id FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')})`
-  ).bind(...meetingIds).all();
+    `SELECT DISTINCT meeting_id, user_id FROM meeting_participated_voters WHERE meeting_id IN (${meetingIds.map(() => '?').join(',')}) AND tenant_id = ?`
+  ).bind(...meetingIds, tenantId).all();
 
   const participatedVotersMap = new Map<string, string[]>();
   for (const p of participatedVotersResult.results as any[]) {

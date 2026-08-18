@@ -21,8 +21,10 @@ export async function importFromExcel(file: File): Promise<Record<string, unknow
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) throw new Error('Excel workbook has no sheets');
         const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        if (!worksheet) throw new Error(`Excel sheet "${firstSheetName}" is missing`);
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
         resolve(jsonData);
       } catch (error) {
         reject(error);

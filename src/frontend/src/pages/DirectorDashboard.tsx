@@ -9,8 +9,29 @@ import { useTenantStore } from '../stores/tenantStore';
 import { SPECIALIZATION_LABELS } from '../types';
 import type { Request } from '../types/request';
 import { teamApi, apiRequest, ukRatingsApi, statsApi } from '../services/api';
-import { OverviewTab, MarketplaceTab, RatingsTab, createTranslator } from './dashboard';
-import type { TeamData, MarketplaceReport, TabType, CompanyStats, BuildingStat, DepartmentStat, ChartData } from './dashboard';
+import { OverviewTab, MarketplaceTab, RatingsTab, createTranslator, parseRatingSummary } from './dashboard';
+import type { TeamData, TeamMember, MarketplaceReport, TabType, CompanyStats, BuildingStat, DepartmentStat, ChartData, RatingSummaryData } from './dashboard';
+
+interface TeamMemberDto {
+  id: string;
+  name: string;
+  phone: string | null;
+  specialization: string | null;
+  completed_count: number;
+  active_count: number;
+  avg_rating: number;
+}
+
+const toTeamMember = (member: TeamMemberDto, role: TeamMember['role']): TeamMember => ({
+  id: member.id,
+  name: member.name,
+  phone: member.phone ?? '',
+  role,
+  specialization: member.specialization ?? undefined,
+  completed_count: member.completed_count,
+  active_count: member.active_count,
+  avg_rating: member.avg_rating,
+});
 
 export function DirectorDashboard() {
   const { user } = useAuthStore();
@@ -54,14 +75,14 @@ export function DirectorDashboard() {
   const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // UK Satisfaction ratings state
-  const [ratingSummary, setRatingSummary] = useState<Record<string, unknown> | null>(null);
+  const [ratingSummary, setRatingSummary] = useState<RatingSummaryData | null>(null);
   const [isLoadingRatings, setIsLoadingRatings] = useState(false);
 
   const loadRatingSummary = async () => {
     setIsLoadingRatings(true);
     try {
       const data = await ukRatingsApi.getSummary(6);
-      setRatingSummary(data);
+      setRatingSummary(parseRatingSummary(data));
     } catch (err) {
       console.error('Failed to load ratings summary:', err);
     } finally {
@@ -112,8 +133,15 @@ export function DirectorDashboard() {
   const loadTeamData = async () => {
     try {
       const data = await teamApi.getAll();
-      const totalCount = (data.managers?.length || 0) + (data.departmentHeads?.length || 0) + (data.executors?.length || 0);
-      setTeamData({ ...data, total: totalCount });
+      const managers = data.managers.map((member) => toTeamMember(member, 'manager'));
+      const departmentHeads = data.departmentHeads.map((member) => toTeamMember(member, 'department_head'));
+      const teamExecutors = data.executors.map((member) => toTeamMember(member, 'executor'));
+      setTeamData({
+        managers,
+        departmentHeads,
+        executors: teamExecutors,
+        total: managers.length + departmentHeads.length + teamExecutors.length,
+      });
     } catch (err) {
       console.error('Failed to load team data:', err);
     }

@@ -65,13 +65,6 @@ const STATUS_ACTIVE_BG = 'rgba(21,160,110,0.12)';
 const STATUS_INFO_BG = 'rgba(47,119,194,0.12)';
 const SHADOW_SM = 'var(--rpp-shadow-sm, 0 1px 2px rgba(28,25,23,0.04))';
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return '·';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-};
-
 const formatJoinDate = (iso: string | undefined, lang: 'ru' | 'uz'): string => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -326,7 +319,6 @@ export function ResidentProfilePage() {
   if (!user) return null;
 
   const displayName = formatName(user.name) || user.name || user.login;
-  const initials = getInitials(displayName);
   const roleLabel = user.role === 'tenant' ? t.role_tenant
     : user.role === 'commercial_owner' ? t.role_commercial
     : t.role_resident;

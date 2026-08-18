@@ -29,6 +29,20 @@ const FONT_BODY: Partial<Font> = { name: 'Times New Roman', size: 11 };
 const FONT_HEADER: Partial<Font> = { name: 'Times New Roman', size: 12, bold: true };
 const FONT_TITLE: Partial<Font> = { name: 'Times New Roman', size: 14, bold: true };
 
+// Секции расходов для группировки статей сметы с под-итогом «Жами» —
+// как в бумажной смете БСК по ПКМ (Зарплаты / Материалы / Производственные /
+// Административные). Ключ секции хранится в поле статьи `section` (v2) либо
+// в `category`. Порядок в массиве = порядок групп в выгрузке. Неизвестные
+// ключи попадают в 'other'.
+const EXPENSE_SECTIONS: Array<{ key: string; ru: string; uz: string }> = [
+  { key: 'salary', ru: 'Заработная плата', uz: 'Ish haqi' },
+  { key: 'materials', ru: 'Материалы и услуги', uz: 'Materiallar va xizmatlar' },
+  { key: 'production', ru: 'Производственные расходы', uz: 'Ishlab chiqarish xarajatlari' },
+  { key: 'admin', ru: 'Административные расходы', uz: "Ma'muriy xarajatlar" },
+  { key: 'other', ru: 'Прочие расходы', uz: 'Boshqa xarajatlar' },
+];
+const SECTION_KEYS = new Set(EXPENSE_SECTIONS.map((s) => s.key));
+
 function fmt(value: unknown): number {
   return Number(value) || 0;
 }
@@ -93,10 +107,11 @@ export async function generateEstimateExcel(
     }],
   });
 
-  ws1.getColumn(1).width = 7;
-  ws1.getColumn(2).width = 50;
-  ws1.getColumn(3).width = 18;
-  ws1.getColumn(4).width = 18;
+  // 4 колонки как в бумажной смете БСК: статья · тариф 1 м² · план/мес · план/год.
+  ws1.getColumn(1).width = 46;   // Наименование статей
+  ws1.getColumn(2).width = 15;   // Тариф 1 м² (сум)
+  ws1.getColumn(3).width = 17;   // план на месяц
+  ws1.getColumn(4).width = 17;   // план на год
 
   let r = 1;
 
@@ -165,10 +180,10 @@ export async function generateEstimateExcel(
 
   // Row 9: Table headers
   const headers = [
-    t('Т/р', 'T/r'),
-    t('Наименование работ или услуг', 'Ish yoki xizmatlar nomi'),
-    t('В месяц', 'Oylik'),
-    t('В год (12 мес.)', 'Yillik (12 oy)'),
+    t('Наименование статей', 'Moddalar nomi'),
+    t('Тариф 1 м² (сум)', '1 m² tarifi (so\'m)'),
+    t('План на месяц', 'Oylik reja'),
+    t('План на год', 'Yillik reja'),
   ];
   headers.forEach((h, i) => {
     const cell = ws1.getCell(r, i + 1);
@@ -191,12 +206,20 @@ export async function generateEstimateExcel(
   });
   r++;
 
+  // Площадь для расчёта тарифа 1 м² (снимок из сметы, иначе сумма по домам).
+  const areaForTariff = fmt(estimate.total_area) || buildings.reduce((s, b) => s + (b.totalArea || 0), 0);
+  // Тариф статьи = план на месяц / площадь. Округляем до целого сум/м² —
+  // ровно так на бумажной смете (напр. 3 000 000 / 12836 ≈ 234).
+  const tariff = (monthly: number) => (areaForTariff > 0 ? Math.round(monthly / areaForTariff) : 0);
+
+  // Нормализуем месяц/год для статьи: если задан только один — второй выводим.
+  const itemMonthly = (it: Record<string, unknown>) => fmt(it.monthly_amount) || Math.round(fmt(it.amount) / 12);
+  const itemYearly = (it: Record<string, unknown>) => fmt(it.amount) || itemMonthly(it) * 12;
+
   // A) ДОХОДЫ
-  ws1.mergeCells(r, 1, r, 2);
-  const cellIncome = ws1.getCell(r, 1);
-  cellIncome.value = t('А) ДОХОДЫ:', 'A) DAROMADLAR:');
-  cellIncome.font = { ...FONT_HEADER };
-  setBodyFont(ws1, r, 3, 4);
+  ws1.getCell(r, 1).value = t('А) ДОХОДЫ:', 'A) DAROMADLAR:');
+  ws1.getCell(r, 1).font = { ...FONT_HEADER };
+  setBodyFont(ws1, r, 2, 4);
   applyBorderRow(ws1, r, 1, 4);
   r++;
 
@@ -207,13 +230,13 @@ export async function generateEstimateExcel(
   const grandTotal = totalAmount + enterpriseIncome;
   const monthlyTotal = Math.round(grandTotal / 12);
 
-  ws1.getCell(r, 1).value = '';
-  ws1.getCell(r, 2).value = t('Платежи за услуги УК', 'BK xizmatlari uchun to\'lovlar');
+  ws1.getCell(r, 1).value = t('Платежи за услуги УК', 'BK xizmatlari uchun to\'lovlar');
+  ws1.getCell(r, 2).value = tariff(monthlyTotal);
   ws1.getCell(r, 3).value = monthlyTotal;
   ws1.getCell(r, 4).value = grandTotal;
   setBodyFont(ws1, r, 1, 4);
   applyBorderRow(ws1, r, 1, 4);
-  formatNum(ws1, r, [3, 4]);
+  formatNum(ws1, r, [2, 3, 4]);
   r++;
 
   // Empty row
@@ -221,58 +244,84 @@ export async function generateEstimateExcel(
   r++;
 
   // Б) РАСХОДЫ
-  ws1.mergeCells(r, 1, r, 2);
-  const cellExpense = ws1.getCell(r, 1);
-  cellExpense.value = t('Б) РАСХОДЫ:', 'B) XARAJATLAR:');
-  cellExpense.font = { ...FONT_HEADER };
-  setBodyFont(ws1, r, 3, 4);
+  ws1.getCell(r, 1).value = t('Б) РАСХОДЫ:', 'B) XARAJATLAR:');
+  ws1.getCell(r, 1).font = { ...FONT_HEADER };
+  setBodyFont(ws1, r, 2, 4);
   applyBorderRow(ws1, r, 1, 4);
   r++;
 
-  // Each expense item
-  estimateItems.forEach((item, idx) => {
-    ws1.getCell(r, 1).value = idx + 1;
-    ws1.getCell(r, 2).value = (item.name as string) || '';
-    const monthly = fmt(item.monthly_amount) || Math.round(fmt(item.amount) / 12);
-    ws1.getCell(r, 3).value = monthly;
-    ws1.getCell(r, 4).value = fmt(item.amount);
-    setBodyFont(ws1, r, 1, 4);
+  // Ключ секции статьи: поле `section` (v2) → `category` → 'other'.
+  const sectionOf = (it: Record<string, unknown>) => {
+    const raw = String(it.section ?? it.category ?? '').trim();
+    return SECTION_KEYS.has(raw) ? raw : 'other';
+  };
+
+  // Расходы, сгруппированные по секциям. Каждая непустая группа выводится
+  // строкой-подытогом «… Жами» (серая, жирная) + её статьи под ней.
+  EXPENSE_SECTIONS.forEach((section) => {
+    const group = estimateItems.filter((it) => sectionOf(it) === section.key);
+    if (group.length === 0) return;
+
+    const groupMonthly = group.reduce((s, it) => s + itemMonthly(it), 0);
+    const groupYearly = group.reduce((s, it) => s + itemYearly(it), 0);
+
+    // Строка-заголовок группы с подытогом.
+    ws1.getCell(r, 1).value = `${t(section.ru, section.uz)} — ${t('Жами', 'Jami')}`;
+    ws1.getCell(r, 2).value = tariff(groupMonthly);
+    ws1.getCell(r, 3).value = groupMonthly;
+    ws1.getCell(r, 4).value = groupYearly;
+    for (let c = 1; c <= 4; c++) {
+      ws1.getCell(r, c).font = { ...FONT_BODY, bold: true };
+      ws1.getCell(r, c).fill = GRAY_FILL;
+    }
     applyBorderRow(ws1, r, 1, 4);
-    ws1.getCell(r, 1).alignment = { horizontal: 'center', vertical: 'middle' };
-    formatNum(ws1, r, [3, 4]);
+    formatNum(ws1, r, [2, 3, 4]);
     r++;
+
+    // Статьи группы.
+    group.forEach((item) => {
+      const monthly = itemMonthly(item);
+      ws1.getCell(r, 1).value = `    ${(item.name as string) || ''}`;
+      ws1.getCell(r, 2).value = tariff(monthly);
+      ws1.getCell(r, 3).value = monthly;
+      ws1.getCell(r, 4).value = itemYearly(item);
+      setBodyFont(ws1, r, 1, 4);
+      applyBorderRow(ws1, r, 1, 4);
+      formatNum(ws1, r, [2, 3, 4]);
+      r++;
+    });
   });
 
   // ИТОГО РАСХОДЫ
-  const totalMonthlyExpenses = estimateItems.reduce(
-    (sum, it) => sum + (fmt(it.monthly_amount) || Math.round(fmt(it.amount) / 12)),
-    0,
-  );
-  const totalYearlyExpenses = estimateItems.reduce((sum, it) => sum + fmt(it.amount), 0);
+  const totalMonthlyExpenses = estimateItems.reduce((sum, it) => sum + itemMonthly(it), 0);
+  const totalYearlyExpenses = estimateItems.reduce((sum, it) => sum + itemYearly(it), 0);
 
-  ws1.getCell(r, 1).value = '';
-  ws1.getCell(r, 2).value = t('ИТОГО РАСХОДЫ:', 'JAMI XARAJATLAR:');
-  ws1.getCell(r, 2).font = { ...FONT_HEADER };
+  ws1.getCell(r, 1).value = t('ИТОГО РАСХОДЫ:', 'JAMI XARAJATLAR:');
+  ws1.getCell(r, 1).font = { ...FONT_HEADER };
+  ws1.getCell(r, 2).value = tariff(totalMonthlyExpenses);
   ws1.getCell(r, 3).value = totalMonthlyExpenses;
   ws1.getCell(r, 4).value = totalYearlyExpenses;
+  ws1.getCell(r, 2).font = { ...FONT_HEADER };
   ws1.getCell(r, 3).font = { ...FONT_HEADER };
   ws1.getCell(r, 4).font = { ...FONT_HEADER };
   applyBorderRow(ws1, r, 1, 4);
-  formatNum(ws1, r, [3, 4]);
+  formatNum(ws1, r, [2, 3, 4]);
   r++;
 
   // Empty row
   r++;
 
   // ВСЕГО
-  ws1.getCell(r, 2).value = t('ВСЕГО:', 'JAMI:');
-  ws1.getCell(r, 2).font = { ...FONT_HEADER };
+  ws1.getCell(r, 1).value = t('ВСЕГО:', 'JAMI:');
+  ws1.getCell(r, 1).font = { ...FONT_HEADER };
+  ws1.getCell(r, 2).value = tariff(monthlyTotal);
   ws1.getCell(r, 3).value = monthlyTotal;
   ws1.getCell(r, 4).value = grandTotal;
+  ws1.getCell(r, 2).font = { ...FONT_HEADER };
   ws1.getCell(r, 3).font = { ...FONT_HEADER };
   ws1.getCell(r, 4).font = { ...FONT_HEADER };
   applyBorderRow(ws1, r, 1, 4);
-  formatNum(ws1, r, [3, 4]);
+  formatNum(ws1, r, [2, 3, 4]);
   r++;
 
   // Empty rows
@@ -280,8 +329,8 @@ export async function generateEstimateExcel(
 
   // Total area
   const totalAreaValue = fmt(estimate.total_area) || buildings.reduce((s, b) => s + (b.totalArea || 0), 0);
-  ws1.getCell(r, 2).value = t('Всего КВ.М. по комплексу:', 'Kompleks bo\'yicha jami KV.M.:');
-  ws1.getCell(r, 2).font = { ...FONT_BODY, bold: true };
+  ws1.getCell(r, 1).value = t('Всего КВ.М. по комплексу:', 'Kompleks bo\'yicha jami KV.M.:');
+  ws1.getCell(r, 1).font = { ...FONT_BODY, bold: true };
   ws1.getCell(r, 4).value = totalAreaValue;
   ws1.getCell(r, 4).font = { ...FONT_BODY, bold: true };
   ws1.getCell(r, 4).numFmt = '#,##0.00';
@@ -290,8 +339,8 @@ export async function generateEstimateExcel(
 
   // Cost per sqm
   const ratePerSqm = fmt(estimate.commercial_rate_per_sqm);
-  ws1.getCell(r, 2).value = t('Расчётная стоимость 1 кв.м:', 'Hisoblangan 1 kv.m narxi:');
-  ws1.getCell(r, 2).font = { ...FONT_BODY, bold: true };
+  ws1.getCell(r, 1).value = t('Расчётная стоимость 1 кв.м:', 'Hisoblangan 1 kv.m narxi:');
+  ws1.getCell(r, 1).font = { ...FONT_BODY, bold: true };
   ws1.getCell(r, 4).value = ratePerSqm;
   ws1.getCell(r, 4).font = { ...FONT_BODY, bold: true };
   ws1.getCell(r, 4).numFmt = '#,##0';
@@ -301,8 +350,8 @@ export async function generateEstimateExcel(
   // Basement rate
   const basementRate = fmt(estimate.basement_rate);
   if (basementRate > 0) {
-    ws1.getCell(r, 2).value = t('Подвал (за 1 м.кв.):', 'Podval (1 kv.m uchun):');
-    ws1.getCell(r, 2).font = { ...FONT_BODY };
+    ws1.getCell(r, 1).value = t('Подвал (за 1 м.кв.):', 'Podval (1 kv.m uchun):');
+    ws1.getCell(r, 1).font = { ...FONT_BODY };
     ws1.getCell(r, 4).value = basementRate;
     ws1.getCell(r, 4).font = { ...FONT_BODY };
     ws1.getCell(r, 4).numFmt = '#,##0';
@@ -313,8 +362,8 @@ export async function generateEstimateExcel(
   // Parking rate
   const parkingRate = fmt(estimate.parking_rate);
   if (parkingRate > 0) {
-    ws1.getCell(r, 2).value = t('Парковка (за место):', 'Avtoturargoh (joy uchun):');
-    ws1.getCell(r, 2).font = { ...FONT_BODY };
+    ws1.getCell(r, 1).value = t('Парковка (за место):', 'Avtoturargoh (joy uchun):');
+    ws1.getCell(r, 1).font = { ...FONT_BODY };
     ws1.getCell(r, 4).value = parkingRate;
     ws1.getCell(r, 4).font = { ...FONT_BODY };
     ws1.getCell(r, 4).numFmt = '#,##0';
@@ -325,8 +374,8 @@ export async function generateEstimateExcel(
   // Commercial rate
   const commercialRate = fmt(estimate.commercial_rate);
   if (commercialRate > 0) {
-    ws1.getCell(r, 2).value = t('Коммерческое помещение (за 1 м.кв.):', 'Tijoriy bino (1 kv.m uchun):');
-    ws1.getCell(r, 2).font = { ...FONT_BODY };
+    ws1.getCell(r, 1).value = t('Коммерческое помещение (за 1 м.кв.):', 'Tijoriy bino (1 kv.m uchun):');
+    ws1.getCell(r, 1).font = { ...FONT_BODY };
     ws1.getCell(r, 4).value = commercialRate;
     ws1.getCell(r, 4).font = { ...FONT_BODY };
     ws1.getCell(r, 4).numFmt = '#,##0';
@@ -336,8 +385,8 @@ export async function generateEstimateExcel(
 
   // Enterprise income
   if (profitPct > 0) {
-    ws1.getCell(r, 2).value = t(`Доход предприятия (${profitPct}%):`, `Korxona daromadi (${profitPct}%):`);
-    ws1.getCell(r, 2).font = { ...FONT_BODY, bold: true };
+    ws1.getCell(r, 1).value = t(`Доход предприятия (${profitPct}%):`, `Korxona daromadi (${profitPct}%):`);
+    ws1.getCell(r, 1).font = { ...FONT_BODY, bold: true };
     ws1.getCell(r, 4).value = enterpriseIncome;
     ws1.getCell(r, 4).font = { ...FONT_BODY, bold: true };
     ws1.getCell(r, 4).numFmt = '#,##0';

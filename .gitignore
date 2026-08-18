@@ -6,6 +6,8 @@ dist/
 .dev.vars
 .wrangler/
 *.timestamp-*
+src/frontend/test-results/
+src/frontend/playwright-report*/
 
 # Build artifacts (deployed via wrangler, not needed in git)
 cloudflare/public/assets/

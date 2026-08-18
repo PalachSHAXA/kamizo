@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
-import { Search, MapPin, Plus, X, ChevronRight, User, Building2, GitBranch, Pause, Clock, ClipboardList } from 'lucide-react';
+import { Search, MapPin, Plus, Pause, Clock, ClipboardList } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { PageSkeleton } from '../../components/PageSkeleton';
@@ -8,13 +8,12 @@ import { useRequestStore, useExecutorStore } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { SPECIALIZATION_LABELS, PAUSE_REASON_LABELS } from '../../types';
-import { branchesApi, buildingsApi, usersApi } from '../../services/api';
 import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
 import { ManagementRequestModal } from './components/ManagementRequestModal';
 import { CreateRequestModal } from './CreateRequestModal';
 import { TRASH_TYPES } from '../resident/components/ResidentNewRequestFlow';
-import type { ExecutorSpecialization, RequestPriority } from '../../types';
+import type { ExecutorSpecialization } from '../../types';
 
 export function RequestsPage() {
   const { user } = useAuthStore();

@@ -34,6 +34,20 @@ export interface StaffPosition {
   title: string;
   units: number;     // может быть дробным (0.5)
   salary: number;    // оклад/мес
+  // Дней ежегодного отпуска (ТК РУз минимум 21). Резерв отпускных копится
+  // ежемесячно и входит в ФОТ (облагается налогом на ФОТ). undefined = 21.
+  vacation_days?: number;
+}
+
+// Рабочих дней в месяце для дневной ставки (условно 21 — стандарт РУз).
+const WORK_DAYS_PER_MONTH = 21;
+
+// Месячный резерв отпускных позиции:
+//   дневная ставка = salary/21; годовые отпускные = дневная × дней × units;
+//   месячный резерв = годовые/12 = units*salary*days/(21*12).
+// При 21 дне ≈ 1 оклад/год.
+function vacationMonthly(units: number, salary: number, days: number): number {
+  return (units * salary * days) / (WORK_DAYS_PER_MONTH * 12);
 }
 
 export type ExpenseSection = 'production' | 'periodic';
@@ -46,15 +60,19 @@ export interface ExpenseLine {
   unit?: ItemUnit;                 // как считался monthly (flat = руками)
   linked_to_staff?: boolean;       // строка "Расходы по зарплате" → monthly = FOT_total
   legal_code?: string;             // для проверки чек-листа 16 услуг
+  building_id?: string;            // scope: undefined = общая (на все дома ЖК),
+                                   // задано = адресная (только этот дом)
 }
 
-export type IncomeType = 'commercial' | 'basement' | 'parking' | 'telecom' | 'other';
+export type IncomeType = 'commercial' | 'basement' | 'parking' | 'telecom' | 'advertising' | 'other';
 export type IncomeOffset = 'BEFORE_PROFIT' | 'AFTER_PROFIT';
 
 export interface IncomeStream {
   type: IncomeType;
   monthly: number;                 // фактическая сумма/мес
   offset?: IncomeOffset;           // default по type (см. defaultOffset ниже)
+  building_id?: string;            // scope: undefined = общий доход ЖК,
+                                   // задано = адресный (снижает тариф этого дома)
 }
 
 export interface EstimateObjectInput {
@@ -62,6 +80,13 @@ export interface EstimateObjectInput {
   floors?: number;                 // этажность — для валидатора мин. тарифа
   profit_rate: number;             // 0.07 = 7%
   payroll_tax_rate: number;        // 0.24 (12% ЕСП + 12% НДФЛ) или 0.25
+  // Периодические расходы (section='periodic') применяются не всегда — иногда
+  // работы в этом году не проводятся. false → строки periodic исключаются из
+  // total_expenses и тарифа. undefined трактуется как true (обратная совместимость).
+  periodic_enabled?: boolean;
+  // НДС: если УК — плательщик НДС, на тариф жителю начисляется исходящий НДС.
+  vat_enabled?: boolean;
+  vat_rate?: number;               // 0.12 = 12% (РУз)
 }
 
 export interface EstimateInput {
@@ -81,7 +106,9 @@ export interface StaffLineResult {
   title: string;
   units: number;
   salary: number;
-  monthly: number;                 // units * salary
+  monthly: number;                 // units * salary (оклады)
+  vacation_days: number;           // применённые дни отпуска
+  vacation_monthly: number;        // резерв отпускных/мес
 }
 
 export interface IncomeBreakdown {
@@ -89,13 +116,16 @@ export interface IncomeBreakdown {
   basement: number;
   parking: number;
   telecom: number;
+  advertising: number;
   other: number;
 }
 
 export interface EstimateResult {
   model: EstimateModel;
   staff_lines: StaffLineResult[];
-  fot_gross: number;               // Σ staff.monthly
+  fot_base: number;                // Σ units*salary (оклады, без отпускных)
+  fot_vacation: number;            // Σ резерв отпускных/мес
+  fot_gross: number;               // fot_base + fot_vacation
   payroll_tax: number;             // round(FOT_gross * rate)
   fot_total: number;               // FOT_gross + payroll_tax
   total_expenses: number;          // Σ expense.monthly (with FOT_total in "Расходы по зарплате" row)
@@ -106,6 +136,13 @@ export interface EstimateResult {
   with_profit_per_m2: number;      // base × (1 + profit)
   telecom_comp_per_m2: number;     // telecom / residential_area
   tariff_resident: number;         // with_profit_per_m2 − telecom_comp_per_m2
+  // Экономия жителям за счёт доходов УК (реклама/коммерция/подвал/парковка/
+  // телеком): на сколько тариф ниже, чем был бы без этих доходов.
+  resident_saving_per_m2: number;  // (before_profit_offset + telecom) / area
+  resident_saving_year: number;    // (before_profit_offset + telecom) * 12
+  // НДС (если УК — плательщик): исходящий НДС на тариф жителю.
+  vat_per_m2: number;              // tariff_resident * vat_rate (0 если выключен)
+  tariff_with_vat: number;         // tariff_resident + vat_per_m2
   tariff_effective: number;        // tariff_manual для MANUAL, tariff_resident иначе
   jami_tushum_year: number;        // приход/год при effective tariff
   umumiy_year: number;             // расход/год с наценкой
@@ -127,18 +164,28 @@ function defaultOffset(type: IncomeType): IncomeOffset {
 // ──────────────────────────────────────────────────────────────────────────
 
 function computeStaff(input: EstimateInput): {
-  lines: StaffLineResult[]; fot_gross: number; payroll_tax: number; fot_total: number;
+  lines: StaffLineResult[]; fot_base: number; fot_vacation: number;
+  fot_gross: number; payroll_tax: number; fot_total: number;
 } {
-  const lines = input.staff.map(p => ({
-    title: p.title,
-    units: p.units,
-    salary: p.salary,
-    monthly: p.units * p.salary,
-  }));
-  const fot_gross = lines.reduce((s, l) => s + l.monthly, 0);
+  const lines = input.staff.map(p => {
+    // Движок по умолчанию 0 (без отпускных) — чтобы не раздувать ретроспективно
+    // существующие сметы. Новые позиции получают 21 из UI (минимум ТК РУз).
+    const days = p.vacation_days ?? 0;
+    return {
+      title: p.title,
+      units: p.units,
+      salary: p.salary,
+      monthly: p.units * p.salary,
+      vacation_days: days,
+      vacation_monthly: vacationMonthly(p.units, p.salary, days),
+    };
+  });
+  const fot_base = lines.reduce((s, l) => s + l.monthly, 0);
+  const fot_vacation = lines.reduce((s, l) => s + l.vacation_monthly, 0);
+  const fot_gross = fot_base + fot_vacation;
   const payroll_tax = round0(fot_gross * input.object.payroll_tax_rate);
   const fot_total = fot_gross + payroll_tax;
-  return { lines, fot_gross, payroll_tax, fot_total };
+  return { lines, fot_base, fot_vacation, fot_gross, payroll_tax, fot_total };
 }
 
 /**
@@ -147,14 +194,17 @@ function computeStaff(input: EstimateInput): {
  * salary+tax number even if user typed 0.
  */
 function computeExpenses(input: EstimateInput, fot_total: number): number {
+  const periodicEnabled = input.object.periodic_enabled !== false; // undefined = вкл
   return input.expenses.reduce((sum, e) => {
+    // Периодические статьи не считаем, если периодика выключена на смете.
+    if (!periodicEnabled && e.section === 'periodic') return sum;
     const monthly = e.linked_to_staff ? fot_total : e.monthly;
     return sum + monthly;
   }, 0);
 }
 
 function computeIncomeBreakdown(input: EstimateInput): IncomeBreakdown {
-  const b: IncomeBreakdown = { commercial: 0, basement: 0, parking: 0, telecom: 0, other: 0 };
+  const b: IncomeBreakdown = { commercial: 0, basement: 0, parking: 0, telecom: 0, advertising: 0, other: 0 };
   for (const inc of input.incomes) {
     b[inc.type] += inc.monthly;
   }
@@ -180,7 +230,7 @@ function computeBeforeProfitOffset(input: EstimateInput, breakdown: IncomeBreakd
 // ──────────────────────────────────────────────────────────────────────────
 
 export function computeEstimate(input: EstimateInput): EstimateResult {
-  const { lines: staff_lines, fot_gross, payroll_tax, fot_total } = computeStaff(input);
+  const { lines: staff_lines, fot_base, fot_vacation, fot_gross, payroll_tax, fot_total } = computeStaff(input);
   const total_expenses = computeExpenses(input, fot_total);
   const income_breakdown = computeIncomeBreakdown(input);
   const before_profit_offset = computeBeforeProfitOffset(input, income_breakdown);
@@ -196,6 +246,17 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   const telecom_comp_per_m2 = area > 0 ? telecom / area : 0;
   const tariff_resident = with_profit_per_m2 - telecom_comp_per_m2;
 
+  // Экономия жителям = все доходы, снижающие их платёж (BEFORE_PROFIT-офсет
+  // + телеком-компенсация). Это «в пользу жителям»: реклама/провайдеры и пр.
+  const resident_saving_monthly = before_profit_offset + telecom;
+  const resident_saving_per_m2 = area > 0 ? resident_saving_monthly / area : 0;
+  const resident_saving_year = resident_saving_monthly * 12;
+
+  // НДС на тариф жителю (исходящий), если УК — плательщик НДС.
+  const vatRate = input.object.vat_enabled ? (input.object.vat_rate ?? 0.12) : 0;
+  const vat_per_m2 = tariff_resident * vatRate;
+  const tariff_with_vat = tariff_resident + vat_per_m2;
+
   // Разрыв: годовой приход − годовой расход с наценкой.
   // При TARIFF_MANUAL используется явно заданный тариф; в остальных случаях
   // берётся расчётный. Это даёт менеджеру возможность утвердить тариф
@@ -209,6 +270,7 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     income_breakdown.basement +
     income_breakdown.parking +
     income_breakdown.telecom +
+    income_breakdown.advertising +
     income_breakdown.other;
 
   const jami_tushum_year = tariff_effective * area * 12 + totalIncomesMonthly * 12;
@@ -218,6 +280,8 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
   return {
     model: input.model,
     staff_lines,
+    fot_base,
+    fot_vacation,
     fot_gross,
     payroll_tax,
     fot_total,
@@ -229,6 +293,10 @@ export function computeEstimate(input: EstimateInput): EstimateResult {
     with_profit_per_m2: round1(with_profit_per_m2),
     telecom_comp_per_m2: round1(telecom_comp_per_m2),
     tariff_resident: round1(tariff_resident),
+    resident_saving_per_m2: round1(resident_saving_per_m2),
+    resident_saving_year: round0(resident_saving_year),
+    vat_per_m2: round1(vat_per_m2),
+    tariff_with_vat: round1(tariff_with_vat),
     tariff_effective: round0(tariff_effective),
     jami_tushum_year: round0(jami_tushum_year),
     umumiy_year: round0(umumiy_year),
@@ -245,6 +313,167 @@ export function computeFlatTariff(grand_total_monthly: number, total_area: numbe
 } {
   const head_tariff_rounded = total_area > 0 ? round0(grand_total_monthly / total_area) : 0;
   return { head_tariff_rounded, year: grand_total_monthly * 12 };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// COMPLEX (смета на ЖК → разбивка на дома)
+// Штат и статьи без building_id — общие, делятся по жилой площади;
+// статьи с building_id — адресные (только этот дом). Доходы аналогично:
+// before-profit удешевляют базу, телеком компенсирует после наценки.
+// Частный случай (1 дом, все статьи shared) совпадает с computeEstimate.
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface ComplexBuildingInput {
+  building_id: string;
+  residential_area: number;
+}
+
+export interface ComplexEstimateInput {
+  model: EstimateModel;
+  object: {
+    profit_rate: number;
+    payroll_tax_rate: number;
+    periodic_enabled?: boolean;
+    vat_enabled?: boolean;
+    vat_rate?: number;
+  };
+  buildings: ComplexBuildingInput[];
+  staff: StaffPosition[];
+  expenses: ExpenseLine[];
+  incomes: IncomeStream[];
+  tariff_manual?: number;
+}
+
+export interface BuildingTariffResult {
+  building_id: string;
+  residential_area: number;
+  share: number;                 // доля жилой площади в ЖК
+  self_expense: number;          // расходы дома/мес (доля общих + адресные)
+  self_cost_resident: number;    // за вычетом before-profit доходов
+  base_per_m2: number;
+  with_profit_per_m2: number;
+  telecom_comp_per_m2: number;
+  tariff_resident: number;
+  tariff_effective: number;
+  vat_per_m2: number;
+  tariff_with_vat: number;
+}
+
+export interface ComplexEstimateResult {
+  model: EstimateModel;
+  staff_lines: StaffLineResult[];
+  fot_base: number;
+  fot_vacation: number;
+  fot_gross: number;
+  payroll_tax: number;
+  fot_total: number;
+  buildings: BuildingTariffResult[];
+  total_expenses: number;
+  jami_tushum_year: number;
+  umumiy_year: number;
+  deficit_year: number;
+  resident_saving_year: number;
+}
+
+export function computeComplexEstimate(input: ComplexEstimateInput): ComplexEstimateResult {
+  // ФОТ (штат общий на ЖК). Переиспользуем computeStaff — читает staff +
+  // object.payroll_tax_rate.
+  const staffRes = computeStaff({
+    staff: input.staff,
+    object: { payroll_tax_rate: input.object.payroll_tax_rate },
+  } as unknown as EstimateInput);
+  const fot_total = staffRes.fot_total;
+  const profit = input.object.profit_rate;
+  const periodicEnabled = input.object.periodic_enabled !== false;
+  const vatRate = input.object.vat_enabled ? (input.object.vat_rate ?? 0.12) : 0;
+
+  const expMonthly = (e: ExpenseLine) => (e.linked_to_staff ? fot_total : e.monthly);
+  const skip = (e: ExpenseLine) => !periodicEnabled && e.section === 'periodic';
+
+  // Пулы расходов: общий + адресные по домам.
+  let sharedExpense = 0;
+  const specExpense: Record<string, number> = {};
+  for (const e of input.expenses) {
+    if (skip(e)) continue;
+    const m = expMonthly(e);
+    if (e.building_id) specExpense[e.building_id] = (specExpense[e.building_id] || 0) + m;
+    else sharedExpense += m;
+  }
+
+  // Доходы: before-profit (удешевляют базу) и телеком/after (компенсация).
+  let sharedBefore = 0, sharedTelecom = 0, allIncomeMonthly = 0;
+  const specBefore: Record<string, number> = {}, specTelecom: Record<string, number> = {};
+  for (const inc of input.incomes) {
+    allIncomeMonthly += inc.monthly;
+    const off = inc.offset ?? defaultOffset(inc.type);
+    const bucket = (off === 'BEFORE_PROFIT') ? 'before' : 'telecom';
+    if (bucket === 'before') {
+      if (inc.building_id) specBefore[inc.building_id] = (specBefore[inc.building_id] || 0) + inc.monthly;
+      else sharedBefore += inc.monthly;
+    } else {
+      if (inc.building_id) specTelecom[inc.building_id] = (specTelecom[inc.building_id] || 0) + inc.monthly;
+      else sharedTelecom += inc.monthly;
+    }
+  }
+
+  const totalArea = input.buildings.reduce((s, b) => s + (b.residential_area || 0), 0);
+
+  const buildings: BuildingTariffResult[] = input.buildings.map((b) => {
+    const area = b.residential_area || 0;
+    const w = totalArea > 0 ? area / totalArea : 0;
+    const self_expense = sharedExpense * w + (specExpense[b.building_id] || 0);
+    const before = sharedBefore * w + (specBefore[b.building_id] || 0);
+    const telecom = sharedTelecom * w + (specTelecom[b.building_id] || 0);
+    const self_cost = self_expense - before;
+    const base = area > 0 ? self_cost / area : 0;
+    const withProfit = base * (1 + profit);
+    const telecomComp = area > 0 ? telecom / area : 0;
+    const tariff = withProfit - telecomComp;
+    const tariffEff = (input.model === 'TARIFF_MANUAL' && input.tariff_manual != null)
+      ? input.tariff_manual : tariff;
+    const vatPerM2 = tariff * vatRate;
+    return {
+      building_id: b.building_id,
+      residential_area: area,
+      share: round(w, 4),
+      self_expense: round0(self_expense),
+      self_cost_resident: round0(self_cost),
+      base_per_m2: round1(base),
+      with_profit_per_m2: round1(withProfit),
+      telecom_comp_per_m2: round1(telecomComp),
+      tariff_resident: round1(tariff),
+      tariff_effective: round0(tariffEff),
+      vat_per_m2: round1(vatPerM2),
+      tariff_with_vat: round1(tariff + vatPerM2),
+    };
+  });
+
+  const specExpenseTotal = Object.values(specExpense).reduce((s, v) => s + v, 0);
+  const total_expenses = round0(sharedExpense + specExpenseTotal);
+  const residentYearIncome = buildings.reduce((s, b) => s + b.tariff_effective * b.residential_area * 12, 0);
+  const jami_tushum_year = round0(residentYearIncome + allIncomeMonthly * 12);
+  const umumiy_year = round0(total_expenses * 12 * (1 + profit));
+  const deficit_year = round0(jami_tushum_year - umumiy_year);
+  const savingMonthly = sharedBefore + sharedTelecom
+    + Object.values(specBefore).reduce((s, v) => s + v, 0)
+    + Object.values(specTelecom).reduce((s, v) => s + v, 0);
+  const resident_saving_year = round0(savingMonthly * 12);
+
+  return {
+    model: input.model,
+    staff_lines: staffRes.lines,
+    fot_base: staffRes.fot_base,
+    fot_vacation: staffRes.fot_vacation,
+    fot_gross: staffRes.fot_gross,
+    payroll_tax: staffRes.payroll_tax,
+    fot_total,
+    buildings,
+    total_expenses,
+    jami_tushum_year,
+    umumiy_year,
+    deficit_year,
+    resident_saving_year,
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────

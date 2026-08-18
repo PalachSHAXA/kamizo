@@ -6,6 +6,7 @@ import { useRequestStore } from '../stores/requestStore';
 import { useExecutorStore } from '../stores/executorStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { ukRatingsApi } from '../services/api';
+import { parseRatingSummary } from './dashboard';
 import { SPECIALIZATION_LABELS } from '../types';
 import type { ExecutorSpecialization, Request, Executor, RescheduleRequest } from '../types';
 import { CredentialsModal } from '../components/modals/CredentialsModal';
@@ -19,6 +20,7 @@ import {
   RescheduleDetailsModal,
   CATEGORY_COLORS,
 } from './manager/components';
+import type { ManagerRatingSummary } from './manager/components';
 
 // Re-export components used by other pages
 export { ExecutorCard } from './manager/components';
@@ -49,14 +51,14 @@ export function ManagerDashboard() {
   const [selectedExecutor, setSelectedExecutor] = useState<Executor | null>(null);
   const [selectedReschedule, setSelectedReschedule] = useState<RescheduleRequest | null>(null);
   const [managerTab, setManagerTab] = useState<'overview' | 'ratings'>('overview');
-  const [ratingSummary, setRatingSummary] = useState<Record<string, unknown> | null>(null);
+  const [ratingSummary, setRatingSummary] = useState<ManagerRatingSummary | null>(null);
   const [isLoadingRatings, setIsLoadingRatings] = useState(false);
 
   useEffect(() => {
     if (managerTab === 'ratings' && !ratingSummary) {
       setIsLoadingRatings(true);
       ukRatingsApi.getSummary(6)
-        .then(data => setRatingSummary(data))
+        .then(data => setRatingSummary(parseRatingSummary(data)))
         .catch(err => console.error('Failed to load ratings:', err))
         .finally(() => setIsLoadingRatings(false));
     }

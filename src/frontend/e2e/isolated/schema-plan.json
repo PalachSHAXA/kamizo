@@ -1,0 +1,10 @@
+{
+  "baseline": "schema.sql",
+  "runtimeBootstrap": true,
+  "migrations": [
+    "029_add_last_login_at.sql",
+    "049_users_personal_account.sql",
+    "051_tenant_contracts.sql",
+    "058_finance_penalties.sql"
+  ]
+}
