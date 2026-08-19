@@ -321,7 +321,7 @@ export function LoginPage() {
         disabled={authLoading || demoLoggingIn !== null}
         onClick={() => handleDemoLogin(role.roleKey)}
         aria-label={label}
-        className="flex min-h-[72px] min-w-0 items-center gap-3 rounded-xl border border-orange-100 bg-orange-50/70 px-3 py-3 text-left transition-colors hover:bg-orange-100/70 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 touch-manipulation"
+        className="flex min-h-[84px] min-w-0 flex-col justify-center text-center items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/70 px-2 py-3 transition-colors hover:bg-orange-100/70 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 touch-manipulation"
       >
         <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-primary-500 text-white">
           {selected ? (
@@ -331,7 +331,7 @@ export function LoginPage() {
           )}
         </span>
         <span className="min-w-0">
-          <span className="block text-[13px] font-semibold leading-tight text-gray-900">{label}</span>
+          <span className="block break-words text-[12px] font-semibold leading-tight text-gray-900">{label}</span>
         </span>
       </button>
     );
@@ -470,7 +470,7 @@ export function LoginPage() {
             {demoRolesLoading && (
               <div className="space-y-2" aria-live="polite">
                 <p className="text-sm text-gray-500">{language === 'ru' ? 'Загрузка ролей...' : 'Rollar yuklanmoqda...'}</p>
-                <div className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-3">
                   {Array.from({ length: 4 }).map((_, index) => (
                     <div key={index} className="h-[72px] animate-pulse rounded-xl bg-gray-100" />
                   ))}
@@ -501,7 +501,7 @@ export function LoginPage() {
             )}
 
             {!demoRolesLoading && !demoRolesError && primaryDemoRoles.length > 0 && (
-              <div role="group" aria-label={language === 'ru' ? 'Основные роли' : 'Asosiy rollar'} className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+              <div role="group" aria-label={language === 'ru' ? 'Основные роли' : 'Asosiy rollar'} className="grid grid-cols-1 gap-2 min-[340px]:grid-cols-3">
                 {primaryDemoRoles.map(renderDemoRole)}
               </div>
             )}
@@ -512,7 +512,7 @@ export function LoginPage() {
                   <span>{language === 'ru' ? 'Другие роли' : 'Boshqa rollar'}</span>
                   <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
                 </summary>
-                <div role="group" aria-label={language === 'ru' ? 'Другие роли' : 'Boshqa rollar'} className="mt-2 grid grid-cols-1 gap-2 min-[340px]:grid-cols-2">
+                <div role="group" aria-label={language === 'ru' ? 'Другие роли' : 'Boshqa rollar'} className="mt-2 grid grid-cols-1 gap-2 min-[340px]:grid-cols-3">
                   {secondaryDemoRoles.map(renderDemoRole)}
                 </div>
               </details>

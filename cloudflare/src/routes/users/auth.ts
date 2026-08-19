@@ -12,6 +12,13 @@ import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
 
+const NATIVE_APP_ORIGINS = new Set([
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+  'http://localhost',
+]);
+
 export function registerAuthRoutes() {
 
 // Auth: Login
@@ -44,6 +51,9 @@ route('POST', '/api/auth/login', async (request, env) => {
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
   const trimmedLogin = login.trim();
+  const demoResident = demoRoleManifest.find((descriptor) => descriptor.roleKey === 'resident');
+  const requestedDemoResidentAlias = trimmedLogin.toLowerCase() === 'resident'
+    && NATIVE_APP_ORIGINS.has(request.headers.get('Origin') ?? '');
   // v128 — also expose apartment_id (apartments.id) so the resident
   // dashboard's finance-balance fetch can hit
   // /api/finance/apartments/:apartmentId/balance with the correct
@@ -150,6 +160,25 @@ route('POST', '/api/auth/login', async (request, env) => {
     }
   }
 
+  let demoResidentAliasTenantId: string | null = null;
+  if (requestedDemoResidentAlias && demoResident) {
+    const demoTenant = tenantId
+      ? await env.DB.prepare(
+        "SELECT id FROM tenants WHERE id = ? AND slug = 'demo' AND is_active = 1 LIMIT 1"
+      ).bind(tenantId).first<{ id: string }>()
+      : await env.DB.prepare(
+        'SELECT id FROM tenants WHERE slug = ? AND is_active = 1 LIMIT 1'
+      ).bind('demo').first<{ id: string }>();
+    if (demoTenant) {
+      tenantId = demoTenant.id;
+      demoResidentAliasTenantId = demoTenant.id;
+    }
+  }
+
+  const lookupLogin = demoResidentAliasTenantId && demoResident
+    ? demoResident.login
+    : trimmedLogin;
+
   // ────────────────────────────────────────────────────────────────
   // STEP 2: user lookup.
   //
@@ -200,7 +229,7 @@ route('POST', '/api/auth/login', async (request, env) => {
       `SELECT ${userFields} FROM users
        WHERE login = ? AND is_active = 1
          AND (tenant_id = ? OR (role = 'super_admin' AND (tenant_id IS NULL OR tenant_id = '')))`
-    ).bind(trimmedLogin, tenantId).first() as any;
+    ).bind(lookupLogin, tenantId).first() as any;
   } else {
     // PATH B: unified disambiguation.
 
@@ -221,7 +250,7 @@ route('POST', '/api/auth/login', async (request, env) => {
          )
        ORDER BY CASE WHEN role = 'super_admin' THEN 0 ELSE 1 END
        LIMIT ?`
-    ).bind(trimmedLogin, MAX_CANDIDATES).all();
+    ).bind(lookupLogin, MAX_CANDIDATES).all();
     const candidates = (candResp.results ?? []) as any[];
 
     // Constant-cost verify: ALWAYS exactly MAX_CANDIDATES PBKDF2 calls,
@@ -321,6 +350,43 @@ route('POST', '/api/auth/login', async (request, env) => {
     }
   }
   void tenantResolvedFromBody; // reserved for future audit logging
+
+  if (demoResidentAliasTenantId && demoResident) {
+    const storedSpecialization = typeof userWithHash.specialization === 'string'
+      ? userWithHash.specialization
+      : null;
+    if (
+      userWithHash.tenant_id !== demoResidentAliasTenantId
+      || userWithHash.login !== demoResident.login
+      || userWithHash.role !== demoResident.role
+      || storedSpecialization !== demoResident.specialization
+    ) {
+      return error('Invalid credentials', 401);
+    }
+
+    await env.DB.prepare(`
+      UPDATE users SET last_login_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(userWithHash.id, demoResidentAliasTenantId).run();
+    const token = await createJWT(
+      {
+        userId: String(userWithHash.id),
+        role: String(userWithHash.role),
+        tenantId: demoResidentAliasTenantId,
+        demo_session: true,
+      },
+      env.JWT_SECRET,
+      1800,
+    );
+    const { password_hash, ...user } = userWithHash;
+    return new Response(JSON.stringify({ user, token, demoSession: true }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': getCurrentCorsOrigin(),
+      },
+    });
+  }
 
   const isManifestDemoLogin = demoRoleManifest.some((role) => role.login === userWithHash.login);
   if (isManifestDemoLogin && userWithHash.tenant_id) {

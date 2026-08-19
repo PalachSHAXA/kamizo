@@ -37,6 +37,7 @@ export type LoginResult =
 interface LoginSuccessResponse {
   user: UserApiResponse;
   token: string;
+  demoSession?: true;
 }
 
 interface LoginPickerResponse {
@@ -111,9 +112,10 @@ export const authApi = {
       return { kind: 'picker', tenants: data.tenants ?? [] };
     }
 
+    const user = transformUser(data.user);
     return {
       kind: 'success',
-      user: transformUser(data.user),
+      user: data.demoSession ? { ...user, demoSession: true } : user,
       token: data.token,
     };
   },

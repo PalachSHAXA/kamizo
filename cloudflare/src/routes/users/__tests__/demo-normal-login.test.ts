@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   tenantId: 'tenant-demo' as string | null,
   tenantSlug: 'demo',
   login: 'demo-director',
+  password: 'valid-password',
   role: 'director',
   passwordHash: '50000:salt:hash',
   dbRuns: [] as string[],
@@ -26,7 +27,7 @@ vi.mock('../../../middleware/rateLimit', () => ({
 }));
 vi.mock('../../../middleware/cors', () => ({ getCurrentCorsOrigin: vi.fn(() => 'https://demo.kamizo.uz') }));
 vi.mock('../../../validation/validate', () => ({
-  validateBody: vi.fn(async () => ({ data: { login: mocks.login, password: 'valid-password' }, errors: null })),
+  validateBody: vi.fn(async () => ({ data: { login: mocks.login, password: mocks.password }, errors: null })),
 }));
 vi.mock('../../../validation/schemas', () => ({ loginSchema: {} }));
 vi.mock('../../../utils/crypto', () => ({
@@ -53,14 +54,14 @@ function createDb() {
         async first() {
           if (sql.includes('FROM users')) {
             return {
-              id: `${mocks.login}-id`, login: mocks.login, phone: '+998', name: 'Demo User',
+              id: `${String(binds[0])}-id`, login: String(binds[0]), phone: '+998', name: 'Demo User',
               role: mocks.role, specialization: null, password_hash: mocks.passwordHash,
-              tenant_id: mocks.tenantId, is_active: 1,
+              tenant_id: binds[1] ?? mocks.tenantId, is_active: 1,
             };
           }
           if (sql.includes('FROM tenants')) {
             if (sql.includes("slug = 'demo'") && mocks.tenantSlug !== 'demo') return null;
-            return { id: String(binds[0] ?? mocks.tenantId), slug: mocks.tenantSlug, is_active: 1, features: '[]' };
+            return { id: binds[0] === 'demo' ? 'tenant-demo' : String(binds[0] ?? mocks.tenantId), slug: mocks.tenantSlug, is_active: 1, features: '[]' };
           }
           return null;
         },
@@ -91,6 +92,7 @@ beforeEach(() => {
   mocks.tenantId = 'tenant-demo';
   mocks.tenantSlug = 'demo';
   mocks.login = 'demo-director';
+  mocks.password = 'valid-password';
   mocks.role = 'director';
   mocks.passwordHash = '50000:salt:hash';
   mocks.dbRuns = [];
@@ -148,6 +150,55 @@ describe('normal login demo manifest boundary', () => {
     expect(response.status).toBe(403);
     expect(hashPassword).not.toHaveBeenCalled();
     expect(mocks.dbRuns).toHaveLength(0);
+    expect(createJWT).not.toHaveBeenCalled();
+  });
+
+  it('maps native resident credentials to the demo resident and issues a constrained token', async () => {
+    mocks.tenantId = null;
+    mocks.login = 'resident';
+    mocks.password = 'kamizo';
+    mocks.role = 'resident';
+
+    const response = await loginHandler()(
+      new Request('https://api.kamizo.uz/api/auth/login', {
+        method: 'POST',
+        headers: { origin: 'capacitor://localhost' },
+      }),
+      { DB: createDb(), JWT_SECRET: 'secret' },
+      {},
+    );
+    const body = await response.json() as any;
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(body).toMatchObject({
+      user: { login: '98765432', role: 'resident' },
+      token: 'ordinary-jwt',
+      demoSession: true,
+    });
+    expect(createJWT).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'resident', tenantId: 'tenant-demo', demo_session: true }),
+      'secret',
+      1800,
+    );
+  });
+
+  it('does not activate the resident alias for a web request', async () => {
+    mocks.tenantId = null;
+    mocks.login = 'resident';
+    mocks.password = 'kamizo';
+    mocks.role = 'resident';
+
+    const response = await loginHandler()(
+      new Request('https://api.kamizo.uz/api/auth/login', {
+        method: 'POST',
+        headers: { origin: 'https://app.kamizo.uz' },
+      }),
+      { DB: createDb(), JWT_SECRET: 'secret' },
+      {},
+    );
+
+    expect(response.status).toBe(401);
     expect(createJWT).not.toHaveBeenCalled();
   });
 });

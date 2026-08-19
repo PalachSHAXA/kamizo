@@ -124,4 +124,22 @@ describe('API session isolation', () => {
     });
     expect(localStorage.getItem('auth_token')).toBe('current-session-token');
   });
+
+  it('preserves demo capability on a password login response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        token: 'demo-session-token',
+        demoSession: true,
+        user: { id: 'resident-1', name: 'Demo Resident', login: '98765432', role: 'resident', phone: '' },
+      }),
+    } as Response);
+
+    await expect(authApi.login('resident', 'kamizo')).resolves.toMatchObject({
+      kind: 'success',
+      user: { demoSession: true },
+      token: 'demo-session-token',
+    });
+  });
 });
