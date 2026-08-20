@@ -44,12 +44,18 @@ jobs:
           test -n "$KAMIZO_VPS_SSH_KEY"
           test -n "$KAMIZO_VPS_KNOWN_HOSTS"
           install -d -m 700 "$HOME/.ssh"
-          # tr -d '\r': секреты часто заводят копипастом с Windows, и буфер
-          # обмена подставляет CRLF. OpenSSH тогда падает с "error in libcrypto"
-          # ещё до попытки подключения (инцидент 2026-08-20).
-          printf '%s\n' "$KAMIZO_VPS_SSH_KEY" | tr -d '\r' >"$HOME/.ssh/kamizo_vps"
+          # Секрет принимается в двух видах: как PEM и как base64 одной строкой.
+          # Многострочный PEM легко портится копипастом с Windows (CRLF, потеря
+          # переносов) — OpenSSH тогда падает с "error in libcrypto" ещё до
+          # подключения. base64 одной строкой испортить нечем (инцидент 2026-08-20).
+          if printf '%s' "$KAMIZO_VPS_SSH_KEY" | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+            printf '%s\n' "$KAMIZO_VPS_SSH_KEY" | tr -d '\r' >"$HOME/.ssh/kamizo_vps"
+          else
+            printf '%s' "$KAMIZO_VPS_SSH_KEY" | tr -d '\r\n \t' | base64 -d >"$HOME/.ssh/kamizo_vps"
+          fi
           printf '%s\n' "$KAMIZO_VPS_KNOWN_HOSTS" | tr -d '\r' >"$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/kamizo_vps" "$HOME/.ssh/known_hosts"
+          # Ранняя проверка формата: иначе ошибка всплывёт как Permission denied.
           ssh-keygen -y -f "$HOME/.ssh/kamizo_vps" >/dev/null
 
       - name: Verify production backend ingress security
