@@ -1831,13 +1831,11 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
   basement_rate REAL DEFAULT 0,
   parking_rate REAL DEFAULT 0,
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft','active','archived')),
-  -- Охват сметы (migration 063): 'building' — дом, 'complex' — ЖК,
-  -- 'unassigned' — черновик без объекта (066). В schema.sql эти колонки
-  -- забыли перенести из 063, хотя код использует их с тех пор — из-за этого
-  -- падал E2E: индекс по scope_level ссылался на несуществующую колонку.
-  scope_level TEXT DEFAULT 'building',
-  branch_code TEXT,
-  allocation_base TEXT DEFAULT 'area',
+  -- ВНИМАНИЕ: scope_level / branch_code / allocation_base (migration 063)
+  -- здесь намеренно ОТСУТСТВУЮТ. Их добавляет e2e/isolated/prod-schema-overlay.sql,
+  -- воспроизводя расхождение прода со schema.sql. Если объявить их тут —
+  -- оверлей упадёт с "duplicate column name". По той же причине индекс
+  -- idx_finance_estimates_scope живёт только в миграции 066.
   -- Согласование (migration 065). Ось, независимая от status: он про жизненный
   -- цикл сметы, approval_status — про то, утверждена она или ещё на рассмотрении.
   -- Инварианты см. в шапке 065_finance_estimate_approval.sql.
@@ -1857,7 +1855,6 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
 CREATE INDEX IF NOT EXISTS idx_finance_estimates_tenant ON finance_estimates(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_finance_estimates_building_period ON finance_estimates(building_id, period);
 CREATE INDEX IF NOT EXISTS idx_finance_estimates_approval ON finance_estimates(tenant_id, approval_status);
-CREATE INDEX IF NOT EXISTS idx_finance_estimates_scope ON finance_estimates(tenant_id, scope_level);
 
 -- Статьи сметы
 CREATE TABLE IF NOT EXISTS finance_estimate_items (
