@@ -3,7 +3,7 @@ import type { Env, User } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
-import { json, error, bilingualError, generateId, isManagement, isAdminLevel, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
+import { json, error, bilingualError, generateId, isManagement, isAdminLevel, canEditEstimate, canApproveEstimate, estimateEditBlockedReason, getPaginationParams, createPaginatedResponse } from '../utils/helpers';
 import { sendPushNotification } from './notifications';
 import {
   allocationBindings,
@@ -18,9 +18,9 @@ import {
   financeChargeId,
   syncPersonalAccounts,
 } from '../lib/finance/accounting';
-import { computeComplexEstimate } from '../lib/estimate/compute';
+import { computeComplexEstimate, computeEstimate } from '../lib/estimate/compute';
 import { classifyApartmentForBilling } from '../lib/finance/property-classification';
-import { loadEstimateInput } from './finance-v2';
+import { loadEstimateInput, persistComputedResult } from './finance-v2';
 
 // ── Helper: finance access check ──────────────────────────────────
 
@@ -62,15 +62,36 @@ route('GET', '/api/finance/estimates', async (request, env) => {
   const buildingId = url.searchParams.get('building_id');
   const period = url.searchParams.get('period');
   const status = url.searchParams.get('status');
+  const approvalStatus = url.searchParams.get('approval_status');
+  const scopeLevel = url.searchParams.get('scope_level');
 
   let where = tenantId ? 'e.tenant_id = ?' : '1=1';
   const params: (string | number)[] = tenantId ? [tenantId] : [];
   if (buildingId) { where += ' AND e.building_id = ?'; params.push(buildingId); }
   if (period) { where += ' AND e.period = ?'; params.push(period); }
   if (status) { where += ' AND e.status = ?'; params.push(status); }
+  // Тип объекта: 'building' | 'complex' | 'unassigned'. У старых строк колонки
+  // ещё нет значения — считаем их обычными сметами на дом.
+  if (scopeLevel) {
+    where += " AND COALESCE(e.scope_level, 'building') = ?";
+    params.push(scopeLevel);
+  }
+  // Фильтр по согласованию (migration 065). У досоглашательных строк колонка
+  // может быть NULL — трактуем её как 'draft'.
+  if (approvalStatus) {
+    where += " AND COALESCE(e.approval_status, 'draft') = ?";
+    params.push(approvalStatus);
+  }
 
   const { results: estimates } = await env.DB.prepare(
-    `SELECT e.*, b.name as building_name FROM finance_estimates e LEFT JOIN buildings b ON e.building_id = b.id WHERE ${where} ORDER BY e.period DESC, e.created_at DESC LIMIT 500`
+    `SELECT e.*, b.name as building_name,
+            su.name as submitted_by_name, au.name as approved_by_name, ru.name as rejected_by_name
+       FROM finance_estimates e
+       LEFT JOIN buildings b ON e.building_id = b.id
+       LEFT JOIN users su ON su.id = e.submitted_by
+       LEFT JOIN users au ON au.id = e.approved_by
+       LEFT JOIN users ru ON ru.id = e.rejected_by
+      WHERE ${where} ORDER BY e.period DESC, e.created_at DESC LIMIT 500`
   ).bind(...params).all();
 
   // Fetch items for each estimate
@@ -103,7 +124,14 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
 
   const tenantId = getTenantId(request);
   const estimate = await env.DB.prepare(
-    `SELECT e.*, b.name as building_name FROM finance_estimates e LEFT JOIN buildings b ON e.building_id = b.id WHERE e.id = ? ${tenantId ? 'AND e.tenant_id = ?' : ''}`
+    `SELECT e.*, b.name as building_name,
+            su.name as submitted_by_name, au.name as approved_by_name, ru.name as rejected_by_name
+       FROM finance_estimates e
+       LEFT JOIN buildings b ON e.building_id = b.id
+       LEFT JOIN users su ON su.id = e.submitted_by
+       LEFT JOIN users au ON au.id = e.approved_by
+       LEFT JOIN users ru ON ru.id = e.rejected_by
+      WHERE e.id = ? ${tenantId ? 'AND e.tenant_id = ?' : ''}`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!estimate) return error('Estimate not found', 404);
 
@@ -120,8 +148,8 @@ route('POST', '/api/finance/estimates', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  // Manager УК составляет сметы. Активацию (activate) оставляем admin/director.
-  if (!isManagement(user)) return error('Нет прав на создание сметы', 403);
+  // Составители сметы (ESTIMATE_EDIT_ROLES). Утверждение — отдельный круг ролей.
+  if (!canEditEstimate(user)) return error('Нет прав на создание сметы', 403);
 
   const tenantId = getTenantId(request);
   const body = await request.json() as Record<string, unknown>;
@@ -172,15 +200,16 @@ route('PUT', '/api/finance/estimates/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  // Manager УК редактирует draft-сметы. Активация draft→active остаётся у admin/director.
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  // Составители редактируют смету, пока она не ушла на рассмотрение.
+  if (!canEditEstimate(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const existing = await env.DB.prepare(
     `SELECT * FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string; building_id: string }>();
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string; approval_status?: string | null; building_id: string }>();
   if (!existing) return error('Estimate not found', 404);
-  if (existing.status !== 'draft') return error('Only draft estimates can be edited', 400);
+  const blocked = estimateEditBlockedReason(existing);
+  if (blocked) return bilingualError(blocked[0], blocked[1], 400);
 
   const body = await request.json() as Record<string, unknown>;
   const { title, items, uk_profit_percent, non_commercial_coefficient, show_profit_to_residents, show_debtor_status_to_residents } = body as {
@@ -230,8 +259,145 @@ route('PUT', '/api/finance/estimates/:id', async (request, env, params) => {
   return json({ success: true });
 });
 
-// 5. POST /api/finance/estimates/:id/activate — draft → active
-route('POST', '/api/finance/estimates/:id/activate', async (request, env, params) => {
+// ── Согласование сметы (migration 065) ───────────────────────────
+// Цепочка: draft ──submit──▶ pending ──activate──▶ approved (status='active')
+//                              └──reject──▶ rejected (снова редактируется)
+// approval_status — отдельная ось от status, см. шапку миграции 065.
+
+// Черновик без объекта (scope_level='unassigned') утверждать нечему: квартир
+// нет, начисления формировать не из чего, а пустой building_id схлопнул бы все
+// такие черновики в проверке «одна активная смета на дом». См. migration 066.
+function unassignedNotApprovable(): Response {
+  return bilingualError(
+    'Черновик не привязан к объекту — сначала привяжите его, потом утверждайте.',
+    "Qoralama obyektga bog'lanmagan — avval bog'lang, keyin tasdiqlang.",
+    400,
+  );
+}
+
+// Смету нельзя отправлять/утверждать пустой: те же проверки, что стояли
+// в activate (P06), — вынесены, чтобы submit ловил брак на шаг раньше.
+async function estimateContentError(
+  env: Env,
+  tenantId: string | null,
+  estimateId: string,
+): Promise<Response | null> {
+  const itemsCount = await env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM finance_estimate_items WHERE estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(estimateId, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
+  if (!itemsCount?.cnt || itemsCount.cnt === 0) {
+    return bilingualError('Смета без статей расходов', "Xarajat moddalarisiz smeta", 400);
+  }
+
+  const estimateData = await env.DB.prepare(
+    `SELECT total_amount FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(estimateId, ...(tenantId ? [tenantId] : [])).first<{ total_amount: number }>();
+  if (!estimateData?.total_amount || estimateData.total_amount <= 0) {
+    return bilingualError('Смета с нулевой суммой', "Nol summali smeta", 400);
+  }
+  return null;
+}
+
+// 5. POST /api/finance/estimates/:id/submit — отправить на рассмотрение
+route('POST', '/api/finance/estimates/:id/submit', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!canEditEstimate(user)) return error('Нет прав на отправку сметы на утверждение', 403);
+
+  const tenantId = getTenantId(request);
+  const existing = await env.DB.prepare(
+    `SELECT status, approval_status, scope_level, building_id, title FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string; approval_status?: string | null; scope_level?: string | null; building_id: string; title?: string }>();
+  if (!existing) return error('Estimate not found', 404);
+  if (existing.scope_level === 'unassigned') return unassignedNotApprovable();
+
+  const approval = existing.approval_status || 'draft';
+  if (existing.status !== 'draft' || approval === 'approved') {
+    return bilingualError('Смета уже утверждена', 'Smeta allaqachon tasdiqlangan', 400);
+  }
+  if (approval === 'pending') {
+    return bilingualError('Смета уже на рассмотрении', "Smeta allaqachon ko'rib chiqilmoqda", 400);
+  }
+
+  const contentError = await estimateContentError(env, tenantId, params.id);
+  if (contentError) return contentError;
+
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+        SET approval_status = 'pending', submitted_by = ?, submitted_at = datetime('now'),
+            rejected_by = NULL, rejected_at = NULL, rejection_reason = NULL
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(user.id, params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  // Уведомляем утверждающих. Push всегда в .catch — иначе роняет запрос.
+  // Без тенант-контекста рассылку пропускаем: иначе выборка admin/director
+  // ушла бы по всем тенантам сразу.
+  if (tenantId && tenantId !== '__no_tenant__') {
+    const { results: approvers } = await env.DB.prepare(
+      `SELECT id FROM users WHERE role IN ('admin','director') AND tenant_id = ?`
+    ).bind(tenantId).all<{ id: string }>();
+    for (const approver of approvers || []) {
+      sendPushNotification(env, approver.id, {
+        title: '📋 Смета на утверждение',
+        body: `${existing.title || 'Смета'} ждёт вашего решения`,
+        type: 'estimate_approval',
+        tag: `estimate-${params.id}`,
+        data: { estimateId: params.id, url: '/finance/estimates' },
+        tenantId,
+      }).catch(() => {});
+    }
+  }
+
+  return json({ success: true, approval_status: 'pending' });
+});
+
+// 6. POST /api/finance/estimates/:id/reject — вернуть на доработку
+route('POST', '/api/finance/estimates/:id/reject', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!canApproveEstimate(user)) return error('Admin or director access required', 403);
+
+  const tenantId = getTenantId(request);
+  const existing = await env.DB.prepare(
+    `SELECT status, approval_status, submitted_by, title FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string; approval_status?: string | null; submitted_by?: string | null; title?: string }>();
+  if (!existing) return error('Estimate not found', 404);
+  if ((existing.approval_status || 'draft') !== 'pending') {
+    return bilingualError('Вернуть можно только смету на рассмотрении', "Faqat ko'rib chiqilayotgan smetani qaytarish mumkin", 400);
+  }
+
+  const body = await request.json().catch(() => ({})) as { reason?: string };
+  const reason = (body.reason || '').trim();
+  if (!reason) return bilingualError('Укажите причину возврата', 'Qaytarish sababini kiriting', 400);
+
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+        SET approval_status = 'rejected', rejected_by = ?, rejected_at = datetime('now'), rejection_reason = ?
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(user.id, reason.slice(0, 1000), params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (existing.submitted_by) {
+    sendPushNotification(env, existing.submitted_by, {
+      title: '↩️ Смета возвращена на доработку',
+      body: reason.slice(0, 200),
+      type: 'estimate_rejected',
+      tag: `estimate-${params.id}`,
+      data: { estimateId: params.id, url: '/finance/estimates' },
+      tenantId,
+    }).catch(() => {});
+  }
+
+  return json({ success: true, approval_status: 'rejected' });
+});
+
+// 7. POST /api/finance/estimates/:id/attach-building — привязать черновик
+//    без объекта к заведённому объекту. Строго один черновик на один объект:
+//    смета, подходящая одному дому, не годится другому. Только админ/директор.
+route('POST', '/api/finance/estimates/:id/attach-building', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
@@ -239,22 +405,73 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   if (!isAdminLevel(user)) return error('Admin or director access required', 403);
 
   const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') return error('Tenant context required', 403);
+
+  const body = await request.json().catch(() => ({})) as { building_id?: string };
+  const buildingId = (body.building_id || '').trim();
+  if (!buildingId) return bilingualError('Выберите объект', 'Obyektni tanlang', 400);
+
+  const est = await env.DB.prepare(
+    'SELECT id, status, scope_level, residential_area FROM finance_estimates WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(params.id, tenantId).first<{ id: string; status: string; scope_level?: string | null; residential_area?: number }>();
+  if (!est) return error('Estimate not found', 404);
+  if (est.scope_level !== 'unassigned') {
+    return bilingualError('Смета уже привязана к объекту', "Smeta allaqachon obyektga bog'langan", 400);
+  }
+  if (est.status !== 'draft') {
+    return bilingualError('Привязать можно только черновик', 'Faqat qoralamani bog\'lash mumkin', 400);
+  }
+
+  const building = await env.DB.prepare(
+    'SELECT id, name, residential_area FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
+  ).bind(buildingId, tenantId).first<{ id: string; name: string; residential_area?: number }>();
+  if (!building) return error('Building not found', 404);
+
+  // Площадь объекта — база тарифа. У непривязанного черновика её не было,
+  // теперь берём из карточки объекта.
+  const area = Number(building.residential_area) > 0
+    ? Number(building.residential_area)
+    : (Number(est.residential_area) || 0);
+
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+        SET building_id = ?, scope_level = 'building', residential_area = ?
+      WHERE id = ? AND tenant_id = ?`
+  ).bind(buildingId, area, params.id, tenantId).run();
+
+  // Тариф считался без площади (нули) — пересчитываем сразу, иначе в списке
+  // висели бы пустые цифры. Сбой пересчёта не отменяет привязку: смету всегда
+  // можно пересчитать из карточки.
+  try {
+    const loaded = await loadEstimateInput(env, params.id, tenantId);
+    if (loaded) {
+      await persistComputedResult(env, params.id, tenantId, computeEstimate(loaded.input));
+    }
+  } catch { /* пересчёт не критичен для самой привязки */ }
+
+  return json({ success: true, building: { id: building.id, name: building.name } });
+});
+
+// 8. POST /api/finance/estimates/:id/activate — утвердить (draft → active)
+route('POST', '/api/finance/estimates/:id/activate', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!canApproveEstimate(user)) return error('Admin or director access required', 403);
+
+  const tenantId = getTenantId(request);
   const existing = await env.DB.prepare(
-    `SELECT status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string }>();
+    `SELECT status, approval_status, scope_level, submitted_by, title FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ status: string; approval_status?: string | null; scope_level?: string | null; submitted_by?: string | null; title?: string }>();
   if (!existing) return error('Estimate not found', 404);
+  if (existing.scope_level === 'unassigned') return unassignedNotApprovable();
   if (existing.status !== 'draft') return error('Only draft estimates can be activated', 400);
+  // Утверждать можно и напрямую из черновика: директор, составивший смету сам,
+  // не отправляет её себе же на рассмотрение.
 
-  // P06 fix: validate estimate has items and positive total before activation
-  const itemsCount = await env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM finance_estimate_items WHERE estimate_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ cnt: number }>();
-  if (!itemsCount?.cnt || itemsCount.cnt === 0) return bilingualError('Невозможно активировать смету без статей расходов', "Xarajat moddalarisiz smetani faollashtirib bo'lmaydi", 400);
-
-  const estimateData = await env.DB.prepare(
-    `SELECT total_amount FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ total_amount: number }>();
-  if (!estimateData?.total_amount || estimateData.total_amount <= 0) return bilingualError('Невозможно активировать смету с нулевой суммой', "Nol summali smetani faollashtirib bo'lmaydi", 400);
+  const contentError = await estimateContentError(env, tenantId, params.id);
+  if (contentError) return contentError;
 
   // P09: Check for existing active estimate for same building
   const existingActive = await env.DB.prepare(
@@ -262,7 +479,24 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
   ).bind(params.id, params.id, ...(tenantId ? [tenantId] : [])).first();
   if (existingActive) return bilingualError('Для этого здания уже есть активная смета. Деактивируйте её перед активацией новой.', 'Bu bino uchun faol smeta mavjud. Yangisini faollashtirishdan oldin uni o\'chiring.', 400);
 
-  await env.DB.prepare(`UPDATE finance_estimates SET status = 'active' WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`).bind(params.id, ...(tenantId ? [tenantId] : [])).run();
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+        SET status = 'active', approval_status = 'approved',
+            approved_by = ?, approved_at = datetime('now'),
+            rejected_by = NULL, rejected_at = NULL, rejection_reason = NULL
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(user.id, params.id, ...(tenantId ? [tenantId] : [])).run();
+
+  if (existing.submitted_by && existing.submitted_by !== user.id) {
+    sendPushNotification(env, existing.submitted_by, {
+      title: '✅ Смета утверждена',
+      body: `${existing.title || 'Смета'} утверждена`,
+      type: 'estimate_approved',
+      tag: `estimate-${params.id}`,
+      data: { estimateId: params.id, url: '/finance/estimates' },
+      tenantId,
+    }).catch(() => {});
+  }
 
   // Check if charges already exist for this estimate
   const chargesCount = await env.DB.prepare(

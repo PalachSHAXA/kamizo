@@ -52,7 +52,7 @@ describe('financeStore', () => {
       materialsLoading: false,
       financeAccess: [],
       accessLoading: false,
-      filters: { buildingId: '', period: '', status: '' },
+      filters: { buildingId: '', period: '', status: '', approvalStatus: '', scopeLevel: '' },
     })
   })
 

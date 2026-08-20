@@ -1831,6 +1831,17 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
   basement_rate REAL DEFAULT 0,
   parking_rate REAL DEFAULT 0,
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft','active','archived')),
+  -- Согласование (migration 065). Ось, независимая от status: он про жизненный
+  -- цикл сметы, approval_status — про то, утверждена она или ещё на рассмотрении.
+  -- Инварианты см. в шапке 065_finance_estimate_approval.sql.
+  approval_status TEXT DEFAULT 'draft' CHECK (approval_status IN ('draft','pending','approved','rejected')),
+  submitted_by TEXT,
+  submitted_at TEXT,
+  approved_by TEXT,
+  approved_at TEXT,
+  rejected_by TEXT,
+  rejected_at TEXT,
+  rejection_reason TEXT,
   created_by TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   tenant_id TEXT DEFAULT ''
@@ -1838,6 +1849,8 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
 
 CREATE INDEX IF NOT EXISTS idx_finance_estimates_tenant ON finance_estimates(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_finance_estimates_building_period ON finance_estimates(building_id, period);
+CREATE INDEX IF NOT EXISTS idx_finance_estimates_approval ON finance_estimates(tenant_id, approval_status);
+CREATE INDEX IF NOT EXISTS idx_finance_estimates_scope ON finance_estimates(tenant_id, scope_level);
 
 -- Статьи сметы
 CREATE TABLE IF NOT EXISTS finance_estimate_items (

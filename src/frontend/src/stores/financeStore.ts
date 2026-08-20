@@ -9,6 +9,11 @@ interface FinanceFilters {
   buildingId: string;
   period: string;
   status: string;
+  // Фильтр сметы по согласованию: '' | draft | pending | approved | rejected.
+  // Отдельно от status — смета «на рассмотрении» всё ещё status='draft'.
+  approvalStatus: string;
+  // Тип объекта сметы: '' | building | complex | unassigned.
+  scopeLevel: string;
 }
 
 interface FinanceState {
@@ -46,6 +51,9 @@ interface FinanceState {
   fetchEstimate: (id: string) => Promise<void>;
   createEstimate: (data: Parameters<typeof financeApi.createEstimate>[0]) => Promise<boolean>;
   updateEstimate: (id: string, data: Record<string, unknown>) => Promise<boolean>;
+  submitEstimate: (id: string) => Promise<boolean>;
+  rejectEstimate: (id: string, reason: string) => Promise<boolean>;
+  attachEstimateToBuilding: (id: string, buildingId: string) => Promise<boolean>;
   activateEstimate: (id: string) => Promise<boolean>;
   // Actions — Charges
   generateCharges: (estimateId: string) => Promise<boolean>;
@@ -104,18 +112,20 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   materialsLoading: false,
   financeAccess: [],
   accessLoading: false,
-  filters: { buildingId: '', period: '', status: '' },
+  filters: { buildingId: '', period: '', status: '', approvalStatus: '', scopeLevel: '' },
 
   // ── Estimates ────────────────────────────────
 
   fetchEstimates: async () => {
     set({ estimatesLoading: true });
     try {
-      const { buildingId, period, status } = get().filters;
+      const { buildingId, period, status, approvalStatus, scopeLevel } = get().filters;
       const res = await financeApi.getEstimates({
         building_id: buildingId || undefined,
         period: period || undefined,
         status: status || undefined,
+        approval_status: approvalStatus || undefined,
+        scope_level: scopeLevel || undefined,
       });
       set({ estimates: res.estimates || [] });
     } catch (err) {
@@ -158,14 +168,50 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
 
-  activateEstimate: async (id) => {
+  submitEstimate: async (id) => {
     try {
-      await financeApi.activateEstimate(id);
-      addToast('Смета активирована', 'success');
+      await financeApi.submitEstimate(id);
+      addToast('Смета отправлена на рассмотрение', 'success');
       await get().fetchEstimates();
       return true;
     } catch (err) {
-      addToast((err as Error).message || 'Ошибка активации сметы', 'error');
+      addToast((err as Error).message || 'Ошибка отправки сметы', 'error');
+      return false;
+    }
+  },
+
+  rejectEstimate: async (id, reason) => {
+    try {
+      await financeApi.rejectEstimate(id, reason);
+      addToast('Смета возвращена на доработку', 'success');
+      await get().fetchEstimates();
+      return true;
+    } catch (err) {
+      addToast((err as Error).message || 'Ошибка возврата сметы', 'error');
+      return false;
+    }
+  },
+
+  attachEstimateToBuilding: async (id, buildingId) => {
+    try {
+      const res = await financeApi.attachEstimateToBuilding(id, buildingId);
+      addToast(`Смета привязана к «${res.building.name}»`, 'success');
+      await get().fetchEstimates();
+      return true;
+    } catch (err) {
+      addToast((err as Error).message || 'Ошибка привязки сметы', 'error');
+      return false;
+    }
+  },
+
+  activateEstimate: async (id) => {
+    try {
+      await financeApi.activateEstimate(id);
+      addToast('Смета утверждена', 'success');
+      await get().fetchEstimates();
+      return true;
+    } catch (err) {
+      addToast((err as Error).message || 'Ошибка утверждения сметы', 'error');
       return false;
     }
   },

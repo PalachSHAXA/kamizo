@@ -22,11 +22,27 @@ import {
   Eye,
   AlertTriangle,
   Banknote,
+  Send,
+  Undo2,
+  Clock,
+  Sparkles,
+  Link2,
 } from 'lucide-react';
 import { formatAmount } from '../../utils/formatCurrency';
 import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
 import { generateEstimatePdf } from '../../utils/generateEstimatePdf';
 import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
+import {
+  canEditEstimate,
+  canApproveEstimate,
+  estimateStage,
+  estimateStageLabel,
+  estimateObjectName,
+  isEstimateEditable,
+  isUnassignedEstimate,
+  ESTIMATE_STAGE_STYLES,
+  type EstimateStage,
+} from '../../utils/estimateStatus';
 
 // ── Default expense articles (real УК template) ──
 const DEFAULT_EXPENSE_ARTICLES: Array<{ name_ru: string; name_uz: string; section: string }> = [
@@ -54,17 +70,31 @@ interface ExpenseItem {
   section?: string;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  active: 'bg-emerald-100 text-emerald-700',
-  archived: 'bg-slate-100 text-slate-600',
+// Фильтр по витринной стадии → серверные параметры (status + approval_status).
+// Смета «на рассмотрении» — это всё ещё status='draft', поэтому одной осью
+// фильтровать нельзя, см. migrations/065.
+const STAGE_FILTER_PARAMS: Record<string, { status: string; approvalStatus: string }> = {
+  '': { status: '', approvalStatus: '' },
+  draft: { status: 'draft', approvalStatus: 'draft' },
+  pending: { status: '', approvalStatus: 'pending' },
+  rejected: { status: '', approvalStatus: 'rejected' },
+  approved: { status: 'active', approvalStatus: '' },
+  archived: { status: 'archived', approvalStatus: '' },
 };
+
+const STAGE_FILTER_ORDER: EstimateStage[] = ['draft', 'pending', 'rejected', 'approved', 'archived'];
 
 export default function EstimatesPage() {
   const language = useLanguageStore((s) => s.language);
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
+  const userRole = useAuthStore((s) => s.user?.role);
   const t = useCallback((ru: string, uz: string) => (language === 'ru' ? ru : uz), [language]);
+
+  // Права: составитель вводит и правит, утверждающий — утверждает и возвращает.
+  // Сервер проверяет то же самое; здесь только показ кнопок.
+  const mayEdit = !isDemoSession && canEditEstimate(userRole);
+  const mayApprove = !isDemoSession && canApproveEstimate(userRole);
 
   const estimates = useFinanceStore((s) => s.estimates);
   const estimatesLoading = useFinanceStore((s) => s.estimatesLoading);
@@ -72,6 +102,9 @@ export default function EstimatesPage() {
   const fetchEstimates = useFinanceStore((s) => s.fetchEstimates);
   const fetchEstimate = useFinanceStore((s) => s.fetchEstimate);
   const createEstimate = useFinanceStore((s) => s.createEstimate);
+  const submitEstimate = useFinanceStore((s) => s.submitEstimate);
+  const rejectEstimate = useFinanceStore((s) => s.rejectEstimate);
+  const attachEstimateToBuilding = useFinanceStore((s) => s.attachEstimateToBuilding);
   const activateEstimate = useFinanceStore((s) => s.activateEstimate);
   const generateCharges = useFinanceStore((s) => s.generateCharges);
   const setFilters = useFinanceStore((s) => s.setFilters);
@@ -84,13 +117,24 @@ export default function EstimatesPage() {
 
   // Filters
   const [filterBuilding, setFilterBuilding] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  // Одна витринная стадия вместо двух серверных осей — см. STAGE_FILTER_PARAMS.
+  const [filterStage, setFilterStage] = useState('');
+  // Тип объекта: '' | building | complex | unassigned.
+  const [filterScope, setFilterScope] = useState('');
+
+  // Привязка черновика без объекта (только админ/директор). Один черновик —
+  // один объект: смета, подходящая одному дому, не годится другому.
+  const [showLink, setShowLink] = useState(false);
+  const [linkBuildingId, setLinkBuildingId] = useState('');
+  const [linkEstimateId, setLinkEstimateId] = useState('');
+  const [linking, setLinking] = useState(false);
 
   // Modals
   const [showCreate, setShowCreate] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   // Create form state
@@ -130,14 +174,20 @@ export default function EstimatesPage() {
     const load = async () => {
       try {
         setLoadError(false);
-        setFilters({ buildingId: filterBuilding, status: filterStatus });
+        const stageParams = STAGE_FILTER_PARAMS[filterStage] || STAGE_FILTER_PARAMS[''];
+        setFilters({
+          buildingId: filterBuilding,
+          status: stageParams.status,
+          approvalStatus: stageParams.approvalStatus,
+          scopeLevel: filterScope,
+        });
         await fetchEstimates();
       } catch {
         setLoadError(true);
       }
     };
     load();
-  }, [filterBuilding, filterStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterBuilding, filterStage, filterScope]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculations
   const formTotalYearly = useMemo(
@@ -185,18 +235,37 @@ export default function EstimatesPage() {
     return m;
   }, [buildings]);
 
-  const statusLabel = useCallback(
-    (status: string) => {
-      const map: Record<string, [string, string]> = {
-        draft: ['Черновик', 'Qoralama'],
-        active: ['Действующая', 'Amalda'],
-        archived: ['Архив', 'Arxiv'],
-      };
-      const pair = map[status];
-      return pair ? t(pair[0], pair[1]) : status;
-    },
-    [t],
+  const stageLabel = useCallback(
+    (stage: EstimateStage) => estimateStageLabel(stage, language === 'ru'),
+    [language],
   );
+
+  // Черновики без объекта — кандидаты на привязку. Утверждённые сюда попасть
+  // не могут: непривязанную смету нельзя утвердить (бэкенд запрещает), но
+  // фильтр по статусу оставляем явным — на случай ручной правки данных.
+  const unassignedDrafts = useMemo(
+    () => estimates.filter((e) => isUnassignedEstimate(e) && String(e.status || 'draft') === 'draft'),
+    [estimates],
+  );
+
+  const openLinkModal = (preselectId?: string) => {
+    if (!mayApprove) return;
+    setLinkBuildingId('');
+    setLinkEstimateId(preselectId || '');
+    setShowLink(true);
+  };
+
+  const handleLink = async () => {
+    if (!mayApprove || !linkBuildingId || !linkEstimateId) return;
+    setLinking(true);
+    const ok = await attachEstimateToBuilding(linkEstimateId, linkBuildingId);
+    setLinking(false);
+    if (ok) {
+      setShowLink(false);
+      setLinkEstimateId('');
+      setLinkBuildingId('');
+    }
+  };
 
   // --- Item handlers ---
   const updateItem = (idx: number, field: keyof ExpenseItem, value: string | number) => {
@@ -290,13 +359,14 @@ export default function EstimatesPage() {
 
   // Редактирование черновика — открываем Мастер v2 в режиме правки.
   const handleEditEstimate = (id: string) => {
-    if (isDemoSession) return;
+    if (!mayEdit) return;
     navigate(`/finance/estimates/v2/new?edit=${id}`);
   };
 
-  // Удаление черновика (активные удалять нельзя — бэкенд вернёт 409).
+  // Удаление черновика (активные и отправленные на рассмотрение удалять
+  // нельзя — бэкенд вернёт 409).
   const handleDeleteEstimate = async (id: string) => {
-    if (isDemoSession) return;
+    if (!mayEdit) return;
     if (!window.confirm(t('Удалить черновик сметы?', 'Smeta qoralamasini o\'chirasizmi?'))) return;
     try {
       const { estimateV2Api } = await import('../../services/api');
@@ -307,8 +377,40 @@ export default function EstimatesPage() {
     }
   };
 
+  // Отправка на рассмотрение: с этого момента правки закрыты до решения
+  // утверждающего (бэкенд вернёт 400/409 на PUT).
+  const handleSubmitForApproval = async (id: string) => {
+    if (!mayEdit) return;
+    if (!window.confirm(t(
+      'Отправить смету на утверждение? Пока она на рассмотрении, править её нельзя.',
+      "Smetani tasdiqlashga yuborilsinmi? Ko'rib chiqilayotganda uni tahrirlab bo'lmaydi.",
+    ))) return;
+    setSubmitting(true);
+    const ok = await submitEstimate(id);
+    setSubmitting(false);
+    if (ok && currentEstimate?.id === id) await fetchEstimate(id);
+  };
+
+  // Возврат на доработку — причина обязательна, её увидит составитель.
+  const handleReject = async (id: string) => {
+    if (!mayApprove) return;
+    const reason = window.prompt(t(
+      'Причина возврата сметы на доработку:',
+      'Smetani qayta ishlashga qaytarish sababi:',
+    ));
+    if (reason === null) return;
+    if (!reason.trim()) {
+      window.alert(t('Причина обязательна', 'Sabab majburiy'));
+      return;
+    }
+    setActivating(true);
+    const ok = await rejectEstimate(id, reason.trim());
+    setActivating(false);
+    if (ok && currentEstimate?.id === id) await fetchEstimate(id);
+  };
+
   const handleActivate = async () => {
-    if (isDemoSession || !currentEstimate) return;
+    if (!mayApprove || !currentEstimate) return;
     setActivating(true);
     const ok = await activateEstimate(currentEstimate.id as string);
     setActivating(false);
@@ -345,7 +447,8 @@ export default function EstimatesPage() {
     (s, it) => s + (Number(it.monthly_amount) || Math.round(Number(it.amount) / 12) || 0), 0,
   );
   const detailExpYear = detailExpenseItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-  const detailStatus = (currentEstimate?.status as string) || '';
+  const detailStage = estimateStage(currentEstimate);
+  const detailIsUnassigned = isUnassignedEstimate(currentEstimate);
 
   return (
     <div className="admin-form-controls w-full min-w-0 max-w-full space-y-6 overflow-x-clip pb-24 md:pb-0">
@@ -365,13 +468,26 @@ export default function EstimatesPage() {
           </div>
         </div>
         <div className="flex w-full items-center gap-2 min-[360px]:w-auto min-[360px]:shrink-0">
+          {/* Объект завели в системе — выбираем для него один из черновиков */}
+          {mayApprove && unassignedDrafts.length > 0 && (
+            <button
+              onClick={() => openLinkModal()}
+              className="staff-primary-control inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-medium text-violet-700 hover:bg-violet-100"
+            >
+              <Link2 className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('Привязать к объекту', 'Obyektga bog\'lash')}</span>
+              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-600 px-1.5 text-xs font-semibold text-white">
+                {unassignedDrafts.length}
+              </span>
+            </button>
+          )}
           {/* Sprint 3: новый 4-шаговый мастер v2 (штат + доходы + гос. минимум).
               Hotfix: заменили <a href> на <Link to> — иначе браузер делал
               полную перезагрузку, index.html → SPA-fallback → ProtectedRoute
               редиректил manager'а на "/", т.к. роут был admin/director-only.
               Роль manager теперь в allowedRoles Layout.tsx (см. далее). */}
           {/* Создание сметы — только через Мастер v2 (старая форма убрана). */}
-          {!isDemoSession && <Link
+          {mayEdit && <Link
             to="/finance/estimates/v2/new"
             aria-label={t('Создать смету', 'Smeta yaratish')}
             className="staff-primary-control inline-flex min-h-[44px] w-full items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-br from-[#E8621A] to-[#F59E0B] text-white rounded-xl hover:opacity-90 transition-opacity font-medium text-sm shadow-sm min-[360px]:w-auto"
@@ -403,14 +519,24 @@ export default function EstimatesPage() {
           ))}
         </select>
         <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="min-h-[44px] sm:w-48 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          value={filterStage}
+          onChange={(e) => setFilterStage(e.target.value)}
+          className="min-h-[44px] sm:w-56 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
         >
           <option value="">{t('Все статусы', 'Barcha statuslar')}</option>
-          <option value="draft">{t('Черновик', 'Qoralama')}</option>
-          <option value="active">{t('Действующая', 'Amalda')}</option>
-          <option value="archived">{t('Архив', 'Arxiv')}</option>
+          {STAGE_FILTER_ORDER.map((stage) => (
+            <option key={stage} value={stage}>{stageLabel(stage)}</option>
+          ))}
+        </select>
+        <select
+          value={filterScope}
+          onChange={(e) => setFilterScope(e.target.value)}
+          className="min-h-[44px] sm:w-56 rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+        >
+          <option value="">{t('Все объекты', 'Barcha obyektlar')}</option>
+          <option value="building">{t('Отдельный дом', 'Alohida uy')}</option>
+          <option value="complex">{t('ЖК', 'JK')}</option>
+          <option value="unassigned">{t('Без объекта', 'Obyektsiz')}</option>
         </select>
       </div>
 
@@ -429,17 +555,20 @@ export default function EstimatesPage() {
             'Создайте первую смету для начала работы с финансами',
             'Moliyaviy ish boshlash uchun birinchi smetani yarating',
           )}
-          action={isDemoSession ? undefined : {
+          action={mayEdit ? {
             label: t('Создать смету', 'Smeta yaratish'),
             onClick: () => navigate('/finance/estimates/v2/new'),
-          }}
+          } : undefined}
         />
       ) : (
         <div className="grid min-w-0 max-w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {estimates.map((est) => {
             const id = est.id as string;
-            const status = (est.status as string) || 'draft';
-            const bName = buildingMap[est.building_id as string] || '';
+            const stage = estimateStage(est);
+            // Черновик без объекта: утвердить нельзя, пока не привязан
+            // к объекту (см. migration 066).
+            const isUnassigned = isUnassignedEstimate(est);
+            const objectName = estimateObjectName(est, buildingMap[est.building_id as string] || '', language === 'ru');
             const effectiveDate = est.effective_date as string | undefined;
             return (
               <div
@@ -453,11 +582,21 @@ export default function EstimatesPage() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${ESTIMATE_STAGE_STYLES[stage]}`}
                     >
-                      {statusLabel(status)}
+                      {stage === 'pending' && <Clock className="w-3 h-3" />}
+                      {stage === 'approved' && <CheckCircle2 className="w-3 h-3" />}
+                      {stageLabel(stage)}
                     </span>
-                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors" />
+                    <div className="flex items-center gap-2">
+                      {isUnassigned && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                          <Sparkles className="w-3 h-3" />
+                          {t('Без объекта', 'Obyektsiz')}
+                        </span>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors" />
+                    </div>
                   </div>
                   {(est.title as string) && (
                     <h3 className="font-semibold text-gray-900 mb-1 truncate">
@@ -466,7 +605,7 @@ export default function EstimatesPage() {
                   )}
                   <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-1">
                     <Building2 className="w-3.5 h-3.5" />
-                    <span className="truncate">{bName || t('Комплекс', 'Kompleks')}</span>
+                    <span className="truncate">{objectName}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-3">
                     <Calendar className="w-3.5 h-3.5" />
@@ -518,8 +657,27 @@ export default function EstimatesPage() {
                   })()}
                 </button>
 
-                {/* Действия: правка/удаление только для черновиков */}
-                {status === 'draft' && !isDemoSession && (
+                {/* Причина возврата — составителю нужно видеть её сразу в списке */}
+                {stage === 'rejected' && (est.rejection_reason as string) && (
+                  <div className="mt-3 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700">
+                    <span className="font-medium">{t('Возвращена', 'Qaytarilgan')}: </span>
+                    {est.rejection_reason as string}
+                  </div>
+                )}
+
+                {/* Кто и когда утвердил */}
+                {stage === 'approved' && (est.approved_at as string) && (
+                  <div className="mt-3 flex items-center gap-1.5 text-xs text-emerald-700">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      {t('Утвердил', 'Tasdiqladi')}: {(est.approved_by_name as string) || '—'},{' '}
+                      {String(est.approved_at).slice(0, 10)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Действия: правка/удаление/отправка — пока смета редактируема */}
+                {isEstimateEditable(stage) && mayEdit && (
                   <div className="flex min-w-0 max-w-full flex-col flex-wrap items-stretch gap-2 border-t border-gray-100 pt-3 mt-4 min-[360px]:flex-row min-[360px]:items-center">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEditEstimate(id); }}
@@ -527,6 +685,25 @@ export default function EstimatesPage() {
                     >
                       <Pencil className="w-3.5 h-3.5" /> {t('Редактировать', 'Tahrirlash')}
                     </button>
+                    {/* Объект завели в системе — привязываем к нему черновик */}
+                    {isUnassigned && mayApprove && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openLinkModal(id); }}
+                        className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100"
+                      >
+                        <Link2 className="w-3.5 h-3.5" /> {t('Привязать', 'Bog\'lash')}
+                      </button>
+                    )}
+                    {/* Непривязанный черновик не утверждается */}
+                    {!isUnassigned && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSubmitForApproval(id); }}
+                        disabled={submitting}
+                        className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        <Send className="w-3.5 h-3.5" /> {t('На утверждение', 'Tasdiqlashga')}
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteEstimate(id); }}
                       className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
@@ -535,11 +712,146 @@ export default function EstimatesPage() {
                     </button>
                   </div>
                 )}
+
+                {/* На рассмотрении: решение принимает утверждающий */}
+                {stage === 'pending' && mayApprove && (
+                  <div className="flex min-w-0 max-w-full flex-col flex-wrap items-stretch gap-2 border-t border-gray-100 pt-3 mt-4 min-[360px]:flex-row min-[360px]:items-center">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openDetail(id); }}
+                      className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {t('Рассмотреть', "Ko'rib chiqish")}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleReject(id); }}
+                      disabled={activating}
+                      className="staff-primary-control inline-flex min-h-[44px] min-w-[44px] max-w-full flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <Undo2 className="w-3.5 h-3.5" /> {t('Вернуть', 'Qaytarish')}
+                    </button>
+                  </div>
+                )}
+
+                {/* На рассмотрении, но решать не этому пользователю */}
+                {stage === 'pending' && !mayApprove && (
+                  <div className="mt-4 border-t border-gray-100 pt-3 text-xs text-amber-700">
+                    {t('Ожидает решения администратора или директора — правки закрыты',
+                       'Administrator yoki direktor qaroriga kutilmoqda — tahrirlash yopiq')}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {/* ─── Привязка расчётов с переговоров к заведённому объекту ─── */}
+      <Modal
+        isOpen={showLink}
+        onClose={() => setShowLink(false)}
+        title={t('Привязать расчёты к объекту', "Hisob-kitoblarni obyektga bog'lash")}
+        size="lg"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-gray-500">
+            {t('Объект появился в системе — выберите для него один из подготовленных черновиков. К объекту привязывается ровно одна смета.',
+               "Obyekt tizimda paydo bo'ldi — u uchun tayyorlangan qoralamalardan birini tanlang. Obyektga aynan bitta smeta bog'lanadi.")}
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Объект', 'Obyekt')} *
+            </label>
+            <select
+              value={linkBuildingId}
+              onChange={(e) => setLinkBuildingId(e.target.value)}
+              className="min-h-[44px] w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">{t('— выберите объект —', '— obyektni tanlang —')}</option>
+              {buildings.map((b) => (
+                <option key={b.id as string} value={b.id as string}>
+                  {(b.name as string) || (b.address as string)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="mb-2 text-sm font-medium text-gray-700">
+              {t('Черновик', 'Qoralama')} *
+            </div>
+
+            {unassignedDrafts.length === 0 ? (
+              <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                {t('Нет черновиков без объекта', "Obyektsiz qoralamalar yo'q")}
+              </div>
+            ) : (
+              <div className="max-h-[45dvh] space-y-2 overflow-y-auto pr-1">
+                {unassignedDrafts.map((est) => {
+                  const eid = est.id as string;
+                  const checked = linkEstimateId === eid;
+                  const annual = Number(est.umumiy_year) || Number(est.total_amount) || 0;
+                  return (
+                    <label
+                      key={eid}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                        checked ? 'border-violet-300 bg-violet-50' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="link-estimate"
+                        checked={checked}
+                        onChange={() => setLinkEstimateId(eid)}
+                        className="mt-0.5 border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-gray-900">
+                          {(est.title as string) || t('Без названия', 'Nomsiz')}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-gray-500">
+                          {(est.period as string) || '—'}
+                          {annual > 0 && ` · ${formatAmount(annual)} ${t('сум/год', "so'm/yil")}`}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Площадь появляется только с объектом, поэтому сервер сразу
+              пересчитывает тариф. */}
+          {linkBuildingId && linkEstimateId && (
+            <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {t('Жилая площадь возьмётся из карточки объекта, тариф пересчитается автоматически. После этого смету можно отправить на утверждение.',
+                 "Turar joy maydoni obyekt kartasidan olinadi, tarif avtomatik hisoblanadi. So'ng smetani tasdiqlashga yuborish mumkin.")}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+            <button
+              onClick={() => setShowLink(false)}
+              className="min-h-[44px] rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {t('Отмена', 'Bekor qilish')}
+            </button>
+            <button
+              onClick={handleLink}
+              disabled={linking || !linkBuildingId || !linkEstimateId}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {linking ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <Link2 className="h-4 w-4" />
+              )}
+              {t('Привязать', "Bog'lash")}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ─── Create Modal ─── */}
       <Modal
@@ -832,13 +1144,25 @@ export default function EstimatesPage() {
             {/* Meta */}
             <div className="flex flex-wrap items-center gap-3">
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[detailStatus] || STATUS_STYLES.draft}`}
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${ESTIMATE_STAGE_STYLES[detailStage]}`}
               >
-                {statusLabel(detailStatus)}
+                {detailStage === 'pending' && <Clock className="w-3 h-3" />}
+                {detailStage === 'approved' && <CheckCircle2 className="w-3 h-3" />}
+                {stageLabel(detailStage)}
               </span>
+              {detailIsUnassigned && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                  <Sparkles className="w-3 h-3" />
+                  {t('Без объекта', 'Obyektsiz')}
+                </span>
+              )}
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
-                {buildingMap[currentEstimate.building_id as string] || t('Комплекс', 'Kompleks')}
+                {estimateObjectName(
+                  currentEstimate,
+                  buildingMap[currentEstimate.building_id as string] || '',
+                  language === 'ru',
+                )}
               </span>
               <span className="text-sm text-gray-500 flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -847,6 +1171,46 @@ export default function EstimatesPage() {
                   : (currentEstimate.period as string) || '-'}
               </span>
             </div>
+
+            {/* Согласование: кто отправил / кто утвердил / почему вернули */}
+            {detailStage === 'pending' && (
+              <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-900">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Clock className="w-4 h-4" />
+                  {t('Смета на рассмотрении — правки закрыты', "Smeta ko'rib chiqilmoqda — tahrirlash yopiq")}
+                </div>
+                {(currentEstimate.submitted_at as string) && (
+                  <div className="mt-1 text-xs text-amber-700">
+                    {t('Отправил', 'Yubordi')}: {(currentEstimate.submitted_by_name as string) || '—'},{' '}
+                    {String(currentEstimate.submitted_at).slice(0, 16).replace('T', ' ')}
+                  </div>
+                )}
+              </div>
+            )}
+            {detailStage === 'rejected' && (
+              <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-800">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Undo2 className="w-4 h-4" />
+                  {t('Возвращена на доработку', 'Qayta ishlashga qaytarilgan')}
+                </div>
+                {(currentEstimate.rejection_reason as string) && (
+                  <div className="mt-1">{currentEstimate.rejection_reason as string}</div>
+                )}
+                {(currentEstimate.rejected_at as string) && (
+                  <div className="mt-1 text-xs text-red-600">
+                    {(currentEstimate.rejected_by_name as string) || '—'},{' '}
+                    {String(currentEstimate.rejected_at).slice(0, 16).replace('T', ' ')}
+                  </div>
+                )}
+              </div>
+            )}
+            {detailStage === 'approved' && (currentEstimate.approved_at as string) && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm text-emerald-800">
+                <span className="font-medium">{t('Утверждена', 'Tasdiqlangan')}: </span>
+                {(currentEstimate.approved_by_name as string) || '—'},{' '}
+                {String(currentEstimate.approved_at).slice(0, 16).replace('T', ' ')}
+              </div>
+            )}
 
             {/* Смета на ЖК: тарифы у каждого дома свои */}
             {(currentEstimate.scope_level as string) === 'complex' && (
@@ -1003,7 +1367,41 @@ export default function EstimatesPage() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
-              {detailStatus === 'draft' && !isDemoSession && (
+              {/* Черновик без объекта: сперва привязка, потом утверждение */}
+              {detailIsUnassigned && (
+                <div className="w-full space-y-2 rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-sm text-violet-800">
+                  <p>
+                    {t('Черновик не привязан к объекту. Утвердить его нельзя — сначала выберите объект.',
+                       "Qoralama obyektga bog'lanmagan. Tasdiqlash uchun avval obyektni tanlang.")}
+                  </p>
+                  {mayApprove && (
+                    <button
+                      onClick={() => openLinkModal(currentEstimate.id as string)}
+                      className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-700"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      {t('Привязать к объекту', "Obyektga bog'lash")}
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* Составитель: отправить на рассмотрение */}
+              {!detailIsUnassigned && isEstimateEditable(detailStage) && mayEdit && (
+                <button
+                  onClick={() => handleSubmitForApproval(currentEstimate.id as string)}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 transition-colors font-medium text-sm"
+                >
+                  {submitting ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {t('Отправить на утверждение', 'Tasdiqlashga yuborish')}
+                </button>
+              )}
+              {/* Утверждающий: утвердить прямо из черновика или с рассмотрения */}
+              {!detailIsUnassigned && (detailStage === 'draft' || detailStage === 'pending' || detailStage === 'rejected') && mayApprove && (
                 <button
                   onClick={handleActivate}
                   disabled={activating}
@@ -1017,7 +1415,18 @@ export default function EstimatesPage() {
                   {t('Утвердить', 'Tasdiqlash')}
                 </button>
               )}
-              {detailStatus === 'active' && !isDemoSession && (
+              {/* Утверждающий: вернуть на доработку (только с рассмотрения) */}
+              {detailStage === 'pending' && mayApprove && (
+                <button
+                  onClick={() => handleReject(currentEstimate.id as string)}
+                  disabled={activating}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors font-medium text-sm"
+                >
+                  <Undo2 className="w-4 h-4" />
+                  {t('Вернуть на доработку', 'Qayta ishlashga qaytarish')}
+                </button>
+              )}
+              {detailStage === 'approved' && mayApprove && (
                 <button
                   onClick={handleGenerate}
                   disabled={generating}

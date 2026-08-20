@@ -154,6 +154,9 @@ const navigationByRole: Record<AdminNavigationRole, NavigationDefinition[]> = {
     { id: 'executors', path: '/executors', icon: Wrench, label: text('Сотрудники', 'Xodimlar'), bottom: true },
     { id: 'chat', path: '/chat', icon: MessageCircle, label: text('Чат', 'Chat'), bottom: true },
     { id: 'work-orders', path: '/work-orders', icon: Wrench, label: text('Наряды', 'Ish buyurtmalari') },
+    // Смета: department_head вводит и правит её, но не утверждает —
+    // остальные финансовые разделы ему по-прежнему не показываем.
+    { id: 'estimates', path: '/finance/estimates', icon: FileSpreadsheet, label: text('Смета', 'Smeta'), section: finance },
     { id: 'announcements', path: '/announcements', icon: Megaphone, label: text('Объявления', "E'lonlar"), section: text('Прочее', 'Boshqa') },
     { id: 'trainings', path: '/trainings', icon: GraduationCap, label: text('Обучение', "O'qitish") },
     { id: 'colleagues', path: '/colleagues', icon: Users, label: text('Коллеги', 'Hamkasblar') },

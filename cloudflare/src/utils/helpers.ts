@@ -136,6 +136,53 @@ export function isAdminLevel(user: { role: string } | null | undefined): boolean
   return user.role === 'admin' || user.role === 'director';
 }
 
+// ── Сметы: ввод/правка vs утверждение ────────────────────────────────
+// Раньше и то и другое проверялось через isManagement/isAdminLevel напрямую.
+// Вынесено в именованные списки, чтобы круг «составителей» сметы можно было
+// расширить одной строкой, не трогая isManagement (он шире смет и используется
+// в заявках, объявлениях, маркетплейсе).
+export const ESTIMATE_EDIT_ROLES = [
+  'super_admin', 'admin', 'director', 'manager', 'department_head',
+] as const;
+
+export const ESTIMATE_APPROVE_ROLES = ['admin', 'director'] as const;
+
+// Кто вводит и правит смету (пока она не ушла на рассмотрение).
+export function canEditEstimate(user: { role: string } | null | undefined): boolean {
+  if (!user) return false;
+  const role = (user.role || '').trim().toLowerCase();
+  return (ESTIMATE_EDIT_ROLES as readonly string[]).includes(role);
+}
+
+// Кто утверждает смету и возвращает её на доработку.
+export function canApproveEstimate(user: { role: string } | null | undefined): boolean {
+  if (!user) return false;
+  const role = (user.role || '').trim().toLowerCase();
+  return (ESTIMATE_APPROVE_ROLES as readonly string[]).includes(role);
+}
+
+// Правки закрыты, пока смета на рассмотрении, и после активации/архивации.
+// Возвращает пару [ru, uz] для bilingualError или null, если править можно.
+// Живёт здесь, а не в routes/finance.ts, потому что нужна и в routes/finance-v2.ts
+// (импорт finance-v2 → finance был бы циклическим: finance уже тянет loadEstimateInput).
+export function estimateEditBlockedReason(
+  est: { status: string; approval_status?: string | null },
+): [string, string] | null {
+  if ((est.approval_status || 'draft') === 'pending') {
+    return [
+      'Смета на рассмотрении. Чтобы править, верните её на доработку.',
+      "Smeta ko'rib chiqilmoqda. Tahrirlash uchun uni qayta ishlashga qaytaring.",
+    ];
+  }
+  if (est.status !== 'draft') {
+    return [
+      'Редактировать можно только черновик сметы',
+      'Faqat smeta qoralamasini tahrirlash mumkin',
+    ];
+  }
+  return null;
+}
+
 // Check if user has executor role (executor or security)
 export function isExecutorRole(role: string): boolean {
   return role === 'executor' || role === 'security';

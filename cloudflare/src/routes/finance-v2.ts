@@ -25,7 +25,7 @@ import type { Env } from '../types';
 import { route } from '../router';
 import { getUser } from '../middleware/auth';
 import { getTenantId, requireFeature } from '../middleware/tenant';
-import { json, error, generateId, isAdminLevel, isManagement } from '../utils/helpers';
+import { json, error, bilingualError, generateId, isAdminLevel, isManagement, canEditEstimate, estimateEditBlockedReason } from '../utils/helpers';
 import {
   computeEstimate,
   computeComplexEstimate,
@@ -70,6 +70,9 @@ export async function loadEstimateInput(
   ).bind(estimateId, tenantId).first() as any;
   if (!row) return null;
 
+  // У черновика без объекта (scope_level='unassigned') building_id пустой —
+  // запрос вернёт null, и факты дома (этажность, лифт, насосы) остаются
+  // неизвестными до привязки. Валидатор в этом случае выдаст MISSING_AREA.
   const building = await env.DB.prepare(
     'SELECT floors, has_elevator, has_pumps, residential_area FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
   ).bind(row.building_id, tenantId).first() as any;
@@ -178,8 +181,10 @@ export async function loadEstimateInput(
 /**
  * Записать результат computeEstimate обратно в finance_estimates кешем,
  * чтобы UI мог показывать итоги без пересчёта на каждый GET.
+ * Экспортируется: routes/finance.ts пересчитывает смету после привязки
+ * черновика к объекту (появляется площадь → тариф меняется).
  */
-async function persistComputedResult(env: Env, estimateId: string, tenantId: string | null, r: ReturnType<typeof computeEstimate>): Promise<void> {
+export async function persistComputedResult(env: Env, estimateId: string, tenantId: string | null, r: ReturnType<typeof computeEstimate>): Promise<void> {
   // total_amount = годовые расходы (для карточки списка, где UI читает total_amount).
   await env.DB.prepare(
     `UPDATE finance_estimates
@@ -230,7 +235,7 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   if (!fc.allowed) return error(fc.error!, 403);
   // Manager УК тоже составляет сметы (директор потом активирует через
   // отдельный endpoint activate — там уже строгий isAdminLevel).
-  if (!isManagement(user)) return error('Нет прав на создание сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на создание сметы', 403);
 
   const body = await request.json() as any;
   const {
@@ -246,16 +251,18 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
     tariff_approved,                // для TARIFF_MANUAL
     effective_date,
     periodic_enabled = 1,           // периодические расходы применяются (1) или нет (0)
-    scope_level = 'building',       // 'building' (один дом) | 'complex' (ЖК)
+    scope_level = 'building',       // 'building' (дом) | 'complex' (ЖК) | 'unassigned' (без объекта)
     branch_code = null,             // ЖК сметы (для complex)
     buildings = [],                 // [{building_id, residential_area?}] для complex
   } = body;
 
   const isComplex = scope_level === 'complex';
+  // Черновик без объекта: дом выбирают позже, при привязке (migration 066).
+  const isUnassigned = scope_level === 'unassigned';
   if (!period) return error('period required');
   if (isComplex) {
     if (!Array.isArray(buildings) || buildings.length === 0) return error('buildings required for complex');
-  } else if (!building_id) {
+  } else if (!isUnassigned && !building_id) {
     return error('building_id required');
   }
   if (!['TARIFF_CALCULATED', 'TARIFF_MANUAL', 'TARIFF_FLAT'].includes(model)) {
@@ -265,15 +272,24 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   const tenantId = getTenantId(request);
 
   // Первичный дом: для одиночной — building_id; для ЖК — первый из списка
-  // (нужен для NOT NULL building_id и совместимости).
-  const primaryBuildingId = isComplex ? String(buildings[0].building_id) : building_id;
-  const building = await env.DB.prepare(
-    `SELECT id, residential_area FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
-  ).bind(primaryBuildingId, ...(tenantId ? [tenantId] : [])).first() as any;
-  if (!building) return error('Building not found', 404);
+  // (нужен для NOT NULL building_id и совместимости). Для черновика без
+  // объекта дома нет — пишем пустую строку, см. шапку migration 066.
+  let primaryBuildingId = '';
+  let building: any = null;
+  if (!isUnassigned) {
+    primaryBuildingId = isComplex ? String(buildings[0].building_id) : building_id;
+    building = await env.DB.prepare(
+      `SELECT id, residential_area FROM buildings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    ).bind(primaryBuildingId, ...(tenantId ? [tenantId] : [])).first() as any;
+    if (!building) return error('Building not found', 404);
+  }
 
   const id = generateId();
-  const finalResidentialArea = residential_area ?? building.residential_area ?? 0;
+  // Без объекта площади нет — тариф посчитается в нули, валидатор выдаст
+  // MISSING_AREA. Реальная площадь подставится при привязке к объекту.
+  const finalResidentialArea = isUnassigned
+    ? 0
+    : (residential_area ?? building.residential_area ?? 0);
 
   await env.DB.prepare(
     `INSERT INTO finance_estimates (
@@ -289,7 +305,7 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
     uk_profit_percent, payroll_tax_rate, finalResidentialArea,
     commercial_income, basement_income, parking_income, telecom_income,
     tariff_approved || null, effective_date || null, periodic_enabled ? 1 : 0,
-    isComplex ? 'complex' : 'building', branch_code || null,
+    isComplex ? 'complex' : (isUnassigned ? 'unassigned' : 'building'), branch_code || null,
     user.id, tenantId || ''
   ).run();
 
@@ -321,14 +337,22 @@ route('DELETE', '/api/finance/estimates/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на удаление сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на удаление сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
-    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    `SELECT id, status, approval_status, scope_level FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!est) return error('Estimate not found', 404);
   if (est.status !== 'draft') return error('Можно удалять только черновики', 409);
+  // Пока смета на рассмотрении — её нельзя удалить из-под утверждающего.
+  if ((est.approval_status || 'draft') === 'pending') {
+    return bilingualError(
+      'Смета на рассмотрении. Чтобы удалить, дождитесь возврата на доработку.',
+      "Smeta ko'rib chiqilmoqda. O'chirish uchun qaytarilishini kuting.",
+      409,
+    );
+  }
 
   await env.DB.prepare('DELETE FROM finance_estimate_items WHERE estimate_id = ?').bind(params.id).run();
   await env.DB.prepare('DELETE FROM finance_estimate_staff WHERE estimate_id = ?').bind(params.id).run();
@@ -346,14 +370,15 @@ route('PUT', '/api/finance/estimates/:id/settings', async (request, env, params)
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
-    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    `SELECT id, status, approval_status, scope_level FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!est) return error('Estimate not found', 404);
-  if (est.status !== 'draft') return error('Only draft estimates can be edited', 409);
+  const blocked = estimateEditBlockedReason(est);
+  if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
   const body = await request.json() as {
     periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number;
@@ -388,14 +413,15 @@ route('PUT', '/api/finance/estimates/:id/staff', async (request, env, params) =>
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
-    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    `SELECT id, status, approval_status, scope_level FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!est) return error('Estimate not found', 404);
-  if (est.status !== 'draft') return error('Only draft estimates can be edited', 409);
+  const blocked = estimateEditBlockedReason(est);
+  if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
   const body = await request.json() as { staff: StaffPosition[] };
   const staff = body.staff || [];
@@ -423,14 +449,15 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
-    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    `SELECT id, status, approval_status, scope_level FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!est) return error('Estimate not found', 404);
-  if (est.status !== 'draft') return error('Only draft estimates can be edited', 409);
+  const blocked = estimateEditBlockedReason(est);
+  if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
   const body = await request.json() as { items: ExpenseLine[] };
   const items = body.items || [];
@@ -465,14 +492,15 @@ route('PUT', '/api/finance/estimates/:id/incomes', async (request, env, params) 
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  if (!canEditEstimate(user)) return error('Нет прав на редактирование сметы', 403);
 
   const tenantId = getTenantId(request);
   const est = await env.DB.prepare(
-    `SELECT id, status FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
+    `SELECT id, status, approval_status, scope_level FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''} LIMIT 1`
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first() as any;
   if (!est) return error('Estimate not found', 404);
-  if (est.status !== 'draft') return error('Only draft estimates can be edited', 409);
+  const blocked = estimateEditBlockedReason(est);
+  if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
   const body = await request.json() as { items: IncomeStream[] };
   const items = body.items || [];
@@ -1151,7 +1179,8 @@ route('POST', '/api/finance/fact-reports', async (request, env) => {
   if (!user) return error('Unauthorized', 401);
   const fc = await requireFeature('communal', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
-  if (!isManagement(user)) return error('Нет прав на редактирование сметы', 403);
+  // Факт-отчёт — не смета: круг ролей здесь прежний (isManagement).
+  if (!isManagement(user)) return error('Нет прав на сохранение факт-отчёта', 403);
 
   const body = await request.json() as any;
   const { building_id, period_from, period_to } = body;

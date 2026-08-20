@@ -37,6 +37,7 @@ import {
   type IncomeType,
 } from '../../../services/api';
 import { WarningsPanel } from './WarningsPanel';
+import { canApproveEstimate } from '../../../utils/estimateStatus';
 
 // ── Форматирование чисел (тысячи через пробел, для UZS сум) ──────────
 function fmt(n: number): string {
@@ -80,6 +81,9 @@ export function EstimateV2WizardPage() {
   const fetchBuildings = useBuildingStore((s) => s.fetchBuildings);
   const tenantName = useTenantStore((s) => s.config?.tenant?.name) || 'Kamizo';
   const isDemoSession = useAuthStore((s) => s.user?.demoSession === true);
+  // Директор/админ утверждает смету сразу; остальные составители отправляют
+  // её на рассмотрение (migration 065 + POST /estimates/:id/submit).
+  const mayApprove = useAuthStore((s) => canApproveEstimate(s.user?.role));
 
   const isRu = language === 'ru';
   const steps = isRu ? STEPS_RU : STEPS_UZ;
@@ -117,8 +121,10 @@ export function EstimateV2WizardPage() {
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatRate, setVatRate] = useState(0.12);
 
-  // Режим сметы: на один дом ('building') или на ЖК/объект ('complex').
-  const [scopeMode, setScopeMode] = useState<'building' | 'complex'>('building');
+  // Режим сметы: на один дом ('building'), на ЖК ('complex') или черновик
+  // без объекта ('unassigned') — объект выбирают позже, при привязке
+  // (см. migration 066).
+  const [scopeMode, setScopeMode] = useState<'building' | 'complex' | 'unassigned'>('building');
   const [branchCode, setBranchCode] = useState('');           // выбранный ЖК
   const [complexBuildingIds, setComplexBuildingIds] = useState<string[]>([]); // дома ЖК в смете
   const [complexResult, setComplexResult] = useState<import('../../../services/api/finance-v2').ComplexResultV2 | null>(null);
@@ -173,6 +179,8 @@ export function EstimateV2WizardPage() {
         setVatEnabled(!!inp?.object?.vat_enabled);
         setVatRate(Number(inp?.object?.vat_rate ?? 0.12));
         setShowProfit(est.show_profit_to_residents === 1 || est.show_profit_to_residents === true);
+        if (est.scope_level === 'unassigned') setScopeMode('unassigned');
+        else if (est.scope_level === 'complex') setScopeMode('complex');
       } catch {
         addToast('error', isRu ? 'Не удалось загрузить смету' : 'Smetani yuklab bo\'lmadi');
       } finally {
@@ -216,6 +224,8 @@ export function EstimateV2WizardPage() {
     //  - conditional (лифт/насосы), если у дома их нет;
     //  - optional (гидроизоляция) — они добавляются отдельными галочками.
     const existingCodes = new Set(expenses.map((e) => e.legal_code).filter(Boolean));
+    // У черновика без объекта дома ещё нет — условные услуги (лифт, насосы)
+    // не подставляем, их добавят после привязки к объекту.
     const hasElevator = !!(selectedBuilding as any)?.hasElevator;
     const hasPumps = !!(selectedBuilding as any)?.hasPumps;
     const toAdd: ExpenseLineV2[] = MANDATORY_SERVICES
@@ -277,18 +287,19 @@ export function EstimateV2WizardPage() {
     setSaving(true);
     try {
       let id = estimateId;
+      const isComplex = scopeMode === 'complex';
+      const isUnassigned = scopeMode === 'unassigned';
       if (!id) {
-        const isComplex = scopeMode === 'complex';
         if (isComplex && complexBuildingIds.length === 0) {
           addToast('warning', isRu ? 'Выберите ЖК и дома' : 'JK va uylarni tanlang');
           return false;
         }
-        if (!isComplex && !buildingId) {
+        if (!isComplex && !isUnassigned && !buildingId) {
           addToast('warning', isRu ? 'Выберите дом' : 'Uyni tanlang');
           return false;
         }
         const created = await estimateV2Api.create({
-          building_id: isComplex ? undefined : buildingId,
+          building_id: isComplex || isUnassigned ? undefined : buildingId,
           period,
           title: title || undefined,
           model,
@@ -302,6 +313,7 @@ export function EstimateV2WizardPage() {
             branch_code: branchCode,
             buildings: complexBuildingIds.map((bid) => ({ building_id: bid })),
           } : {}),
+          ...(isUnassigned ? { scope_level: 'unassigned' as const } : {}),
         });
         id = created.id;
         setEstimateId(id);
@@ -346,17 +358,32 @@ export function EstimateV2WizardPage() {
     if (step > 0) setStep(step - 1);
   };
 
-  const handleFinishAndActivate = async () => {
+  // Финал мастера. У утверждающего — сразу утвердить (POST /activate),
+  // у остальных составителей — отправить на рассмотрение (POST /submit).
+  // Черновик без объекта не проходит ни то ни другое: сперва его привязывают
+  // к объекту в списке смет (бэкенд вернёт 400 на обе попытки).
+  const handleFinish = async () => {
     if (isDemoSession || !estimateId) return;
+    if (scopeMode === 'unassigned') {
+      addToast('success', isRu ? 'Черновик сохранён' : 'Qoralama saqlandi');
+      navigate('/finance/estimates');
+      return;
+    }
     setSaving(true);
     try {
-      // Активация — существующий legacy endpoint POST /api/finance/estimates/:id/activate
       const { financeApi } = await import('../../../services/api');
-      await financeApi.activateEstimate(estimateId);
-      addToast('success', isRu ? 'Смета активирована' : 'Smeta faollashtirildi');
+      if (mayApprove) {
+        await financeApi.activateEstimate(estimateId);
+        addToast('success', isRu ? 'Смета утверждена' : 'Smeta tasdiqlandi');
+      } else {
+        await financeApi.submitEstimate(estimateId);
+        addToast('success', isRu
+          ? 'Смета отправлена на утверждение'
+          : 'Smeta tasdiqlashga yuborildi');
+      }
       navigate('/finance/estimates');
     } catch (e: any) {
-      addToast('error', e?.message || 'Ошибка активации');
+      addToast('error', e?.message || (isRu ? 'Ошибка' : 'Xatolik'));
     } finally {
       setSaving(false);
     }
@@ -368,6 +395,30 @@ export function EstimateV2WizardPage() {
     if (!result) return;
     try {
       const b = selectedBuilding as any; // стор отдаёт camelCase (totalArea/livingArea/…)
+      // У черновика без объекта дома ещё нет — в шапку идёт заглушка.
+      const buildingHeader = scopeMode === 'unassigned'
+        ? {
+            name: isRu ? 'Без объекта' : 'Obyektsiz',
+            address: undefined,
+            totalArea: 0,
+            livingArea: 0,
+            floors: undefined,
+            entrances: undefined,
+            apartments: undefined,
+            hasElevator: false,
+          }
+        : {
+            name: b?.name || '',
+            address: b?.address || undefined,
+            // Стор отдаёт площадь как totalArea/livingArea (camelCase). Раньше читали
+            // total_area → undefined → 0, из-за чего колонка «Тариф 1 м²» была пустой.
+            totalArea: b?.totalArea || 0,
+            livingArea: b?.livingArea || 0,
+            floors: b?.floors,
+            entrances: b?.entrances,
+            apartments: b?.totalApartments,
+            hasElevator: b?.hasElevator,
+          };
       await generateEstimateV2Excel({
         period,
         title: title || undefined,
@@ -375,18 +426,7 @@ export function EstimateV2WizardPage() {
         model,
         profitPercent,
         payrollTaxRate,
-        building: {
-          name: b?.name || '',
-          address: b?.address || undefined,
-          // Стор отдаёт площадь как totalArea/livingArea (camelCase). Раньше читали
-          // total_area → undefined → 0, из-за чего колонка «Тариф 1 м²» была пустой.
-          totalArea: b?.totalArea || 0,
-          livingArea: b?.livingArea || 0,
-          floors: b?.floors,
-          entrances: b?.entrances,
-          apartments: b?.totalApartments,
-          hasElevator: b?.hasElevator,
-        },
+        building: buildingHeader,
         staff: result.staff_lines,
         vacationReserve: result.fot_vacation,
         payrollTax: result.payroll_tax,
@@ -474,8 +514,8 @@ export function EstimateV2WizardPage() {
             {/* Режим сметы: на дом / на ЖК */}
             <div>
               <div className="text-xs font-medium text-gray-600 mb-1">{isRu ? 'Тип сметы' : 'Smeta turi'}</div>
-              <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-                {(['building', 'complex'] as const).map((m) => (
+              <div className="inline-flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-sm">
+                {(['building', 'complex', 'unassigned'] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -483,10 +523,19 @@ export function EstimateV2WizardPage() {
                     onClick={() => setScopeMode(m)}
                     className={`px-4 py-2 font-medium ${scopeMode === m ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-50`}
                   >
-                    {m === 'building' ? (isRu ? 'На один дом' : 'Bitta uy') : (isRu ? 'На ЖК (объект)' : 'JK (obyekt)')}
+                    {m === 'building' && (isRu ? 'На один дом' : 'Bitta uy')}
+                    {m === 'complex' && (isRu ? 'На ЖК (объект)' : 'JK (obyekt)')}
+                    {m === 'unassigned' && (isRu ? 'Без объекта' : 'Obyektsiz')}
                   </button>
                 ))}
               </div>
+              {scopeMode === 'unassigned' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  {isRu
+                    ? 'Черновик сохранится без объекта. Тариф посчитается после того, как смету привяжут к объекту в списке смет.'
+                    : "Qoralama obyektsiz saqlanadi. Tarif smeta obyektga bog'langanidan keyin hisoblanadi."}
+                </p>
+              )}
             </div>
 
             {/* Выбор ЖК и его домов (complex) */}
@@ -649,11 +698,21 @@ export function EstimateV2WizardPage() {
           )}
           {!isDemoSession && step === steps.length - 1 && result && (
             <button
-              onClick={handleFinishAndActivate}
+              onClick={handleFinish}
               disabled={saving}
-              className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50"
+              className={`px-5 py-2.5 rounded-xl text-white font-semibold disabled:opacity-50 ${
+                scopeMode === 'unassigned'
+                  ? 'bg-gray-700 hover:bg-gray-800'
+                  : mayApprove ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'
+              }`}
             >
-              {saving ? '...' : isRu ? 'Активировать смету' : 'Smetani faollashtirish'}
+              {saving
+                ? '...'
+                : scopeMode === 'unassigned'
+                  ? (isRu ? 'Сохранить черновик' : 'Qoralamani saqlash')
+                  : mayApprove
+                    ? (isRu ? 'Утвердить смету' : 'Smetani tasdiqlash')
+                    : (isRu ? 'Отправить на утверждение' : 'Tasdiqlashga yuborish')}
             </button>
           )}
           {!isDemoSession && <button
@@ -685,14 +744,16 @@ function Step1Basics(props: {
   vatEnabled: boolean; setVatEnabled: (v: boolean) => void;
   vatRate: number; setVatRate: (v: number) => void;
   showProfit: boolean; setShowProfit: (v: boolean) => void;
-  scopeMode: 'building' | 'complex';
+  scopeMode: 'building' | 'complex' | 'unassigned';
   isRu: boolean;
 }) {
   const { buildings, isRu } = props;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {props.scopeMode !== 'complex' && (
+        {/* Справочник домов не показываем ни для ЖК (там свой выбор), ни для
+            объекта вне обслуживания (его в справочнике нет вовсе). */}
+        {props.scopeMode === 'building' && (
         <Field label={isRu ? 'Дом (объект)' : 'Uy'} required>
           <select
             value={props.buildingId}

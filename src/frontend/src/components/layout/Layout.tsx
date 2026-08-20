@@ -827,8 +827,10 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               {/* Finance module */}
+              {/* department_head тоже вводит сметы — см. ESTIMATE_EDIT_ROLES
+                  (утверждать по-прежнему может только admin/director). */}
               <Route path="/finance/estimates" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'department_head']} requiredFeature="communal">
                   <FinanceEstimatesPage />
                 </ProtectedRoute>
               } />
@@ -836,7 +838,7 @@ export function Layout() {
                   сметы (директор потом активирует через отдельный endpoint).
                   Backend guard isManagement уже разрешает manager'а. */}
               <Route path="/finance/estimates/v2/new" element={
-                <ProtectedRoute allowedRoles={['admin', 'director', 'manager']} requiredFeature="communal">
+                <ProtectedRoute allowedRoles={['admin', 'director', 'manager', 'department_head']} requiredFeature="communal">
                   <EstimateV2WizardPage />
                 </ProtectedRoute>
               } />

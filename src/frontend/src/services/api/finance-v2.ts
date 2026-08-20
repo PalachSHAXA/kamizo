@@ -114,8 +114,9 @@ export const estimateV2Api = {
     residential_area?: number;
     tariff_approved?: number;
     effective_date?: string;
-    // Смета на ЖК:
-    scope_level?: 'building' | 'complex';
+    // 'complex' — смета на ЖК; 'unassigned' — черновик без объекта,
+    // building_id не нужен, объект выбирают позже при привязке.
+    scope_level?: 'building' | 'complex' | 'unassigned';
     branch_code?: string;
     buildings?: Array<{ building_id: string; residential_area?: number }>;
   }) => {

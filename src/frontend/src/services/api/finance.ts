@@ -18,7 +18,10 @@ function buildQuery(filters?: Record<string, string | number | undefined>): stri
 
 export const financeApi = {
   // ── Estimates ────────────────────────────────
-  getEstimates: (filters?: { building_id?: string; period?: string; status?: string }) =>
+  getEstimates: (filters?: {
+    building_id?: string; period?: string; status?: string;
+    approval_status?: string; scope_level?: string;
+  }) =>
     apiRequest<{ estimates: Record<string, unknown>[] }>(`/api/finance/estimates${buildQuery(filters)}`),
 
   getEstimate: (id: string) =>
@@ -40,6 +43,37 @@ export const financeApi = {
     const res = await apiRequest<{ success: boolean }>(`/api/finance/estimates/${id}`, {
       method: 'PUT', body: JSON.stringify(data),
     });
+    invalidateFinance();
+    return res;
+  },
+
+  // Отправить смету на рассмотрение (составитель → утверждающий).
+  submitEstimate: async (id: string) => {
+    const res = await apiRequest<{ success: boolean; approval_status: string }>(
+      `/api/finance/estimates/${id}/submit`, { method: 'POST' },
+    );
+    invalidateFinance();
+    return res;
+  },
+
+  // Вернуть смету на доработку с причиной (утверждающий → составитель).
+  rejectEstimate: async (id: string, reason: string) => {
+    const res = await apiRequest<{ success: boolean; approval_status: string }>(
+      `/api/finance/estimates/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) },
+    );
+    invalidateFinance();
+    return res;
+  },
+
+  /**
+   * Привязать черновик без объекта к заведённому объекту. Один черновик —
+   * один объект. Только admin/director.
+   */
+  attachEstimateToBuilding: async (id: string, buildingId: string) => {
+    const res = await apiRequest<{ success: boolean; building: { id: string; name: string } }>(
+      `/api/finance/estimates/${id}/attach-building`,
+      { method: 'POST', body: JSON.stringify({ building_id: buildingId }) },
+    );
     invalidateFinance();
     return res;
   },

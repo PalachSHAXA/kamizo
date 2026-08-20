@@ -109,6 +109,23 @@ Live-reload НЕ настроен (`capacitor.config.ts.server.url` отсутс
 - **Собрания**: голос = площадь квартиры кв.м (`users.total_area`), кворум = 50%+
   площади здания. Повторное голосование — `UPDATE` существующей записи
   (UNIQUE на `meeting_id, agenda_item_id, voter_id`), НЕ новый INSERT.
+- **Сметы**: у `finance_estimates` ДВЕ независимые оси. `status`
+  (`draft`/`active`/`archived`) — жизненный цикл, его CHECK расширить нельзя
+  без пересборки таблицы. `approval_status` (`draft`/`pending`/`approved`/
+  `rejected`, migration 065) — согласование. «На рассмотрении» — это всё ещё
+  `status='draft'`, поэтому фильтровать сметы по одному `status` нельзя.
+  Правки закрыты при `approval_status='pending'` (`estimateEditBlockedReason`).
+  Вводят сметы `ESTIMATE_EDIT_ROLES`, утверждают `ESTIMATE_APPROVE_ROLES`
+  (`cloudflare/src/utils/helpers.ts`, зеркало на фронте —
+  `src/frontend/src/utils/estimateStatus.ts`).
+- **Черновик сметы без объекта**: `scope_level='unassigned'` (migration 066,
+  третье значение колонки из 063), `building_id=''`, `residential_area=0`.
+  Утверждать нельзя, пока не привязан к объекту: квартир нет, а пустой
+  `building_id` схлопнул бы все такие черновики в проверке «одна активная смета
+  на дом». Запрет — `unassignedNotApprovable()` в `routes/finance.ts`.
+  Привязка — `POST /api/finance/estimates/:id/attach-building` (admin/director):
+  один черновик на один объект, площадь берётся из `buildings`, тариф сразу
+  пересчитывается. Новых колонок миграция не заводит, только индекс.
 - **Push**: `sendPushNotification(...)` всегда обёрнут в `.catch(() => {})` —
   иначе роняет основной запрос.
 - **Фото заявок**: JSON array data-URL в `requests.photos TEXT`, лимит 5,
