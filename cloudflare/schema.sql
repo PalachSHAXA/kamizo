@@ -1831,6 +1831,13 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
   basement_rate REAL DEFAULT 0,
   parking_rate REAL DEFAULT 0,
   status TEXT DEFAULT 'draft' CHECK (status IN ('draft','active','archived')),
+  -- Охват сметы (migration 063): 'building' — дом, 'complex' — ЖК,
+  -- 'unassigned' — черновик без объекта (066). В schema.sql эти колонки
+  -- забыли перенести из 063, хотя код использует их с тех пор — из-за этого
+  -- падал E2E: индекс по scope_level ссылался на несуществующую колонку.
+  scope_level TEXT DEFAULT 'building',
+  branch_code TEXT,
+  allocation_base TEXT DEFAULT 'area',
   -- Согласование (migration 065). Ось, независимая от status: он про жизненный
   -- цикл сметы, approval_status — про то, утверждена она или ещё на рассмотрении.
   -- Инварианты см. в шапке 065_finance_estimate_approval.sql.
