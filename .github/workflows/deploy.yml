@@ -44,9 +44,13 @@ jobs:
           test -n "$KAMIZO_VPS_SSH_KEY"
           test -n "$KAMIZO_VPS_KNOWN_HOSTS"
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$KAMIZO_VPS_SSH_KEY" >"$HOME/.ssh/kamizo_vps"
-          printf '%s\n' "$KAMIZO_VPS_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          # tr -d '\r': секреты часто заводят копипастом с Windows, и буфер
+          # обмена подставляет CRLF. OpenSSH тогда падает с "error in libcrypto"
+          # ещё до попытки подключения (инцидент 2026-08-20).
+          printf '%s\n' "$KAMIZO_VPS_SSH_KEY" | tr -d '\r' >"$HOME/.ssh/kamizo_vps"
+          printf '%s\n' "$KAMIZO_VPS_KNOWN_HOSTS" | tr -d '\r' >"$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/kamizo_vps" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -f "$HOME/.ssh/kamizo_vps" >/dev/null
 
       - name: Verify production backend ingress security
         run: ./scripts/preflight-backend-production.sh
