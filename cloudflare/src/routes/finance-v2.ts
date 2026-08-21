@@ -63,7 +63,7 @@ export async function loadEstimateInput(
   env: Env,
   estimateId: string,
   tenantId: string,
-): Promise<{ input: EstimateInput; complexInput: ComplexEstimateInput; scopeLevel: 'complex' | 'building'; building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean }; row: any } | null> {
+): Promise<{ input: EstimateInput; complexInput: ComplexEstimateInput; scopeLevel: 'complex' | 'building'; building: { floors?: number; has_elevator?: boolean; has_pumps?: boolean; scope_level?: string }; row: any } | null> {
   if (!tenantId || tenantId === '__no_tenant__') return null;
   const row = await env.DB.prepare(
     'SELECT * FROM finance_estimates WHERE id = ? AND tenant_id = ? LIMIT 1'
@@ -173,6 +173,8 @@ export async function loadEstimateInput(
       floors: building?.floors,
       has_elevator: !!building?.has_elevator,
       has_pumps: !!building?.has_pumps,
+      // Валидатору нужно отличать «площадь забыли» от «объекта ещё нет».
+      scope_level: row.scope_level || 'building',
     },
     row,
   };

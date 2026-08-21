@@ -29,6 +29,9 @@ export interface BuildingFacts {
   floors?: number;
   has_elevator?: boolean;
   has_pumps?: boolean;
+  // 'unassigned' — черновик ещё не привязан к объекту (migration 066).
+  // Площади у него нет по определению, и это не ошибка составителя.
+  scope_level?: string;
 }
 
 /**
@@ -46,12 +49,20 @@ export function validate(
   // получаются нули или абсурдные суммы. Явно предупреждаем.
   const area = input.object.residential_area;
   if (!area || area <= 0) {
+    // У черновика без объекта площади нет по определению — это ожидаемое
+    // состояние, а не ошибка: тариф посчитается при привязке к объекту.
+    // Отправлять составителя «в Комплексы» тут бессмысленно.
+    const unassigned = building.scope_level === 'unassigned';
     warnings.push({
       code: 'MISSING_AREA',
-      severity: 'error',
-      message_ru: 'Не заполнена жилая площадь дома — тариф рассчитать невозможно. Укажите площадь в разделе «Комплексы».',
-      message_uz: 'Uyning turar joy maydoni kiritilmagan — tarifni hisoblab bo\'lmaydi. «Komplekslar» bo\'limida maydonni kiriting.',
-      meta: { residential_area: area },
+      severity: unassigned ? 'info' : 'error',
+      message_ru: unassigned
+        ? 'Черновик без объекта: тариф посчитается после привязки к объекту — тогда подставится его жилая площадь. Расходы и штат можно заполнять уже сейчас.'
+        : 'Не заполнена жилая площадь дома — тариф рассчитать невозможно. Укажите площадь в разделе «Комплексы».',
+      message_uz: unassigned
+        ? "Obyektsiz qoralama: tarif obyektga bog'langandan keyin hisoblanadi. Xarajat va xodimlarni hozir kiritsa bo'ladi."
+        : 'Uyning turar joy maydoni kiritilmagan — tarifni hisoblab bo\'lmaydi. «Komplekslar» bo\'limida maydonni kiriting.',
+      meta: { residential_area: area, scope_level: building.scope_level },
     });
   }
 
