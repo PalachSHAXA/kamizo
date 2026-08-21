@@ -658,6 +658,7 @@ export function EstimateV2WizardPage() {
             buildingNameMap={Object.fromEntries((buildings as any[]).map((b) => [String(b.id), String(b.name)]))}
             scopeBuildings={scopeMode === 'complex' ? complexBuildingIds.map((id) => ({ id, name: String((buildings as any[]).find((b) => String(b.id) === id)?.name || id) })) : []}
             warnings={warnings}
+            unassigned={scopeMode === 'unassigned'}
             isRu={isRu}
           />
         )}
@@ -1205,9 +1206,11 @@ function Step4IncomesAndResult(props: {
   buildingNameMap?: Record<string, string>;
   scopeBuildings?: Array<{ id: string; name: string }>;
   warnings: EstimateWarning[];
+  // Черновик без объекта: тариф и разрыв нулевые по построению, красным не пугаем.
+  unassigned?: boolean;
   isRu: boolean;
 }) {
-  const { incomes, setIncomes, result, complexResult, buildingNameMap = {}, scopeBuildings = [], warnings, isRu } = props;
+  const { incomes, setIncomes, result, complexResult, buildingNameMap = {}, scopeBuildings = [], warnings, unassigned = false, isRu } = props;
 
   const update = (i: number, patch: Partial<IncomeStreamV2>) => {
     const next = [...incomes];
@@ -1365,9 +1368,16 @@ function Step4IncomesAndResult(props: {
             <MiniStat
               label={isRu ? 'Разрыв' : 'Farq'}
               value={result.deficit_year}
-              tone={result.deficit_year >= 0 ? 'green' : 'red'}
+              tone={unassigned ? undefined : (result.deficit_year >= 0 ? 'green' : 'red')}
             />
           </div>
+          {unassigned && (
+            <div className="mt-3 rounded-lg bg-violet-50 border border-violet-100 px-3 py-2 text-xs text-violet-800">
+              {isRu
+                ? 'Черновик без объекта: тариф и разрыв пока нулевые — жилая площадь подставится при привязке к объекту, и расчёт обновится автоматически. Расходы и штат сохранятся как есть.'
+                : "Obyektsiz qoralama: tarif obyektga bog'langanda hisoblanadi. Xarajat va xodimlar saqlanadi."}
+            </div>
+          )}
         </div>
       )}
     </div>

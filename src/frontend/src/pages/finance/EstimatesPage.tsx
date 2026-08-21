@@ -641,13 +641,20 @@ export default function EstimatesPage() {
                               {t('тариф', 'tarif')} {formatAmount(tariff)} {t('сум/м²', "so'm/m²")}
                             </span>
                           )}
-                          {deficit < 0 && (
+                          {/* Без объекта дефицит = все расходы: дохода неоткуда
+                              взяться, пока нет площади. Не пугаем красным. */}
+                          {!isUnassigned && deficit < 0 && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
                               {t('Дефицит', 'Defitsit')}: {formatAmount(deficit)} {t('сум/год', "so'm")}
                             </span>
                           )}
+                          {isUnassigned && (
+                            <span className="text-violet-600">
+                              {t('тариф — после привязки', "tarif — bog'langach")}
+                            </span>
+                          )}
                         </div>
-                        {deficit < 0 && (
+                        {!isUnassigned && deficit < 0 && (
                           <div className="text-[11px] text-red-500 mt-1">
                             {t('Расходы выше доходов — поднимите тариф или добавьте доходы.', 'Xarajat daromaddan yuqori — tarifni oshiring.')}
                           </div>
@@ -1245,17 +1252,32 @@ export default function EstimatesPage() {
                 </p>
                 <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
               </div>
-              <div className={`rounded-lg p-3 ${Number(currentEstimate.deficit_year) < 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                <p className={`text-xs font-medium mb-1 ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {Number(currentEstimate.deficit_year) < 0 ? t('Дефицит', 'Defitsit') : t('Профицит/баланс', 'Balans')}
-                </p>
-                <p className={`text-lg font-bold ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-900' : 'text-emerald-900'}`}>
-                  {formatAmount(Number(currentEstimate.deficit_year) || 0)}
-                </p>
-                <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
-              </div>
+              {/* У черновика без объекта тариф и доход нулевые по построению —
+                  показывать «Дефицит» красным было бы ложной тревогой. */}
+              {detailIsUnassigned ? (
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500 font-medium mb-1">{t('Баланс', 'Balans')}</p>
+                  <p className="text-lg font-bold text-gray-400">—</p>
+                  <p className="text-xs text-gray-400">{t('после привязки', "bog'langach")}</p>
+                </div>
+              ) : (
+                <div className={`rounded-lg p-3 ${Number(currentEstimate.deficit_year) < 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                  <p className={`text-xs font-medium mb-1 ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {Number(currentEstimate.deficit_year) < 0 ? t('Дефицит', 'Defitsit') : t('Профицит/баланс', 'Balans')}
+                  </p>
+                  <p className={`text-lg font-bold ${Number(currentEstimate.deficit_year) < 0 ? 'text-red-900' : 'text-emerald-900'}`}>
+                    {formatAmount(Number(currentEstimate.deficit_year) || 0)}
+                  </p>
+                  <p className="text-xs text-gray-400">{t('сум/год', "so'm/yil")}</p>
+                </div>
+              )}
             </div>
-            {Number(currentEstimate.deficit_year) < 0 && (
+            {detailIsUnassigned ? (
+              <div className="rounded-lg bg-violet-50 border border-violet-100 px-3 py-2 text-xs text-violet-800">
+                {t('Тариф и баланс появятся после привязки к объекту — тогда подставится его жилая площадь. Сумма расходов уже посчитана.',
+                   "Tarif va balans obyektga bog'langandan keyin paydo bo'ladi. Xarajatlar summasi allaqachon hisoblangan.")}
+              </div>
+            ) : Number(currentEstimate.deficit_year) < 0 && (
               <div className="text-xs text-red-500">
                 {t('Расходы выше доходов — поднимите тариф или добавьте доходы (реклама/парковка/коммерция).',
                    'Xarajat daromaddan yuqori — tarifni oshiring.')}
