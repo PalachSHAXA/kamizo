@@ -125,6 +125,9 @@ export function EstimateV2WizardPage() {
   // без объекта ('unassigned') — объект выбирают позже, при привязке
   // (см. migration 066).
   const [scopeMode, setScopeMode] = useState<'building' | 'complex' | 'unassigned'>('building');
+  // Жилая площадь для черновика без объекта — вводится руками, чтобы тариф
+  // считался сразу, не дожидаясь привязки. 0 = не указана.
+  const [unassignedArea, setUnassignedArea] = useState(0);
   const [branchCode, setBranchCode] = useState('');           // выбранный ЖК
   const [complexBuildingIds, setComplexBuildingIds] = useState<string[]>([]); // дома ЖК в смете
   const [complexResult, setComplexResult] = useState<import('../../../services/api/finance-v2').ComplexResultV2 | null>(null);
@@ -179,7 +182,10 @@ export function EstimateV2WizardPage() {
         setVatEnabled(!!inp?.object?.vat_enabled);
         setVatRate(Number(inp?.object?.vat_rate ?? 0.12));
         setShowProfit(est.show_profit_to_residents === 1 || est.show_profit_to_residents === true);
-        if (est.scope_level === 'unassigned') setScopeMode('unassigned');
+        if (est.scope_level === 'unassigned') {
+          setScopeMode('unassigned');
+          setUnassignedArea(Number(est.residential_area) || 0);
+        }
         else if (est.scope_level === 'complex') setScopeMode('complex');
       } catch {
         addToast('error', isRu ? 'Не удалось загрузить смету' : 'Smetani yuklab bo\'lmadi');
@@ -313,7 +319,10 @@ export function EstimateV2WizardPage() {
             branch_code: branchCode,
             buildings: complexBuildingIds.map((bid) => ({ building_id: bid })),
           } : {}),
-          ...(isUnassigned ? { scope_level: 'unassigned' as const } : {}),
+          ...(isUnassigned ? {
+            scope_level: 'unassigned' as const,
+            residential_area: unassignedArea || undefined,
+          } : {}),
         });
         id = created.id;
         setEstimateId(id);
@@ -329,6 +338,8 @@ export function EstimateV2WizardPage() {
           vat_enabled: vatEnabled,
           vat_rate: vatRate,
           show_profit_to_residents: showProfit,
+          // Площадь могли поправить на шаге 1 уже после создания черновика.
+          ...(isUnassigned ? { residential_area: unassignedArea } : {}),
         });
         // финальный пересчёт + валидация
         const [computeRes, validateRes] = await Promise.all([
@@ -529,12 +540,32 @@ export function EstimateV2WizardPage() {
                   </button>
                 ))}
               </div>
-              {scopeMode === 'unassigned' && (
-                <p className="mt-2 text-xs text-gray-500">
+              {editId && (
+                <p className="mt-2 text-xs text-gray-400">
                   {isRu
-                    ? 'Черновик сохранится без объекта. Тариф посчитается после того, как смету привяжут к объекту в списке смет.'
-                    : "Qoralama obyektsiz saqlanadi. Tarif smeta obyektga bog'langanidan keyin hisoblanadi."}
+                    ? 'Тип сметы задаётся при создании и не меняется. Привязать черновик к объекту можно в списке смет.'
+                    : "Smeta turi yaratishda belgilanadi. Qoralamani obyektga smetalar ro'yxatida bog'lash mumkin."}
                 </p>
+              )}
+              {scopeMode === 'unassigned' && (
+                <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                  <p className="text-xs text-violet-900">
+                    {isRu
+                      ? 'Черновик сохранится без объекта. Укажите жилую площадь — и тариф посчитается сразу, не дожидаясь привязки. При привязке к объекту площадь возьмётся из его карточки.'
+                      : "Qoralama obyektsiz saqlanadi. Turar joy maydonini kiriting — tarif darhol hisoblanadi."}
+                  </p>
+                  <div className="mt-2 max-w-xs">
+                    <Field label={isRu ? 'Жилая площадь, м² (необязательно)' : "Turar joy maydoni, m² (ixtiyoriy)"}>
+                      <NumericInput
+                        decimal
+                        value={unassignedArea}
+                        onChange={setUnassignedArea}
+                        placeholder={isRu ? 'напр. 12000' : 'masalan 12000'}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </Field>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -651,14 +682,14 @@ export function EstimateV2WizardPage() {
             setIncomes={setIncomes}
             expensesTotal={expensesTotal}
             incomeTotal={incomeTotal}
-            residentialArea={selectedBuilding?.totalArea || 0}
+            residentialArea={scopeMode === 'unassigned' ? unassignedArea : (selectedBuilding?.totalArea || 0)}
             profitPercent={profitPercent}
             result={result}
             complexResult={complexResult}
             buildingNameMap={Object.fromEntries((buildings as any[]).map((b) => [String(b.id), String(b.name)]))}
             scopeBuildings={scopeMode === 'complex' ? complexBuildingIds.map((id) => ({ id, name: String((buildings as any[]).find((b) => String(b.id) === id)?.name || id) })) : []}
             warnings={warnings}
-            unassigned={scopeMode === 'unassigned'}
+            unassigned={scopeMode === 'unassigned' && !unassignedArea}
             isRu={isRu}
           />
         )}

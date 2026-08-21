@@ -143,7 +143,12 @@ export const estimateV2Api = {
     );
   },
 
-  putSettings: (estimateId: string, settings: { periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number; show_profit_to_residents?: boolean }) => {
+  putSettings: (estimateId: string, settings: {
+    periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number;
+    show_profit_to_residents?: boolean;
+    // Только для черновика без объекта — площадь, введённая руками.
+    residential_area?: number;
+  }) => {
     invalidateEstimates();
     return apiRequest<{ ok: boolean; updated: number }>(
       `/api/finance/estimates/${estimateId}/settings`,

@@ -449,6 +449,9 @@ export default function EstimatesPage() {
   const detailExpYear = detailExpenseItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
   const detailStage = estimateStage(currentEstimate);
   const detailIsUnassigned = isUnassignedEstimate(currentEstimate);
+  // Дефицит бессмыслен только пока нет площади. Указали руками — тариф
+  // настоящий, показываем баланс как у обычной сметы.
+  const detailNoArea = detailIsUnassigned && !(Number(currentEstimate?.residential_area) > 0);
 
   return (
     <div className="admin-form-controls w-full min-w-0 max-w-full space-y-6 overflow-x-clip pb-24 md:pb-0">
@@ -568,6 +571,7 @@ export default function EstimatesPage() {
             // Черновик без объекта: утвердить нельзя, пока не привязан
             // к объекту (см. migration 066).
             const isUnassigned = isUnassignedEstimate(est);
+                    const noArea = isUnassigned && !(Number(est.residential_area) > 0);
             const objectName = estimateObjectName(est, buildingMap[est.building_id as string] || '', language === 'ru');
             const effectiveDate = est.effective_date as string | undefined;
             return (
@@ -643,18 +647,18 @@ export default function EstimatesPage() {
                           )}
                           {/* Без объекта дефицит = все расходы: дохода неоткуда
                               взяться, пока нет площади. Не пугаем красным. */}
-                          {!isUnassigned && deficit < 0 && (
+                          {!noArea && deficit < 0 && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
                               {t('Дефицит', 'Defitsit')}: {formatAmount(deficit)} {t('сум/год', "so'm")}
                             </span>
                           )}
-                          {isUnassigned && (
+                          {noArea && (
                             <span className="text-violet-600">
                               {t('тариф — после привязки', "tarif — bog'langach")}
                             </span>
                           )}
                         </div>
-                        {!isUnassigned && deficit < 0 && (
+                        {!noArea && deficit < 0 && (
                           <div className="text-[11px] text-red-500 mt-1">
                             {t('Расходы выше доходов — поднимите тариф или добавьте доходы.', 'Xarajat daromaddan yuqori — tarifni oshiring.')}
                           </div>
@@ -1254,7 +1258,7 @@ export default function EstimatesPage() {
               </div>
               {/* У черновика без объекта тариф и доход нулевые по построению —
                   показывать «Дефицит» красным было бы ложной тревогой. */}
-              {detailIsUnassigned ? (
+              {detailNoArea ? (
                 <div className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs text-gray-500 font-medium mb-1">{t('Баланс', 'Balans')}</p>
                   <p className="text-lg font-bold text-gray-400">—</p>
@@ -1272,7 +1276,7 @@ export default function EstimatesPage() {
                 </div>
               )}
             </div>
-            {detailIsUnassigned ? (
+            {detailNoArea ? (
               <div className="rounded-lg bg-violet-50 border border-violet-100 px-3 py-2 text-xs text-violet-800">
                 {t('Тариф и баланс появятся после привязки к объекту — тогда подставится его жилая площадь. Сумма расходов уже посчитана.',
                    "Tarif va balans obyektga bog'langandan keyin paydo bo'ladi. Xarajatlar summasi allaqachon hisoblangan.")}

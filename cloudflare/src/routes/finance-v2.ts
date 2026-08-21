@@ -287,10 +287,11 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   }
 
   const id = generateId();
-  // Без объекта площади нет — тариф посчитается в нули, валидатор выдаст
-  // MISSING_AREA. Реальная площадь подставится при привязке к объекту.
+  // Без объекта площадь можно указать руками — тогда тариф считается сразу,
+  // не дожидаясь привязки. Не указали — будет 0 и валидатор скажет, что
+  // тариф появится после привязки. При привязке площадь берётся из объекта.
   const finalResidentialArea = isUnassigned
-    ? 0
+    ? (Number(residential_area) || 0)
     : (residential_area ?? building.residential_area ?? 0);
 
   await env.DB.prepare(
@@ -385,6 +386,9 @@ route('PUT', '/api/finance/estimates/:id/settings', async (request, env, params)
   const body = await request.json() as {
     periodic_enabled?: boolean; vat_enabled?: boolean; vat_rate?: number;
     show_profit_to_residents?: boolean;
+    // Только для черновика без объекта: у обычных смет источник истины
+    // по площади — карточка дома, руками её тут менять нельзя.
+    residential_area?: number;
   };
   const sets: string[] = [];
   const binds: any[] = [];
@@ -399,6 +403,11 @@ route('PUT', '/api/finance/estimates/:id/settings', async (request, env, params)
   }
   if (typeof body.show_profit_to_residents === 'boolean') {
     sets.push('show_profit_to_residents = ?'); binds.push(body.show_profit_to_residents ? 1 : 0);
+  }
+  if (est.scope_level === 'unassigned'
+      && typeof body.residential_area === 'number'
+      && body.residential_area >= 0) {
+    sets.push('residential_area = ?'); binds.push(body.residential_area);
   }
   if (sets.length === 0) return json({ ok: true, updated: 0 });
 
