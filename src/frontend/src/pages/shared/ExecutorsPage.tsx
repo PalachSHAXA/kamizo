@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Phone, Star, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench } from 'lucide-react';
+import { Phone, Star, Copy, Check, Edit3, Save, Clock, Award, Loader2, RefreshCw, Wrench, CalendarDays } from 'lucide-react';
 import { EmptyState } from '../../components/common';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { useExecutorStore } from '../../stores/dataStore';
+import { useRequestStore } from '../../stores/requestStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useToastStore } from '../../stores/toastStore';
 import { executorsApi } from '../../services/api';
-import type { Executor, ExecutorSpecialization } from '../../types';
+import { STATUS_LABELS, STATUS_LABELS_UZ } from '../../types';
+import type { Executor, ExecutorSpecialization, RequestStatus } from '../../types';
 import { DemoReadOnlyBanner } from '../../components/demo/DemoReadOnlyBanner';
 
 export function ExecutorsPage() {
@@ -21,6 +23,8 @@ export function ExecutorsPage() {
   const deleteExecutor = useExecutorStore(s => s.deleteExecutor);
   const fetchExecutors = useExecutorStore(s => s.fetchExecutors);
   const isLoadingExecutors = useExecutorStore(s => s.isLoadingExecutors);
+  const allRequests = useRequestStore(s => s.requests);
+  const fetchRequests = useRequestStore(s => s.fetchRequests);
 
   // Check if user is department head - they can only see and manage their department's executors
   const isDepartmentHead = user?.role === 'department_head';
@@ -102,9 +106,26 @@ export function ExecutorsPage() {
     other: 'Boshqa',
   };
 
+  // The selected executor's jobs for today — their "расписание на день".
+  const executorSchedule = useMemo(() => {
+    if (!selectedExecutor) return [];
+    const today = new Date().toISOString().split('T')[0];
+    return allRequests
+      .filter((r) =>
+        r.executorId === selectedExecutor.id &&
+        (r.scheduledDate === today ||
+          (r.startedAt && r.startedAt.split('T')[0] === today) ||
+          ['assigned', 'accepted', 'in_progress'].includes(r.status)))
+      .sort((a, b) => (a.scheduledTime || '~').localeCompare(b.scheduledTime || '~'));
+  }, [allRequests, selectedExecutor]);
+
+  const scheduleStatusLabel = (s: RequestStatus) => (language === 'ru' ? STATUS_LABELS[s] : STATUS_LABELS_UZ[s]);
+
   const handleOpenDetails = async (executor: Executor) => {
     // Show modal immediately with cached data
     setSelectedExecutor(executor);
+    // Pull fresh requests so the schedule reflects the latest assignments.
+    fetchRequests().catch(() => {});
     setEditForm({
       name: executor.name,
       phone: executor.phone,
@@ -568,6 +589,38 @@ export function ExecutorsPage() {
                       {selectedExecutor.phone}
                     </a>
                   </div>
+                </div>
+
+                {/* Schedule for today */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                    <CalendarDays className="w-4 h-4 text-primary-500" />
+                    {language === 'ru' ? 'Расписание на сегодня' : 'Bugungi jadval'}
+                    <span className="text-gray-400 font-normal">({executorSchedule.length})</span>
+                  </div>
+                  {executorSchedule.length === 0 ? (
+                    <div className="text-sm text-gray-400 text-center py-2">
+                      {language === 'ru' ? 'Нет заявок на сегодня' : 'Bugun arizalar yo\'q'}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {executorSchedule.map((r) => (
+                        <div
+                          key={r.id}
+                          className={`flex items-center justify-between gap-2 text-sm rounded-lg px-2.5 py-2 border ${r.status === 'in_progress' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}
+                        >
+                          <div className="min-w-0 flex items-center gap-2">
+                            <span className="text-xs text-gray-400 tabular-nums flex-shrink-0 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {r.scheduledTime || '—'}
+                            </span>
+                            <span className="truncate" title={r.title}>#{r.number} · {r.title}</span>
+                          </div>
+                          <span className="text-xs text-gray-500 flex-shrink-0">{scheduleStatusLabel(r.status)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Created date */}

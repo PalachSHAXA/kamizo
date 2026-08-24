@@ -3,13 +3,14 @@ import {
   Play, Check, Star,
   CalendarDays, AlertCircle,
   RefreshCw, Hand, XCircle,
-  ChevronLeft
+  ChevronLeft, MessageCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useModalPresence } from '../../../stores/modalStore';
 import { formatAddress } from '../../../utils/formatAddress';
 import { ImageLightbox } from '../../../components/common/ImageLightbox';
+import { RequestChat } from '../../../components/RequestChat';
 import { SPECIALIZATION_LABELS } from '../../../types';
 import type { Request } from '../../../types';
 
@@ -49,6 +50,9 @@ export function RequestDetailsModal({
   useModalPresence();
   // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  // Chat opens once the executor has accepted; stays readable afterwards.
+  const chatAvailable = ['accepted', 'in_progress', 'pending_approval', 'completed'].includes(request.status);
   // Can decline/release if assigned, accepted, or in_progress (for illness, etc.)
   const canDecline = ['assigned', 'accepted', 'in_progress'].includes(request.status);
   // Can reschedule if assigned, accepted, or in_progress
@@ -335,6 +339,15 @@ export function RequestDetailsModal({
               </button>
             )}
           </div>
+          {chatAvailable && (
+            <button
+              onClick={() => setShowChat(true)}
+              className="w-full min-h-[44px] py-3 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-xl font-medium flex items-center justify-center gap-2 transition-all touch-manipulation"
+            >
+              <MessageCircle className="w-4 h-4" />
+              {language === 'ru' ? 'Чат с жителем' : 'Yashovchi bilan chat'}
+            </button>
+          )}
           {canReschedule && (
             <button
               onClick={onReschedule}
@@ -358,6 +371,14 @@ export function RequestDetailsModal({
         </div>
       </div>
       {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
+      {showChat && (
+        <RequestChat
+          requestId={request.id}
+          requestNumber={request.number}
+          title={language === 'ru' ? 'Чат с жителем' : 'Yashovchi bilan chat'}
+          onClose={() => setShowChat(false)}
+        />
+      )}
     </div>
   );
 }

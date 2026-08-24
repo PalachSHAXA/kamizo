@@ -20,6 +20,7 @@ export interface Request {
   executorPhone?: string;
   executorRating?: number;
   createdAt: string;
+  updatedAt?: string; // время последнего изменения (прокси для входа в статус — SLA)
   scheduledDate?: string; // желаемая дата выполнения
   scheduledTime?: string; // желаемое время выполнения (например "09:00-12:00")
   accessInfo?: string; // информация о доступе в квартиру
@@ -44,6 +45,7 @@ export interface Request {
   buildingId?: string; // ID дома резидента
   buildingName?: string; // Название дома
   photos?: string[]; // фото от жителя — base64 data-URLs или (если есть R2) URL
+  completionPhotos?: string[]; // необязательный фотоотчёт исполнителя о выполненной работе
 }
 
 export interface Notification {

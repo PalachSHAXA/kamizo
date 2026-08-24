@@ -5,6 +5,8 @@
     "029_add_last_login_at.sql",
     "049_users_personal_account.sql",
     "051_tenant_contracts.sql",
-    "058_finance_penalties.sql"
+    "058_finance_penalties.sql",
+    "067_requests_completion_photos.sql",
+    "068_request_messages.sql"
   ]
 }

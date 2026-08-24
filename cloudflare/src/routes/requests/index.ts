@@ -8,6 +8,7 @@ import { registerApprovalRoutes } from './approval';
 import { registerRescheduleRoutes } from './reschedule';
 import { registerWorkOrderRoutes } from './work-orders';
 import { registerCategoryRoutes } from './categories';
+import { registerRequestMessageRoutes } from './messages';
 
 export function registerRequestRoutes() {
   registerRequestCrudRoutes();
@@ -18,4 +19,5 @@ export function registerRequestRoutes() {
   registerRescheduleRoutes();
   registerWorkOrderRoutes();
   registerCategoryRoutes();
+  registerRequestMessageRoutes();
 }

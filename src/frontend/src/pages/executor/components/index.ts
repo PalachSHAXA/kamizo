@@ -1,5 +1,6 @@
 export { RequestCard } from './RequestCard';
 export { RequestDetailsModal } from './RequestDetailsModal';
+export { CompletionReportModal } from './CompletionReportModal';
 export { AvailableMarketplaceOrderCard } from './AvailableMarketplaceOrderCard';
 export { CompletedMarketplaceOrderCard } from './CompletedMarketplaceOrderCard';
 export { MarketplaceOrderCard } from './MarketplaceOrderCard';
