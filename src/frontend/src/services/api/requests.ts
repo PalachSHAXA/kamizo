@@ -32,6 +32,7 @@ export interface RequestApiRecord {
   accepted_at?: string;
   started_at?: string;
   completed_at?: string;
+  updated_at?: string;
   approved_at?: string;
   rating?: number;
   feedback?: string;
@@ -39,6 +40,7 @@ export interface RequestApiRecord {
   building_id?: string;
   building_name?: string;
   photos?: unknown;
+  completion_photos?: unknown;
   is_paused?: number | boolean;
   paused_at?: string;
   pause_reason?: string;
@@ -189,10 +191,11 @@ export const requestsApi = {
     return result;
   },
 
-  complete: async (requestId: string) => {
+  complete: async (requestId: string, completionPhotos?: string[]) => {
     invalidateCache('/api/requests');
     return apiRequest<{ success: boolean }>(`/api/requests/${requestId}/complete`, {
       method: 'POST',
+      body: JSON.stringify({ completion_photos: completionPhotos ?? [] }),
     });
   },
 
@@ -277,6 +280,29 @@ export const requestsApi = {
   getReschedules: async (requestId: string) => {
     return apiRequest<{ reschedules: RescheduleApiRecord[] }>(`/api/requests/${requestId}/reschedule`);
   },
+};
+
+// Per-request chat (resident <-> assigned executor)
+export interface RequestMessageRecord {
+  id: string;
+  sender_id: string;
+  sender_role?: string;
+  sender_name?: string;
+  body: string;
+  created_at: string;
+}
+
+export const requestMessagesApi = {
+  list: (requestId: string) =>
+    apiRequest<{ messages: RequestMessageRecord[]; writable: boolean; status: string }>(
+      `/api/requests/${requestId}/messages`,
+      { cache: 'no-store' },
+    ),
+  send: (requestId: string, body: string) =>
+    apiRequest<{ message: RequestMessageRecord }>(`/api/requests/${requestId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
 };
 
 // Reschedule API (for pending reschedules)

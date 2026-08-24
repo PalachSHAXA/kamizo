@@ -45,7 +45,7 @@ export interface RequestsTabProps {
 export interface ApproveModalProps {
   request: Request;
   onClose: () => void;
-  onApprove: (rating: number, feedback?: string) => void;
+  onApprove: (rating?: number, feedback?: string) => void;
   onReject: (reason: string) => void;
 }
 

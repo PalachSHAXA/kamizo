@@ -1,18 +1,22 @@
 import { useState } from 'react';
-import { X, Star, CheckCircle, User, Clock, ChevronDown } from 'lucide-react';
+import { X, Star, CheckCircle, User, Clock, ChevronDown, Camera } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { formatName } from '../../../utils/formatName';
 import { useModalPresence } from '../../../stores/modalStore';
+import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import type { ApproveModalProps } from './types';
 
 export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveModalProps) {
   useModalPresence();
-  const [rating, setRating] = useState(5);
+  // rating 0 = not rated. Rating is optional — the resident can accept without it.
+  const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showRatingSection, setShowRatingSection] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const { language } = useLanguageStore();
+  const completionPhotos = request.completionPhotos ?? [];
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return language === 'ru' ? 'Не указано' : 'Ko\'rsatilmagan';
@@ -103,6 +107,28 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
             </div>
           </div>
 
+          {/* Master's photo report */}
+          {completionPhotos.length > 0 && (
+            <div className="rounded-[14px] border border-gray-100 overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 text-[13px] font-semibold text-gray-600 flex items-center gap-2">
+                <Camera className="w-4 h-4 text-gray-400" />
+                {language === 'ru' ? `Фотоотчёт от мастера (${completionPhotos.length})` : `Ustadan foto-hisobot (${completionPhotos.length})`}
+              </div>
+              <div className="px-4 py-3 flex gap-2 overflow-x-auto">
+                {completionPhotos.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightbox(src)}
+                    className="flex-none w-[72px] h-[72px] rounded-[12px] overflow-hidden border border-gray-200 bg-gray-50 p-0 cursor-pointer active:opacity-80"
+                  >
+                    <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Optional rating — collapsible */}
           <div className="rounded-[14px] border border-gray-100 overflow-hidden">
             <button
@@ -152,7 +178,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
         <div className="px-5 pt-3 pb-5 border-t border-gray-100 bg-white space-y-2" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
           {/* Primary: accept */}
           <button
-            onClick={() => onApprove(rating, feedback || undefined)}
+            onClick={() => onApprove(rating || undefined, feedback || undefined)}
             className="w-full py-4 min-h-[52px] rounded-[16px] font-bold text-[15px] text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform touch-manipulation bg-green-500 shadow-[0_4px_16px_rgba(16,185,129,0.35)]"
           >
             <CheckCircle className="w-5 h-5" />
@@ -168,6 +194,7 @@ export function ApproveModal({ request, onClose, onApprove, onReject }: ApproveM
           </button>
         </div>
       </div>
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }

@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   X, Clock, MapPin, Phone, User, Calendar,
   Pause, Play, XCircle, UserPlus, AlertCircle,
-  Star, FileText, Building2,
+  Star, FileText, Building2, Camera, Timer, CalendarDays,
 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
+import { useRequestStore } from '../../../stores/requestStore';
+import { getRequestSla, slaStageLabel, formatElapsed } from '../../../utils/requestSla';
 import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';
-import { SPECIALIZATION_LABELS } from '../../../types';
+import { SPECIALIZATION_LABELS, STATUS_LABELS, STATUS_LABELS_UZ } from '../../../types';
 import type { Request } from '../../../types';
 import { StatusBadge } from '../../../components/common';
+import { ImageLightbox } from '../../../components/common/ImageLightbox';
 import type { StatusTone } from '../../../theme';
 
 interface ManagementRequestModalProps {
@@ -43,6 +47,56 @@ export function ManagementRequestModal({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  // Live clock so the "в работе" duration ticks up while the modal is open.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const isRunning = request.status === 'in_progress' && !request.isPaused;
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+
+  const allRequests = useRequestStore((s) => s.requests);
+
+  // Work duration: started → completed (or "now" while in progress), minus paused time.
+  const durationSeconds = (() => {
+    if (!request.startedAt) return null;
+    const start = new Date(request.startedAt).getTime();
+    const end = request.completedAt
+      ? new Date(request.completedAt).getTime()
+      : (request.status === 'in_progress' ? nowTs : null);
+    if (end == null || Number.isNaN(start)) return null;
+    const paused = (request.totalPausedTime || 0) * 1000;
+    return Math.max(0, Math.floor((end - start - paused) / 1000));
+  })();
+
+  const formatDuration = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h} ${t('ч', 'soat')} ${m} ${t('мин', 'daq')}`;
+    if (m > 0) return `${m} ${t('мин', 'daq')} ${s} ${t('сек', 'son')}`;
+    return `${s} ${t('сек', 'son')}`;
+  };
+
+  // The assigned executor's other jobs for today — a quick "расписание на день".
+  const executorSchedule = useMemo(() => {
+    if (!request.executorId) return [] as Request[];
+    const today = new Date().toISOString().split('T')[0];
+    return allRequests
+      .filter((r) =>
+        r.executorId === request.executorId &&
+        (r.scheduledDate === today ||
+          (r.startedAt && r.startedAt.split('T')[0] === today) ||
+          ['assigned', 'accepted', 'in_progress'].includes(r.status)))
+      .sort((a, b) => (a.scheduledTime || '~').localeCompare(b.scheduledTime || '~'));
+  }, [allRequests, request.executorId]);
+
+  const statusLabel = (s: Request['status']) => (language === 'ru' ? STATUS_LABELS[s] : STATUS_LABELS_UZ[s]);
+
+  const sla = getRequestSla(request, nowTs);
 
   const formatDate = (s?: string) => {
     if (!s) return '—';
@@ -104,6 +158,16 @@ export function ManagementRequestModal({
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Overdue / SLA banner */}
+          {sla.overdue && sla.stage && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-semibold">
+                {t('Просрочено', "Muddati o'tgan")}: {slaStageLabel(sla.stage, language)} · {formatElapsed(sla.elapsedMin, language)}
+              </span>
+            </div>
+          )}
+
           {/* Priority + Category chips */}
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={priorityTone} size="sm">
@@ -185,13 +249,75 @@ export function ManagementRequestModal({
 
           {/* Executor */}
           {request.executorName && (
-            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2.5">
               <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                 {t('Исполнитель', 'Ijrochi')}
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User className="w-4 h-4 text-gray-400" />
                 <span className="font-medium">{formatName(request.executorName)}</span>
+              </div>
+              {/* Work duration — live while in progress, final once completed */}
+              {durationSeconds != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-gray-500">
+                    <Timer className="w-4 h-4 text-gray-400" />
+                    {request.status === 'in_progress'
+                      ? t('Длится', 'Davom etmoqda')
+                      : t('Длительность работы', 'Ish davomiyligi')}
+                  </span>
+                  <span className={`font-semibold ${request.status === 'in_progress' ? 'text-amber-600' : 'text-gray-900'}`}>
+                    {formatDuration(durationSeconds)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Optional photo report attached by the executor at "Завершить" */}
+          {request.completionPhotos && request.completionPhotos.length > 0 && (
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" />
+                {t('Фотоотчёт о работе', 'Ish bo\'yicha foto-hisobot')} ({request.completionPhotos.length})
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {request.completionPhotos.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightbox(src)}
+                    className="aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 active:opacity-80 p-0 cursor-pointer"
+                  >
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Executor's schedule for today */}
+          {request.executorName && executorSchedule.length > 0 && (
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5" />
+                {t('Расписание исполнителя на сегодня', 'Ijrochining bugungi jadvali')} ({executorSchedule.length})
+              </div>
+              <div className="space-y-1.5">
+                {executorSchedule.map((r) => (
+                  <div
+                    key={r.id}
+                    className={`flex items-center justify-between gap-2 text-sm rounded-lg px-2.5 py-2 ${r.id === request.id ? 'bg-primary-50 border border-primary-200' : 'bg-white border border-gray-200'}`}
+                  >
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="text-xs text-gray-400 tabular-nums flex-shrink-0">
+                        {r.scheduledTime || '—'}
+                      </span>
+                      <span className="truncate" title={r.title}>#{r.number} · {r.title}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 flex-shrink-0">{statusLabel(r.status)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -320,6 +446,7 @@ export function ManagementRequestModal({
             </div>
           </div>
         )}
+        {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
       </div>
     </div>
   );

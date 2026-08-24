@@ -157,6 +157,31 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   const fc = await requireFeature('requests', env, request);
   if (!fc.allowed) return error(fc.error!, 403);
 
+  // Optional photo report of the finished work. Not required (keeps DB writes to
+  // a minimum — photos are only stored when the executor actually attaches one).
+  // Validation mirrors the resident-photo caps in routes/requests/crud.ts.
+  let completeBody: any = {};
+  try { completeBody = await request.json(); } catch { completeBody = {}; }
+  const MAX_PHOTOS = 5;
+  const MAX_PHOTO_BYTES = 350 * 1024;
+  const MAX_TOTAL_BYTES = 1.5 * 1024 * 1024;
+  const PHOTO_PREFIX_RE = /^data:image\/(png|jpe?g|webp);base64,/i;
+  const rawCompletion: unknown = completeBody.completion_photos;
+  const completionPhotos: string[] = [];
+  if (Array.isArray(rawCompletion)) {
+    let total = 0;
+    for (const p of rawCompletion) {
+      if (completionPhotos.length >= MAX_PHOTOS) break;
+      if (typeof p !== 'string') continue;
+      if (!PHOTO_PREFIX_RE.test(p)) continue;
+      if (p.length > MAX_PHOTO_BYTES) continue;
+      if (total + p.length > MAX_TOTAL_BYTES) break;
+      completionPhotos.push(p);
+      total += p.length;
+    }
+  }
+  const completionPhotosJson = completionPhotos.length > 0 ? JSON.stringify(completionPhotos) : null;
+
   const tenantId = getTenantId(request);
   const requestData = await env.DB.prepare(`
     SELECT r.*, u.name as resident_name FROM requests r
@@ -167,10 +192,12 @@ route('POST', '/api/requests/:id/complete', async (request, env, params) => {
   if (!requestData) return error('Request not found or not assigned to you', 404);
 
   // Sprint 60 P1: status guard. /complete should only fire from 'in_progress'.
+  // completion_photos: COALESCE keeps any earlier photos if none sent this call.
   const completeResult = await env.DB.prepare(`
-    UPDATE requests SET status = 'pending_approval', completed_at = datetime('now'), updated_at = datetime('now')
+    UPDATE requests SET status = 'pending_approval', completed_at = datetime('now'),
+      completion_photos = COALESCE(?, completion_photos), updated_at = datetime('now')
     WHERE id = ? AND executor_id = ? AND status = 'in_progress' ${tenantId ? 'AND tenant_id = ?' : ''}
-  `).bind(params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
+  `).bind(completionPhotosJson, params.id, user.id, ...(tenantId ? [tenantId] : [])).run();
 
   if (!completeResult.meta || completeResult.meta.changes === 0) {
     return error('Request is not in "in_progress" state', 409);

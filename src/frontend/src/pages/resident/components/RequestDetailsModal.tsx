@@ -10,15 +10,16 @@
 // parent which opens the existing ApproveModal / CancelRequestModal /
 // RescheduleModal.
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Check, Clock, Droplets, Zap, Flame, Snowflake, Sparkles, Truck,
   Leaf, Shield, Trash2, ArrowUpDown, KeyRound, Phone,
-  RefreshCw, Star, User as UserIcon, Wrench,
+  RefreshCw, Star, User as UserIcon, Wrench, MessageCircle,
 } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useModalPresence } from '../../../stores/modalStore';
 import { ImageLightbox } from '../../../components/common/ImageLightbox';
+import { RequestChat } from '../../../components/RequestChat';
 import type { ExecutorSpecialization, RequestPriority, RequestStatus } from '../../../types';
 import type { RequestDetailsModalProps } from './types';
 import { RoleAvatar } from '../../../components/RoleAvatar';
@@ -114,6 +115,30 @@ export function RequestDetailsModal({
 
   // Photo viewer (data: URLs can't open in a new tab — Chromium blocks them).
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  // Chat with the master appears once they've accepted the request; readable
+  // afterwards but locked (backend blocks sending once work is done).
+  const chatAvailable = !!request.executorId
+    && ['accepted', 'in_progress', 'pending_approval', 'completed'].includes(request.status);
+
+  // Live clock so "мастер работает уже N мин" ticks while the job runs.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (request.status !== 'in_progress' || request.isPaused) return;
+    const id = setInterval(() => setNowTs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [request.status, request.isPaused]);
+
+  // Minutes the master has actually been working (excludes paused time).
+  const workingMin = (() => {
+    if (request.status !== 'in_progress' || !request.startedAt) return null;
+    const started = new Date(
+      request.startedAt.endsWith('Z') ? request.startedAt : request.startedAt.replace(' ', 'T') + 'Z'
+    ).getTime();
+    if (Number.isNaN(started)) return null;
+    const pausedMs = (request.totalPausedTime || 0) * 1000;
+    return Math.max(0, Math.floor((nowTs - started - pausedMs) / 60000));
+  })();
 
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
@@ -357,6 +382,17 @@ export function RequestDetailsModal({
           <div style={{ textAlign: 'center', padding: '20px 18px 16px' }}>
             <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em' }}>{titleSub.title}</div>
             <div style={{ fontSize: 14, color: TEXT_SECONDARY, marginTop: 6, lineHeight: 1.4 }}>{titleSub.sub}</div>
+            {request.status === 'in_progress' && workingMin !== null && (
+              <div style={{
+                marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '5px 13px', borderRadius: 999,
+                background: 'rgba(234,88,12,0.10)', color: '#C2410C',
+                fontSize: 13, fontWeight: 700,
+              }}>
+                <span className="animate-pulse" style={{ width: 7, height: 7, borderRadius: 999, background: '#EA580C', display: 'inline-block' }} />
+                {lang === 'ru' ? `Работает уже ${workingMin} мин` : `${workingMin} daq ishlayapti`}
+              </div>
+            )}
           </div>
 
           <div style={{ height: 1, background: BORDER_C }} />
@@ -485,6 +521,38 @@ export function RequestDetailsModal({
             </>
           )}
 
+          {/* Master's completion photo report */}
+          {request.completionPhotos && request.completionPhotos.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 12, fontWeight: 800, letterSpacing: '0.04em',
+                color: TEXT_SECONDARY, textTransform: 'uppercase', marginTop: 18,
+              }}>
+                {lang === 'ru' ? `Фотоотчёт от мастера (${request.completionPhotos.length})` : `Ustadan foto-hisobot (${request.completionPhotos.length})`}
+              </div>
+              <div style={{
+                display: 'flex', gap: 8, marginTop: 8, paddingBottom: 2,
+                overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+              }}>
+                {request.completionPhotos.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightbox(src)}
+                    style={{
+                      flex: '0 0 auto', width: 72, height: 72,
+                      borderRadius: 12, overflow: 'hidden', padding: 0, cursor: 'pointer',
+                      border: `1px solid ${BORDER_C}`, background: SURFACE_SUNKEN,
+                      display: 'block',
+                    }}>
+                    <img src={src} alt="" loading="lazy" decoding="async"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
           {/* Rating (completed) */}
           {request.status === 'completed' && request.rating !== undefined && request.rating > 0 && (
             <>
@@ -566,6 +634,21 @@ export function RequestDetailsModal({
               </div>
             </>
           )}
+
+          {chatAvailable && (
+            <button
+              onClick={() => setShowChat(true)}
+              style={{
+                width: '100%', marginTop: 16, padding: 13, borderRadius: RADIUS_MD,
+                background: BRAND_TINT, color: BRAND_DARK, border: 'none',
+                fontSize: 14.5, fontWeight: 700, cursor: 'pointer', font: 'inherit',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              <MessageCircle size={18} />
+              {lang === 'ru' ? 'Чат с мастером' : 'Usta bilan chat'}
+            </button>
+          )}
         </div>
 
         {/* Active-reschedule banner */}
@@ -613,6 +696,14 @@ export function RequestDetailsModal({
         </button>
       </div>
       {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
+      {showChat && (
+        <RequestChat
+          requestId={request.id}
+          requestNumber={request.number}
+          title={lang === 'ru' ? 'Чат с мастером' : 'Usta bilan chat'}
+          onClose={() => setShowChat(false)}
+        />
+      )}
     </div>
   );
 }

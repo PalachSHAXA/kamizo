@@ -18,6 +18,7 @@ import RescheduleResponseModal from '../components/modals/RescheduleResponseModa
 
 import {
   RequestDetailsModal,
+  CompletionReportModal,
   MarketplaceOrderDetailsModal,
   StatsCards,
   ActiveWorkTimer,
@@ -104,6 +105,11 @@ export function ExecutorDashboard() {
   const [deliveryTimers, setDeliveryTimers] = useState<Record<string, number>>({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [requestToDecline, setRequestToDecline] = useState<Request | null>(null);
+  // Optional photo report captured when finishing work.
+  const [completeRequest, setCompleteRequest] = useState<Request | null>(null);
+  const [completing, setCompleting] = useState(false);
+  // "На смене" toggle state.
+  const [shiftUpdating, setShiftUpdating] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [requestToReschedule, setRequestToReschedule] = useState<Request | null>(null);
   const [showRescheduleResponseModal, setShowRescheduleResponseModal] = useState(false);
@@ -337,12 +343,44 @@ export function ExecutorDashboard() {
   };
 
   const handleTakeRequest = (requestId: string) => {
+    // Off-shift executors can't pick up new requests.
+    if (currentExecutor?.status === 'offline') {
+      addToast('warning', language === 'ru'
+        ? 'Вы не на смене — включите смену, чтобы брать заявки'
+        : 'Siz smenada emassiz — arizani olish uchun smenaga chiqing');
+      return;
+    }
     // Use user.id directly instead of currentExecutor.id
     // This fixes the issue when executors list is not loaded yet
     if (user?.id) {
       assignRequest(requestId, user.id);
       // Auto-switch to assigned tab
       setActiveTab('assigned');
+    }
+  };
+
+  const handleToggleShift = async () => {
+    if (!user?.id || shiftUpdating) return;
+    const prev = currentExecutor?.status;
+    const next: 'available' | 'offline' = prev === 'offline' ? 'available' : 'offline';
+    setShiftUpdating(true);
+    // Optimistic local update so the pill flips immediately.
+    useExecutorStore.setState((s) => ({
+      executors: s.executors.map((e) => (e.login === user.login ? { ...e, status: next } : e)),
+    }));
+    try {
+      await executorsApi.updateStatus(user.id, next);
+      addToast('success', next === 'available'
+        ? (language === 'ru' ? 'Вы вышли на смену' : 'Siz smenaga chiqdingiz')
+        : (language === 'ru' ? 'Смена завершена' : 'Smena tugadi'));
+    } catch {
+      // Rollback on failure.
+      useExecutorStore.setState((s) => ({
+        executors: s.executors.map((e) => (e.login === user.login ? { ...e, status: prev } : e)),
+      }));
+      addToast('error', language === 'ru' ? 'Не удалось изменить статус' : 'Holatni o\'zgartirib bo\'lmadi');
+    } finally {
+      setShiftUpdating(false);
     }
   };
 
@@ -368,8 +406,21 @@ export function ExecutorDashboard() {
   };
 
   const handleComplete = (requestId: string) => {
-    const elapsed = activeTimers[requestId] || 0;
-    completeWork(requestId, elapsed);
+    // Open the (optional) photo-report modal before finishing the job.
+    const req = requests.find((r) => r.id === requestId);
+    if (req) setCompleteRequest(req);
+  };
+
+  const confirmComplete = async (completionPhotos: string[]) => {
+    if (!completeRequest) return;
+    setCompleting(true);
+    try {
+      const elapsed = activeTimers[completeRequest.id] || 0;
+      await completeWork(completeRequest.id, elapsed, completionPhotos);
+      setCompleteRequest(null);
+    } finally {
+      setCompleting(false);
+    }
   };
 
   const handleDeclineClick = (request: Request) => {
@@ -403,6 +454,8 @@ export function ExecutorDashboard() {
         specialization={user?.specialization}
         executorStatus={currentExecutor?.status}
         language={language}
+        onToggleShift={handleToggleShift}
+        shiftUpdating={shiftUpdating}
       />
 
       {/* Pending Reschedule Requests Alert */}
@@ -522,6 +575,16 @@ export function ExecutorDashboard() {
             setSelectedRequest(null);
           }}
           formatTime={formatTime}
+        />
+      )}
+
+      {/* Optional photo report when finishing work */}
+      {completeRequest && (
+        <CompletionReportModal
+          request={completeRequest}
+          submitting={completing}
+          onConfirm={confirmComplete}
+          onClose={() => { if (!completing) setCompleteRequest(null); }}
         />
       )}
 

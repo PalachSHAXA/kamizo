@@ -38,8 +38,8 @@ interface RequestState {
   startWork: (requestId: string) => Promise<void>;
   pauseWork: (requestId: string, reason?: string) => Promise<void>;
   resumeWork: (requestId: string) => Promise<void>;
-  completeWork: (requestId: string, workDuration: number) => Promise<void>;
-  approveRequest: (requestId: string, rating: number, feedback?: string) => Promise<void>;
+  completeWork: (requestId: string, workDuration: number, completionPhotos?: string[]) => Promise<void>;
+  approveRequest: (requestId: string, rating?: number, feedback?: string) => Promise<void>;
   rejectRequest: (requestId: string, reason: string) => Promise<void>;
   cancelRequest: (requestId: string, cancelledBy: CancelledBy, reason: string) => Promise<void>;
   declineRequest: (requestId: string, reason: string) => Promise<void>;
@@ -117,6 +117,7 @@ export const useRequestStore = create<RequestState>()(
           scheduledDate: typeof r.scheduled_at === 'string' ? r.scheduled_at.split('T')[0] : undefined,
           scheduledTime: typeof r.scheduled_at === 'string' ? r.scheduled_at.split('T')[1]?.substring(0, 5) : undefined,
           createdAt: r.created_at,
+          updatedAt: r.updated_at,
           assignedAt: r.assigned_at,
           acceptedAt: r.accepted_at,
           startedAt: r.started_at,
@@ -129,6 +130,8 @@ export const useRequestStore = create<RequestState>()(
           buildingName: r.building_name,
           // photos is TEXT in SQLite but can already be decoded by an API adapter.
           photos: parseRequestPhotos(r.photos),
+          // Optional photo report attached by the executor at "Завершить".
+          completionPhotos: parseRequestPhotos(r.completion_photos),
           // Pause fields from DB
           isPaused: r.is_paused === 1 || r.is_paused === true,
           pausedAt: r.paused_at,
@@ -548,7 +551,7 @@ export const useRequestStore = create<RequestState>()(
       }
     },
 
-    completeWork: async (requestId, workDuration) => {
+    completeWork: async (requestId, workDuration, completionPhotos) => {
       const state = get();
       const request = state.requests.find(r => r.id === requestId);
       if (!request) return;
@@ -556,8 +559,8 @@ export const useRequestStore = create<RequestState>()(
       const wasRejected = !!request.rejectionReason;
 
       try {
-        // Call API to complete work in D1 database
-        await requestsApi.complete(requestId);
+        // Call API to complete work in D1 database (optional photo report)
+        await requestsApi.complete(requestId, completionPhotos);
 
         set((state) => ({
           requests: state.requests.map((r) =>
@@ -567,6 +570,7 @@ export const useRequestStore = create<RequestState>()(
                   status: 'pending_approval' as const,
                   completedAt: new Date().toISOString(),
                   workDuration,
+                  completionPhotos: (completionPhotos && completionPhotos.length > 0) ? completionPhotos : r.completionPhotos,
                   // Clear pause and rejection info when work is completed
                   isPaused: undefined,
                   pausedAt: undefined,
@@ -653,8 +657,16 @@ export const useRequestStore = create<RequestState>()(
             const completedRequests = state.requests.filter(
               r => r.executorId === request.executorId && r.status === 'completed'
             );
-            const ratings = [...completedRequests.map(r => r.rating || 5), rating];
-            const newRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+            // Rating is optional — only fold it into the average when the
+            // resident actually gave one, and keep the old rating if there is
+            // nothing to average (avoids NaN).
+            const ratings = [
+              ...completedRequests.map(r => r.rating || 5),
+              ...(typeof rating === 'number' ? [rating] : []),
+            ];
+            const newRating = ratings.length > 0
+              ? ratings.reduce((a, b) => a + b, 0) / ratings.length
+              : executor.rating;
 
             useExecutorStore.setState((state) => ({
               executors: state.executors.map((e) =>
@@ -675,7 +687,7 @@ export const useRequestStore = create<RequestState>()(
           userId: request.executorId!,
           type: 'request_approved',
           title: 'Работа подтверждена',
-          message: `Заявка #${request.number} подтверждена. Оценка: ${rating}/5`,
+          message: `Заявка #${request.number} подтверждена.${rating ? ` Оценка: ${rating}/5` : ''}`,
           requestId,
         });
 
@@ -684,7 +696,7 @@ export const useRequestStore = create<RequestState>()(
           userName: request.residentName,
           userRole: 'resident',
           action: 'Подтвердил выполнение',
-          details: `Заявка #${request.number}, оценка: ${rating}/5`,
+          details: `Заявка #${request.number}${rating ? `, оценка: ${rating}/5` : ''}`,
           requestId,
         });
       } catch (error) {

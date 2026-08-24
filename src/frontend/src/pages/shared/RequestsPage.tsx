@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Navigate } from 'react-router-dom';
-import { Search, MapPin, Plus, Pause, Clock, ClipboardList } from 'lucide-react';
+import { Search, MapPin, Plus, Pause, Clock, ClipboardList, AlertTriangle } from 'lucide-react';
 import { EmptyState, StatusBadge } from '../../components/common';
 import type { StatusTone } from '../../theme';
 import { PageSkeleton } from '../../components/PageSkeleton';
@@ -12,6 +12,7 @@ import { formatAddress } from '../../utils/formatAddress';
 import { formatName } from '../../utils/formatName';
 import { ManagementRequestModal } from './components/ManagementRequestModal';
 import { CreateRequestModal } from './CreateRequestModal';
+import { getRequestSla, slaStageLabel, formatElapsed } from '../../utils/requestSla';
 import { TRASH_TYPES } from '../resident/components/ResidentNewRequestFlow';
 import type { ExecutorSpecialization } from '../../types';
 
@@ -34,6 +35,12 @@ export function RequestsPage() {
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [detailsRequestId, setDetailsRequestId] = useState<string | null>(null);
+  // Live clock so overdue durations tick up without a manual refresh.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Check if user can create requests (manager, admin, director)
   const canCreateRequest = ['manager', 'admin', 'director'].includes(user?.role || '');
@@ -54,6 +61,12 @@ export function RequestsPage() {
     }
     return requests;
   }, [requests, isDepartmentHead, userSpecialization]);
+
+  // How many requests are currently past their SLA (for the alert chip).
+  const overdueCount = useMemo(
+    () => departmentRequests.filter(r => getRequestSla(r, now).overdue).length,
+    [departmentRequests, now]
+  );
 
   // Filter executors by department if user is department head
   const departmentExecutors = useMemo(() => {
@@ -137,6 +150,8 @@ export function RequestsPage() {
 
     if (filter === 'all') {
       matchesStatus = true;
+    } else if (filter === 'overdue') {
+      matchesStatus = getRequestSla(r, now).overdue;
     } else if (filter === 'in_progress') {
       // "В работе" includes assigned, accepted, and in_progress statuses
       matchesStatus = ['assigned', 'accepted', 'in_progress'].includes(r.status);
@@ -203,6 +218,7 @@ export function RequestsPage() {
           className="glass-input w-full sm:w-48"
         >
           <option value="all">{language === 'ru' ? 'Все статусы' : 'Barcha holatlar'}</option>
+          <option value="overdue">{language === 'ru' ? `⚠ Просроченные${overdueCount ? ` (${overdueCount})` : ''}` : `⚠ Muddati o'tgan${overdueCount ? ` (${overdueCount})` : ''}`}</option>
           <option value="new">{language === 'ru' ? 'Новые' : 'Yangilar'}</option>
           <option value="assigned">{language === 'ru' ? 'Назначенные' : 'Tayinlanganlar'}</option>
           <option value="accepted">{language === 'ru' ? 'Принятые' : 'Qabul qilinganlar'}</option>
@@ -211,6 +227,24 @@ export function RequestsPage() {
           <option value="completed">{language === 'ru' ? 'Выполненные' : 'Bajarilganlar'}</option>
         </select>
       </div>
+
+      {/* Overdue alert — quick jump to the overdue filter */}
+      {overdueCount > 0 && filter !== 'overdue' && (
+        <button
+          onClick={() => setFilter('overdue')}
+          className="w-full flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors touch-manipulation active:scale-[0.995]"
+        >
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <span className="font-semibold">
+            {language === 'ru'
+              ? `Просрочено заявок: ${overdueCount}`
+              : `Muddati o'tgan arizalar: ${overdueCount}`}
+          </span>
+          <span className="ml-auto text-sm underline">
+            {language === 'ru' ? 'Показать' : "Ko'rsatish"}
+          </span>
+        </button>
+      )}
 
       {/* Requests List */}
       {isLoadingRequests && requests.length === 0 ? (
@@ -223,11 +257,13 @@ export function RequestsPage() {
         />
       ) : (
       <div key={filter} className="space-y-3 stagger-children">
-        {filteredRequests.map((req) => (
+        {filteredRequests.map((req) => {
+          const sla = getRequestSla(req, now);
+          return (
           <div
             key={req.id}
             onClick={() => setDetailsRequestId(req.id)}
-            className="glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-md active:scale-[0.995] transition-all touch-manipulation"
+            className={`glass-card p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl cursor-pointer hover:shadow-md active:scale-[0.995] transition-all touch-manipulation ${sla.overdue ? 'ring-1 ring-red-300 bg-red-50/30' : ''}`}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -246,6 +282,12 @@ export function RequestsPage() {
                     <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">#{req.number}</span>
                     <h3 className="font-semibold text-base sm:text-lg truncate max-w-[250px] sm:max-w-none">{req.title}</h3>
                     {getStatusBadge(req)}
+                    {sla.overdue && sla.stage && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        <AlertTriangle className="w-3 h-3" />
+                        {slaStageLabel(sla.stage, language)} · {formatElapsed(sla.elapsedMin, language)}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
                     <span className="font-medium">{SPECIALIZATION_LABELS[req.category]}</span> • {formatName(req.residentName)}
@@ -313,7 +355,8 @@ export function RequestsPage() {
               )}
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
       )}
 
@@ -335,7 +378,14 @@ export function RequestsPage() {
                     }}
                     className="w-full p-4 min-h-[44px] touch-manipulation active:scale-[0.98] bg-white/30 hover:bg-white/50 rounded-lg sm:rounded-xl text-left transition-colors"
                   >
-                    <div className="font-medium">{executor.name}</div>
+                    <div className="font-medium flex items-center gap-2">
+                      {executor.name}
+                      {executor.status === 'offline' && (
+                        <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                          {language === 'ru' ? 'не на смене' : 'smenada emas'}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500">
                       {SPECIALIZATION_LABELS[executor.specialization]} • {executor.activeRequests} {language === 'ru' ? 'активных заявок' : 'faol arizalar'}
                     </div>
