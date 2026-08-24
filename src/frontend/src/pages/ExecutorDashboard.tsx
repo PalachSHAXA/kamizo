@@ -361,7 +361,8 @@ export function ExecutorDashboard() {
 
   const handleToggleShift = async () => {
     if (!user?.id || shiftUpdating) return;
-    const prev = currentExecutor?.status;
+    // Default to 'available' so the type stays a concrete status (never undefined).
+    const prev = currentExecutor?.status ?? 'available';
     const next: 'available' | 'offline' = prev === 'offline' ? 'available' : 'offline';
     setShiftUpdating(true);
     // Optimistic local update so the pill flips immediately.
