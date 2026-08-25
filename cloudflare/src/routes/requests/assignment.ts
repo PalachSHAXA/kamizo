@@ -4,7 +4,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId, requireFeature } from '../../middleware/tenant';
 import { invalidateCache } from '../../middleware/cache-local';
 import { json, error, generateId } from '../../utils/helpers';
-import { sendPushNotification } from '../../index';
+import { sendPushNotification, isExecutorRole } from '../../index';
 import {
   canAssignRequests,
   canRateOwnedRequest,
@@ -23,7 +23,13 @@ export function registerAssignmentRoutes() {
 route('POST', '/api/requests/:id/assign', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
-  if (!canAssignRequests(user.role)) return error('Not authorized to assign requests', 403);
+  // Managers/dispatchers assign to anyone; an executor may self-take an
+  // available request (the "Взять заявку" flow) — restricted to themselves
+  // and to 'new' requests below.
+  const executorSelfTake = isExecutorRole(user.role);
+  if (!canAssignRequests(user.role) && !executorSelfTake) {
+    return error('Not authorized to assign requests', 403);
+  }
 
   const tenantId = getTenantId(request);
   if (!hasTenantContext(tenantId)) return error('Tenant context required', 403);
@@ -39,6 +45,11 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
     return error('executor_id must be a non-empty string', 400);
   }
   const executorId = body.executor_id;
+
+  // An executor can only take a request for themselves, never assign to others.
+  if (executorSelfTake && !canAssignRequests(user.role) && executorId !== user.id) {
+    return error('Executors can only take requests for themselves', 403);
+  }
 
   const executor = await env.DB.prepare(
     'SELECT id, name, phone, specialization FROM users WHERE id = ? AND role = ? AND tenant_id = ?'
@@ -61,7 +72,11 @@ route('POST', '/api/requests/:id/assign', async (request, env, params) => {
   // writer wins, first executor silently loses the job. Restrict to
   // reassignable states + verify .changes === 1 so the second caller gets
   // a clear "already taken" error rather than a silent overwrite.
-  const reassignableStates = ['new', 'pending', 'assigned', 'accepted'];
+  // Executor self-take only grabs a still-unassigned ('new') request; managers
+  // may also reassign in-flight ones.
+  const reassignableStates = (executorSelfTake && !canAssignRequests(user.role))
+    ? ['new']
+    : ['new', 'pending', 'assigned', 'accepted'];
   const assignResult = await env.DB.prepare(`
     UPDATE requests SET executor_id = ?, status = 'assigned', assigned_by = ?, updated_at = datetime('now')
     WHERE id = ? AND status IN (${reassignableStates.map(() => '?').join(',')}) AND tenant_id = ?

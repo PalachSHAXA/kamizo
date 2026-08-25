@@ -108,8 +108,11 @@ export function ExecutorDashboard() {
   // Optional photo report captured when finishing work.
   const [completeRequest, setCompleteRequest] = useState<Request | null>(null);
   const [completing, setCompleting] = useState(false);
-  // "На смене" toggle state.
+  // "На смене" toggle state. myStatus is the executor's OWN shift status —
+  // the `executors` list isn't loaded on this dashboard, so we track it here
+  // (fetched via getById) instead of relying on currentExecutor.
   const [shiftUpdating, setShiftUpdating] = useState(false);
+  const [myStatus, setMyStatus] = useState<'available' | 'busy' | 'offline'>('available');
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [requestToReschedule, setRequestToReschedule] = useState<Request | null>(null);
   const [showRescheduleResponseModal, setShowRescheduleResponseModal] = useState(false);
@@ -131,6 +134,11 @@ export function ExecutorDashboard() {
       } finally {
         setIsLoadingStats(false);
       }
+      // Refresh own shift status (executors list isn't loaded here).
+      try {
+        const me = await executorsApi.getById(user.id);
+        if (me.executor?.status) setMyStatus(me.executor.status);
+      } catch { /* keep current myStatus */ }
     };
 
     fetchStats();
@@ -344,7 +352,7 @@ export function ExecutorDashboard() {
 
   const handleTakeRequest = (requestId: string) => {
     // Off-shift executors can't pick up new requests.
-    if (currentExecutor?.status === 'offline') {
+    if (myStatus === 'offline') {
       addToast('warning', language === 'ru'
         ? 'Вы не на смене — включите смену, чтобы брать заявки'
         : 'Siz smenada emassiz — arizani olish uchun smenaga chiqing');
@@ -361,11 +369,11 @@ export function ExecutorDashboard() {
 
   const handleToggleShift = async () => {
     if (!user?.id || shiftUpdating) return;
-    // Default to 'available' so the type stays a concrete status (never undefined).
-    const prev = currentExecutor?.status ?? 'available';
+    const prev = myStatus;
     const next: 'available' | 'offline' = prev === 'offline' ? 'available' : 'offline';
     setShiftUpdating(true);
-    // Optimistic local update so the pill flips immediately.
+    setMyStatus(next); // optimistic — the pill flips immediately
+    // Also sync the executors list if it happens to be loaded (manager views).
     useExecutorStore.setState((s) => ({
       executors: s.executors.map((e) => (e.login === user.login ? { ...e, status: next } : e)),
     }));
@@ -375,10 +383,7 @@ export function ExecutorDashboard() {
         ? (language === 'ru' ? 'Вы вышли на смену' : 'Siz smenaga chiqdingiz')
         : (language === 'ru' ? 'Смена завершена' : 'Smena tugadi'));
     } catch {
-      // Rollback on failure.
-      useExecutorStore.setState((s) => ({
-        executors: s.executors.map((e) => (e.login === user.login ? { ...e, status: prev } : e)),
-      }));
+      setMyStatus(prev); // rollback
       addToast('error', language === 'ru' ? 'Не удалось изменить статус' : 'Holatni o\'zgartirib bo\'lmadi');
     } finally {
       setShiftUpdating(false);
@@ -453,7 +458,7 @@ export function ExecutorDashboard() {
       <ExecutorHeader
         userName={user?.name}
         specialization={user?.specialization}
-        executorStatus={currentExecutor?.status}
+        executorStatus={myStatus}
         language={language}
         onToggleShift={handleToggleShift}
         shiftUpdating={shiftUpdating}
