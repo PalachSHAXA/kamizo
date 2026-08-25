@@ -59,7 +59,12 @@ if [ "$FORCE" != "1" ]; then
         exit 1
     fi
 
-    # 3. HEAD must be at or ahead of origin/main. Behind or diverged → refuse.
+    # 3. HEAD must be at origin/main. Behind, ahead, or diverged → refuse.
+    #    Ahead-only (unpushed commits) also refuses: prod bytes must always
+    #    correspond to a commit that lives on origin, so anyone can read the
+    #    source that shipped by looking at github. Discovered the hard way
+    #    on 2026-08-25 when three deployed commits existed only on the
+    #    deploying laptop for ~2 hours before being pushed.
     behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
     ahead=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
     if [ "$behind" -gt 0 ]; then
@@ -78,6 +83,14 @@ if [ "$FORCE" != "1" ]; then
             echo "Fix — pull first:"
             echo "     git pull --ff-only origin main"
         fi
+        exit 1
+    elif [ "$ahead" -gt 0 ]; then
+        echo ""
+        echo "❌ HEAD is $ahead commit(s) AHEAD of origin/main with unpushed work."
+        echo ""
+        echo "Fix — push before deploying:"
+        echo "     git log --oneline origin/main..HEAD   # inspect what's local"
+        echo "     git push origin main"
         exit 1
     fi
 
