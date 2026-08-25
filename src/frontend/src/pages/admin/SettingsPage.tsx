@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText, ShieldAlert } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '../../stores/dataStore';
@@ -28,7 +28,13 @@ export function SettingsPage() {
   const tenantContract = useTenantStore(s => s.config?.tenant?.contract);
   const isDemoSession = user?.demoSession === true;
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
+  const [moduleMessage, setModuleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const isAdmin = user?.role === 'admin';
+  // Вкладка «Модули» видна и менеджеру, но менять состав модулей может
+  // только владельческая роль — та же проверка, что isAdminLevel в
+  // PATCH /api/tenant/features. Без этого менеджер жал тумблер и получал
+  // 403 вместо понятного «нельзя».
+  const canManageModules = user?.role === 'admin' || user?.role === 'director';
   // Who may attach/replace the management contract — keep in sync with the
   // backend SELF_UPLOAD_ROLES (contracts.ts). The "Договор" tab only shows
   // once a contract exists; it's added from the dashboard overview, then
@@ -849,9 +855,26 @@ export function SettingsPage() {
               <ToggleRight className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Модули платформы' : 'Platforma modullari'}
             </h2>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-gray-500 mb-2">
               {language === 'ru' ? 'Включайте модули по мере готовности вашей компании' : 'Kompaniyangiz tayyor bo\'lganda modullarni yoqing'}
             </p>
+            <p className="text-xs text-gray-400 mb-3">
+              {language === 'ru'
+                ? 'Выключенный модуль прячет свой раздел за замок в меню — открыть его не получится, пока модуль не включён.'
+                : 'O\'chirilgan modul o\'z bo\'limini menyuda qulf ortiga yashiradi — modul yoqilmaguncha uni ochib bo\'lmaydi.'}
+            </p>
+            {!canManageModules && (
+              <p className="text-xs text-amber-600 mb-3">
+                {language === 'ru'
+                  ? 'Менять модули может только администратор или директор УК.'
+                  : 'Modullarni faqat boshqaruv kompaniyasi administratori yoki direktori o\'zgartira oladi.'}
+              </p>
+            )}
+            {moduleMessage && (
+              <p className={`text-xs mb-3 ${moduleMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                {moduleMessage.text}
+              </p>
+            )}
             <div className="space-y-2">
               {[
                 { key: 'marketplace', icon: ShoppingBag, label: { ru: 'Маркетплейс', uz: 'Marketplace' }, desc: { ru: 'Магазин товаров для жителей', uz: 'Aholisi uchun do\'kon' }, color: 'text-purple-500 bg-purple-50' },
@@ -864,6 +887,11 @@ export function SettingsPage() {
                 { key: 'useful-contacts', icon: Phone, label: { ru: 'Полезные контакты', uz: 'Foydali kontaktlar' }, desc: { ru: 'Партнёры и специалисты', uz: 'Hamkorlar va mutaxassislar' }, color: 'text-red-500 bg-red-50' },
                 { key: 'notepad', icon: StickyNote, label: { ru: 'Заметки', uz: 'Eslatmalar' }, desc: { ru: 'Блокнот менеджера', uz: 'Menejer bloknoti' }, color: 'text-yellow-500 bg-yellow-50' },
                 { key: 'communal', icon: CreditCard, label: { ru: 'Коммунальные', uz: 'Kommunal' }, desc: { ru: 'Платежи и начисления', uz: 'To\'lovlar va hisob-kitoblar' }, color: 'text-emerald-500 bg-emerald-50' },
+                // Модерация объявлений об аренде: пункт меню
+                // «Модерация объявлений» гейтится этим ключом, а тумблера
+                // для него здесь не было — включить раздел из кабинета УК
+                // было нечем.
+                { key: 'rental_listings', icon: ShieldAlert, label: { ru: 'Модерация объявлений', uz: 'E\'lonlarni moderatsiya' }, desc: { ru: 'Проверка объявлений об аренде от жильцов', uz: 'Aholi ijara e\'lonlarini tekshirish' }, color: 'text-rose-500 bg-rose-50' },
               ].map(mod => {
                 const enabled = hasFeature(mod.key);
                 const ModIcon = mod.icon;
@@ -881,14 +909,33 @@ export function SettingsPage() {
                     ) : (
                       <Switch
                         checked={enabled}
-                        disabled={isDemoSession || togglingFeature === mod.key}
+                        disabled={isDemoSession || !canManageModules || togglingFeature === mod.key}
                         ariaLabel={language === 'ru' ? `${mod.label.ru}: ${enabled ? 'включён' : 'выключен'}` : `${mod.label.uz}: ${enabled ? 'yoqilgan' : 'oʻchirilgan'}`}
                         onChange={async () => {
                           setTogglingFeature(mod.key);
+                          setModuleMessage(null);
                           try {
                             await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
                             await fetchConfig();
-                          } catch { /* toggle may fail */ }
+                            setModuleMessage({
+                              type: 'success',
+                              text: language === 'ru'
+                                ? `Модуль «${mod.label.ru}» ${!enabled ? 'включён' : 'выключен'}`
+                                : `«${mod.label.uz}» moduli ${!enabled ? 'yoqildi' : 'o\'chirildi'}`,
+                            });
+                          } catch (err) {
+                            // Раньше здесь стоял пустой catch. Эндпоинта
+                            // /api/tenant/features на бэке не существовало —
+                            // запрос уходил в 404, ошибка гасилась, тумблер
+                            // отщёлкивал назад, и выглядело это как «настройка
+                            // не нажимается». Показываем причину.
+                            setModuleMessage({
+                              type: 'error',
+                              text: err instanceof Error && err.message
+                                ? err.message
+                                : (language === 'ru' ? 'Не удалось изменить модуль' : 'Modulni o\'zgartirib bo\'lmadi'),
+                            });
+                          }
                           setTogglingFeature(null);
                         }}
                       />

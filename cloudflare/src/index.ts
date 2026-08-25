@@ -49,7 +49,10 @@ async function runMigrations(env: Env) {
           color TEXT DEFAULT '#6366f1',
           color_secondary TEXT DEFAULT '#a855f7',
           plan TEXT DEFAULT 'basic' CHECK (plan IN ('basic', 'pro', 'enterprise')),
-          features TEXT DEFAULT '["requests","votes","qr","rentals","notepad","reports"]',
+          -- Канонические ключи (см. lib/features.ts). Было "votes" —
+          -- ключ, которого не знает ни один гейт: раздел «Собрания»
+          -- проверяет "meetings" и молча редиректил на главную.
+          features TEXT DEFAULT '["requests","meetings","qr","rentals","notepad","reports"]',
           admin_email TEXT,
           admin_phone TEXT,
           logo TEXT,

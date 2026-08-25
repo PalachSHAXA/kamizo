@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useTenantStore } from '../stores/tenantStore';
+import { useFeatureBlocked } from '../hooks/useFeatureBlocked';
+import { FeatureUnavailable } from './FeatureUnavailable';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,9 +15,12 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, allowedRoles, requiredFeature }: ProtectedRouteProps) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
-  const hasFeature = useTenantStore((s) => s.hasFeature);
-  const config = useTenantStore((s) => s.config);
   const location = useLocation();
+  // Гейт по фиче считается общим хуком — тем же, которым Sidebar решает,
+  // рисовать ли замок. Хук сам не срабатывает, пока конфиг тенанта не
+  // загружен: раньше на холодном старте hasFeature отдавал false для
+  // всего и любой feature-маршрут успевал редиректнуть на главную.
+  const featureBlocked = useFeatureBlocked(requiredFeature);
 
   if (!token || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -26,10 +30,11 @@ export function ProtectedRoute({ children, allowedRoles, requiredFeature }: Prot
     return <Navigate to="/" replace />;
   }
 
-  // Feature gate — only enforce when we actually have tenant config loaded.
-  // Super_admin bypasses tenant feature checks (they administer all tenants).
-  if (requiredFeature && config?.tenant && user.role !== 'super_admin' && !hasFeature(requiredFeature)) {
-    return <Navigate to="/" replace />;
+  // Раньше здесь был <Navigate to="/" replace />: пользователь жал пункт
+  // меню и без объяснений оказывался на главной. Показываем экран с
+  // причиной и путём к решению вместо молчаливого выброса.
+  if (requiredFeature && featureBlocked) {
+    return <FeatureUnavailable featureKey={requiredFeature} />;
   }
 
   return <>{children}</>;

@@ -23,6 +23,7 @@ import { FeatureLockedModal } from '../FeatureLockedModal';
 import { ConfirmDialog } from '../common';
 import { formatName } from '../../utils/formatName';
 import { getAdminNavigation, isAdminNavigationRole } from '../../navigation/adminNavigation';
+import { FEATURE_PATHS } from '../../navigation/featureRoutes';
 import { useModalLifecycle } from '../ui/useModalLifecycle';
 
 interface SidebarProps {
@@ -43,7 +44,7 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
   const getAnnouncementsForEmployees = useAnnouncementStore(s => s.getAnnouncementsForEmployees);
   const getAnnouncementsForResidents = useAnnouncementStore(s => s.getAnnouncementsForResidents);
   const { meetings } = useMeetingStore();
-  const { hasFeature, config } = useTenantStore();
+  const { hasFeature, config, isConfigFetched } = useTenantStore();
   const tenantName = config?.tenant?.name || 'Kamizo';
   const tenantLogo = config?.tenant?.logo || null;
   // Resident's building (ЖК) — fetched lazily on first render of the
@@ -403,22 +404,9 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
     return [];
   };
 
-  // Feature to menu path mapping
-  const featurePathMap: Record<string, string[]> = {
-    'requests': ['/', '/requests', '/executors', '/work-orders', '/schedule', '/my-stats'],
-    'meetings': ['/meetings'],
-    'qr': ['/qr-scanner', '/guest-access'],
-    'chat': ['/chat'],
-    'marketplace': ['/marketplace', '/marketplace-orders', '/marketplace-products'],
-    'announcements': ['/announcements'],
-    'trainings': ['/trainings'],
-    'rentals': ['/rentals'],
-    'colleagues': ['/colleagues'],
-    'vehicles': ['/vehicles', '/vehicle-search'],
-    'useful-contacts': ['/useful-contacts'],
-    'notepad': ['/notepad'],
-    'communal': ['/finance/estimates', '/finance/charges', '/finance/debtors', '/finance/income', '/finance/expenses', '/finance/materials', '/finance/settings'],
-  };
+  // Feature to menu path mapping — общий модуль navigation/featureRoutes.ts,
+  // тот же, по которому гейтятся сами маршруты.
+  const featurePathMap = FEATURE_PATHS;
 
   // Always-allowed paths that are never locked
   const alwaysAllowed = [
@@ -426,8 +414,13 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
     '/contract', '/rate-employees', '/team', '/reports'
   ];
 
-  // Check if a path is locked (feature disabled for tenant)
+  // Check if a path is locked (feature disabled for tenant).
+  // Условия совпадают с useFeatureBlocked/ProtectedRoute — иначе получается
+  // худшая комбинация: пункт выглядит рабочим, а маршрут выбрасывает на
+  // главную. isConfigFetched важен отдельно: пока конфиг не подгружен,
+  // hasFeature отдаёт false на всё, и меню моргало замками на старте.
   const isPathLocked = (path: string): boolean => {
+    if (!isConfigFetched) return false;
     // No tenant or super_admin -> nothing is locked
     if (!config?.tenant || user?.role === 'super_admin') return false;
     if (alwaysAllowed.includes(path)) return false;

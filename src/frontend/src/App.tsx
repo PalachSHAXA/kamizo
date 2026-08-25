@@ -13,6 +13,8 @@ import { useTenantStore } from './stores/tenantStore';
 import { applyTenantBrand } from './utils/tenantBrand';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { FeatureUnavailable } from './components/FeatureUnavailable';
+import { useFeatureBlocked } from './hooks/useFeatureBlocked';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -94,10 +96,19 @@ const ResidentMeetingsPage = lazyWithRetry(() =>
 // staff/executor — fall through в Layout (которое матчит свой
 // nested /announcements route и через getAnnouncementsPage() рендерит
 // правильную staff-вариацию с обычным chrome — header + Sidebar).
+//
+// Фича-гейт живёт ВНУТРИ сплита, а не на самом <Route>. Если повесить
+// requiredFeature на верхний ProtectedRoute, staff при выключенном
+// модуле получал бы голый экран-заглушку без Layout (без сайдбара и
+// шапки), потому что до Layout дело просто не доходило. Резиденту
+// заглушка нужна full-screen — он и так вне Layout; staff проваливается
+// в Layout, где вложенный /announcements-роут гейтит уже со своим chrome.
 function AnnouncementsRoleSplit() {
   const { user } = useAuthStore();
   const isResidentRole = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
+  const featureBlocked = useFeatureBlocked('announcements');
   if (isResidentRole) {
+    if (featureBlocked) return <FeatureUnavailable featureKey="announcements" />;
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
         <ResidentAnnouncementsPage />
@@ -126,9 +137,13 @@ function NotificationsRoleSplit() {
 
 // v118.77 — MeetingsRoleSplit. Owners use the standalone voting page;
 // tenants remain non-voting users and staff keep the management page.
+// Фича-гейт внутри сплита — по той же причине, что и в
+// AnnouncementsRoleSplit выше.
 function MeetingsRoleSplit() {
   const { user } = useAuthStore();
+  const featureBlocked = useFeatureBlocked('meetings');
   if (isResidentMeetingsRole(user?.role)) {
+    if (featureBlocked) return <FeatureUnavailable featureKey="meetings" />;
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
         <ResidentMeetingsPage />
@@ -300,7 +315,7 @@ function App() {
                 allowedRoles здесь иначе ProtectedRoute редиректит staff
                 на / при попытке открыть /announcements через Sidebar. */}
             <Route path="/announcements" element={
-              <ProtectedRoute requiredFeature="announcements">
+              <ProtectedRoute>
                 <AnnouncementsRoleSplit />
               </ProtectedRoute>
             } />
@@ -314,7 +329,7 @@ function App() {
             {/* /meetings is standalone for resident and commercial owners;
                 staff and tenants fall through to Layout. */}
             <Route path="/meetings" element={
-              <ProtectedRoute allowedRoles={getRouteRoles('meetings')} requiredFeature="meetings">
+              <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
                 <MeetingsRoleSplit />
               </ProtectedRoute>
             } />
