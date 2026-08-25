@@ -11,7 +11,13 @@ const SALES_EMAIL = 'sales@kamizo.uz';
 // Feature registry: key → { name, description, plan }.
 // plan значения выровнены с PLAN_FEATURES в admin/components/types.ts —
 // показываем минимальный тариф, в котором эта фича появляется.
-const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz: { name: string; desc: string }; plan: string }> = {
+export interface FeatureRegistryEntry {
+  ru: { name: string; desc: string };
+  uz: { name: string; desc: string };
+  plan: string;
+}
+
+export const FEATURE_REGISTRY: Record<string, FeatureRegistryEntry> = {
   // ── Basic-фичи (доступны на всех тарифах) ─────────────────────
   qr: {
     ru: { name: 'QR-доступ', desc: 'Пропуска для гостей по QR-коду' },
@@ -70,6 +76,13 @@ const FEATURE_REGISTRY: Record<string, { ru: { name: string; desc: string }; uz:
   rentals: {
     ru: { name: 'Договоры краткосрочной аренды', desc: 'Посуточная аренда: гости, паспорта, платежи и история заездов' },
     uz: { name: 'Qisqa muddatli ijara shartnomalari', desc: 'Kunlik ijara: mehmonlar, pasport, to\'lovlar va kirish tarixi' },
+    plan: 'Enterprise',
+  },
+  // Отдельный модуль от `rentals`: тот — журнал договоров УК, этот —
+  // модерация объявлений, которые публикуют сами жильцы.
+  rental_listings: {
+    ru: { name: 'Модерация объявлений', desc: 'Проверка и скрытие объявлений об аренде, которые публикуют жильцы' },
+    uz: { name: 'E\'lonlarni moderatsiya', desc: 'Aholi joylashtirgan ijara e\'lonlarini tekshirish va yashirish' },
     plan: 'Enterprise',
   },
   trainings: {

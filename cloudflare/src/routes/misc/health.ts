@@ -2,11 +2,18 @@
 
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantForRequest, getTenantId, getTenantSlug } from '../../middleware/tenant';
+import { clearFeatureCache, getTenantForRequest, getTenantId, getTenantSlug } from '../../middleware/tenant';
+import { mirrorTenantWriteToD1 } from '../../lib/tenantMirror';
 import { getCacheStats } from '../../cache';
 import { invalidateOnChange } from '../../cache';
 import { metricsAggregator, healthCheck, AlertManager, logAnalyticsEvent } from '../../monitoring';
-import { json, error } from '../../utils/helpers';
+import { json, error, bilingualError, isAdminLevel } from '../../utils/helpers';
+import {
+  FALLBACK_TENANT_FEATURES,
+  TENANT_FEATURES,
+  isTenantFeature,
+  normalizeFeatures,
+} from '../../lib/features';
 import { createRequestLogger } from '../../utils/logger';
 import { verifyJWT } from '../../utils/crypto';
 
@@ -71,12 +78,15 @@ route('GET', '/api/public/tenant-exists', async (request, env) => {
 //   • A token's tenantId still has to match an active tenant row —
 //     we filter on is_active = 1 to refuse stale/disabled workspaces.
 function buildConfigResponse(tenant: Record<string, unknown>, context: 'tenant' | 'apex' | 'unresolved' = 'tenant') {
-  let features: string[] = [];
-  try {
-    features = JSON.parse((tenant.features as string) || '[]');
-  } catch {
-    features = [];
-  }
+  // Нормализуем перед отдачей фронту: старые строки хранят легаси-ключ
+  // "votes", а ProtectedRoute/hasFeature спрашивают "meetings" — без
+  // приведения раздел «Собрания» молча редиректил на главную.
+  // features = NULL трактуем так же, как requireFeature на бэке
+  // (FALLBACK_TENANT_FEATURES), иначе фронт запирал бы то, что сервер
+  // на самом деле разрешает.
+  const features: string[] = tenant.features == null
+    ? [...FALLBACK_TENANT_FEATURES]
+    : normalizeFeatures(tenant.features);
   // Sprint 85 commit 2 — surface the tenant contract metadata so the
   // director-dashboard widget can render "kamizo-uk-choko.pdf · 17 июн
   // 2026" without a second fetch, and so the resident-side download
@@ -214,6 +224,85 @@ route('GET', '/api/tenant/config', async (request, env) => {
     // Malformed Origin — оставляем unresolved.
   }
   return json({ tenant: null, features: [], context });
+});
+
+// PATCH /api/tenant/features — включить/выключить модуль своего тенанта.
+//
+// Раздел «Модули платформы» в настройках УК дёргал этот путь с самого
+// начала, но роут никогда не существовал: запрос уходил в 404, фронт
+// глушил ошибку в пустом catch, тумблер отщёлкивал назад. В итоге
+// включить «Собрания» / «Объявления» из кабинета УК было невозможно —
+// только через супер-админку, а пункты меню при этом рендерились и
+// молча выбрасывали на главную.
+//
+// Изоляция: тенант берётся ТОЛЬКО из запроса (JWT/сабдомен) через
+// getTenantId — id из тела не принимаем, чужой тенант отредактировать
+// нельзя. Демо-сессии режет глобальный enforceDemoSessionPolicy до
+// хендлера (мутации вне allowlist → 403).
+route('PATCH', '/api/tenant/features', async (request, env) => {
+  const user = await getUser(request, env);
+  if (!user) {
+    return bilingualError('Требуется авторизация', 'Avtorizatsiya talab qilinadi', 401);
+  }
+  // Вкладка «Модули» видна и менеджеру, но менять состав модулей —
+  // владельческое действие: только админ и директор.
+  if (!isAdminLevel(user)) {
+    return bilingualError(
+      'Менять модули может только администратор или директор',
+      'Modullarni faqat administrator yoki direktor o‘zgartira oladi',
+      403,
+    );
+  }
+
+  const tenantId = getTenantId(request);
+  if (!tenantId || tenantId === '__no_tenant__') {
+    return bilingualError('Тенант не определён', 'Tenant aniqlanmadi', 400);
+  }
+
+  let body: { feature?: unknown; enabled?: unknown };
+  try {
+    body = await request.json() as { feature?: unknown; enabled?: unknown };
+  } catch {
+    return error('Invalid JSON body', 400);
+  }
+
+  const feature = body.feature;
+  if (!isTenantFeature(feature)) {
+    return error(`Unknown feature. Allowed: ${TENANT_FEATURES.join(', ')}`, 400);
+  }
+  if (typeof body.enabled !== 'boolean') {
+    return error('`enabled` must be a boolean', 400);
+  }
+
+  const row = await env.DB.prepare(
+    'SELECT features FROM tenants WHERE id = ? AND is_active = 1'
+  ).bind(tenantId).first() as { features?: string | null } | null;
+  if (!row) return error('Tenant not found', 404);
+
+  const current = row.features == null
+    ? [...FALLBACK_TENANT_FEATURES]
+    : normalizeFeatures(row.features);
+  const next = body.enabled
+    ? (current.includes(feature) ? current : [...current, feature])
+    : current.filter(f => f !== feature);
+
+  const updateSql = "UPDATE tenants SET features = ?, updated_at = datetime('now') WHERE id = ?";
+  const updateParams = [JSON.stringify(next), tenantId];
+  await env.DB.prepare(updateSql).bind(...updateParams).run();
+  // Тот же дуал-райт, что и в super-admin PATCH: без него Worker'ский D1
+  // остался бы со старым набором фич.
+  await mirrorTenantWriteToD1(env, request, updateSql, updateParams);
+  clearFeatureCache(tenantId);
+
+  createRequestLogger(request).info('tenant_feature_toggled', {
+    tenantId,
+    userId: user.id,
+    role: user.role,
+    feature,
+    enabled: body.enabled,
+  });
+
+  return json({ features: next });
 });
 
 // Metrics Dashboard (Admin only)

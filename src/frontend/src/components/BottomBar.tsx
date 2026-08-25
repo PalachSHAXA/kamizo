@@ -95,7 +95,7 @@ export function BottomBar() {
   const { user } = useAuthStore();
   const requests = useRequestStore(s => s.requests);
   const getUnreadCount = useNotificationStore(s => s.getUnreadCount);
-  const { hasFeature, config } = useTenantStore();
+  const { hasFeature, config, isConfigFetched } = useTenantStore();
   const modalCount = useModalStore((s) => s.count);
   // Floating pill is a MOBILE-ONLY navigation surface (Claude Design §01).
   // On desktop the Sidebar + Header already handle navigation, and the pill
@@ -321,7 +321,10 @@ export function BottomBar() {
   };
 
   const isTabLocked = (tab: Tab): boolean => {
-    if (!hasTenant || !tab.feature) return false;
+    // isConfigFetched — та же оговорка, что в Sidebar/ProtectedRoute:
+    // пока конфиг тенанта не загружен, hasFeature отдаёт false на всё, и
+    // таб успевал моргнуть замком на холодном старте.
+    if (!isConfigFetched || !hasTenant || !tab.feature) return false;
     return !hasFeature(tab.feature);
   };
 

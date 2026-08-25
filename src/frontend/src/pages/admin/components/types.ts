@@ -214,7 +214,10 @@ export const PLAN_COLORS: Record<string, string> = {
 export const PLAN_FEATURES: Record<string, string[]> = {
   basic: ['requests', 'qr', 'notepad'],
   pro: ['requests', 'qr', 'marketplace', 'meetings', 'chat', 'announcements', 'vehicles', 'useful-contacts', 'notepad', 'communal', 'reports'],
-  enterprise: ['requests', 'rentals', 'qr', 'marketplace', 'meetings', 'chat', 'announcements', 'trainings', 'colleagues', 'vehicles', 'useful-contacts', 'notepad', 'communal', 'advertiser', 'reports'],
+  // rental_listings (модерация объявлений жильцов) не входил ни в один
+  // тариф, хотя пункт меню рендерился всем admin/manager/director — клик
+  // всегда упирался в фича-гейт и возвращал на главную.
+  enterprise: ['requests', 'rentals', 'rental_listings', 'qr', 'marketplace', 'meetings', 'chat', 'announcements', 'trainings', 'colleagues', 'vehicles', 'useful-contacts', 'notepad', 'communal', 'advertiser', 'reports'],
 };
 
 export const PLAN_LABELS: Record<string, string> = {

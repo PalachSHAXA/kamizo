@@ -3,6 +3,7 @@
 // For datacenter migration: keep as-is, just change the hostname parsing if needed
 
 import type { Env } from '../types';
+import { FALLBACK_TENANT_FEATURES, normalizeFeatures } from '../lib/features';
 
 // Request-scoped tenant map (safe from race conditions — no global mutable state)
 const requestTenantMap = new WeakMap<Request, Record<string, unknown>>();
@@ -45,9 +46,16 @@ const FEATURE_CACHE_TTL = 60_000; // 1 min
 // historically checks `rentals` on guest-codes endpoints. Treat them as
 // the same flag so a tenant toggling one off in the UI actually
 // disables the BE family. Same for any future drift.
+//
+// 2026-08 — 'meetings'/'votes': tenants.features исторически создавался с
+// "votes", а спрашивают везде "meetings". normalizeFeatures() уже
+// разворачивает легаси-ключ на чтении, но алиас оставлен как второй
+// рубеж — на случай строки, дописанной в БД руками в обход нормализации.
 const FEATURE_ALIASES: Record<string, string[]> = {
   rentals: ['rentals', 'qr'],
   qr: ['rentals', 'qr'],
+  meetings: ['meetings', 'votes'],
+  votes: ['meetings', 'votes'],
 };
 
 function featureMatches(want: string, owned: string[]): boolean {
@@ -84,18 +92,14 @@ export async function requireFeature(
   // Super-admin can tighten by setting an explicit features array.
   let features: string[] = [];
   if (tenant?.features) {
-    try {
-      const parsed = JSON.parse(tenant.features);
-      if (Array.isArray(parsed)) features = parsed.filter((f): f is string => typeof f === 'string');
-    } catch {
-      console.error('[requireFeature] Malformed tenants.features JSON for tenant', tenantId);
-      features = [];
+    features = normalizeFeatures(tenant.features);
+    if (features.length === 0) {
+      console.error('[requireFeature] Malformed/empty tenants.features JSON for tenant', tenantId);
     }
   } else if (tenant) {
     // Row exists but features is NULL — treat as default plan with the
-    // canonical baseline set. Mirrors the CREATE TENANT default in
-    // super-admin.ts.
-    features = ['requests', 'votes', 'qr', 'rentals', 'notepad', 'reports', 'chat', 'announcements', 'communal', 'meetings'];
+    // canonical baseline set (lib/features.ts).
+    features = [...FALLBACK_TENANT_FEATURES];
   }
   // tenant === null (not found): features stays empty → deny.
 
