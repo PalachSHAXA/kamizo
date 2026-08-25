@@ -70,7 +70,6 @@ export function RentalsModerationPage() {
     ? user.tenant_id
     : null;
   const addToast = useToastStore(s => s.addToast);
-  useModalPresence(true);
 
   const [activeTab, setActiveTab] = useState<RentalState>('active');
   const [listings, setListings] = useState<RentalListingUI[]>([]);
@@ -123,9 +122,14 @@ export function RentalsModerationPage() {
   const [hideTarget, setHideTarget] = useState<RentalListingUI | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<RentalListingUI | null>(null);
   const anyModalOpen = hideTarget !== null || restoreTarget !== null;
+  // Gate useModalPresence on the real modal state — not a permanent `true`.
+  // Permanent-true hid the MobileHeader for the whole page (bug reported as
+  // "manager doesn't adapt on mobile"). Now the shared BottomBar hides only
+  // while a Sheet is actually open, and MobileHeader stays visible otherwise.
+  useModalPresence(anyModalOpen);
 
   return (
-    <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
+    <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-3 -mt-3 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
       {/* Sticky header */}
       <div
         className="sticky top-0 z-40 bg-white border-b border-gray-100"
