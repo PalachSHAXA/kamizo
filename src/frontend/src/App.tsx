@@ -91,66 +91,61 @@ const ResidentMeetingsPage = lazyWithRetry(() =>
   import('./pages/ResidentMeetingsPage').then((m) => ({ default: m.ResidentMeetingsPage }))
 );
 
-// v118.67 — AnnouncementsRoleSplit: top-level route element для
-// /announcements. Resident-роли получают full-screen ResidentAnnouncementsPage,
-// staff/executor — fall through в Layout (которое матчит свой
-// nested /announcements route и через getAnnouncementsPage() рендерит
-// правильную staff-вариацию с обычным chrome — header + Sidebar).
+// Роли, которым раздел показывается full-screen — со своей шапкой и без
+// Layout chrome (drawer, Sidebar, bottom nav).
+const RESIDENT_SHELL_ROLES = ['resident', 'tenant', 'commercial_owner'];
+const isResidentShellRole = (role?: string) => RESIDENT_SHELL_ROLES.includes(role || '');
+
+// v118.67 — full-screen /announcements для resident-ролей.
 //
-// Фича-гейт живёт ВНУТРИ сплита, а не на самом <Route>. Если повесить
-// requiredFeature на верхний ProtectedRoute, staff при выключенном
-// модуле получал бы голый экран-заглушку без Layout (без сайдбара и
-// шапки), потому что до Layout дело просто не доходило. Резиденту
-// заглушка нужна full-screen — он и так вне Layout; staff проваливается
-// в Layout, где вложенный /announcements-роут гейтит уже со своим chrome.
-function AnnouncementsRoleSplit() {
-  const { user } = useAuthStore();
-  const isResidentRole = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
+// Раньше здесь был AnnouncementsRoleSplit: маршрут объявлялся для всех
+// ролей, а staff внутри элемента получал <Layout />. Ровно это и уводило
+// «Объявления» на главную. React Router считает пути вложенного <Routes>
+// ОТ пути родительского <Route>: смонтированный под точным
+// path="/announcements" Layout видел остаток пути "/" и рисовал свой
+// <Route path="/"> — дашборд, — не трогая адрес. Ни редиректа, ни ошибки,
+// просто не тот экран под правильным URL.
+//
+// Теперь маршрут объявляется ТОЛЬКО для resident-ролей, а staff доходит до
+// "/*", где Layout смонтирован от корня и его вложенный /announcements
+// матчится нормально. Инвариант «Layout монтируется только из "/*"»
+// закреплён тестом navigation/__tests__/layoutMount.test.tsx.
+//
+// Фича-гейт остаётся здесь, а не на <Route>: резиденту заглушка нужна
+// full-screen (он и так вне Layout), а staff'у — со своим chrome, и её
+// показывает вложенный роут внутри Layout.
+function ResidentAnnouncementsRoute() {
   const featureBlocked = useFeatureBlocked('announcements');
-  if (isResidentRole) {
-    if (featureBlocked) return <FeatureUnavailable featureKey="announcements" />;
-    return (
-      <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
-        <ResidentAnnouncementsPage />
-      </Suspense>
-    );
-  }
-  return <Layout />;
+  if (featureBlocked) return <FeatureUnavailable featureKey="announcements" />;
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
+      <ResidentAnnouncementsPage />
+    </Suspense>
+  );
 }
 
-// v118.72 — same shape as AnnouncementsRoleSplit. Residents see the
-// standalone Claude-Design notifications page; other roles fall through
-// to Layout (which doesn't yet match /notifications, so it 404s into
-// home — staff don't use this route today).
-function NotificationsRoleSplit() {
-  const { user } = useAuthStore();
-  const isResidentRole = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
-  if (isResidentRole) {
-    return (
-      <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
-        <NotificationsPage />
-      </Suspense>
-    );
-  }
-  return <Layout />;
+// v118.72 — /notifications по той же схеме. Отдельной staff-страницы нет:
+// staff уходит в "/*" и попадает на NotFoundPage внутри Layout. Ссылок на
+// /notifications у staff тоже нет — только резидентская «все уведомления».
+function ResidentNotificationsRoute() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
+      <NotificationsPage />
+    </Suspense>
+  );
 }
 
-// v118.77 — MeetingsRoleSplit. Owners use the standalone voting page;
-// tenants remain non-voting users and staff keep the management page.
-// Фича-гейт внутри сплита — по той же причине, что и в
-// AnnouncementsRoleSplit выше.
-function MeetingsRoleSplit() {
-  const { user } = useAuthStore();
+// v118.77 — /meetings. Собственники голосуют на standalone-странице;
+// tenant остаётся неголосующим и вместе со staff уходит в Layout, где
+// вложенный /meetings отдаёт управленческую MeetingsPage.
+function ResidentMeetingsRoute() {
   const featureBlocked = useFeatureBlocked('meetings');
-  if (isResidentMeetingsRole(user?.role)) {
-    if (featureBlocked) return <FeatureUnavailable featureKey="meetings" />;
-    return (
-      <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
-        <ResidentMeetingsPage />
-      </Suspense>
-    );
-  }
-  return <Layout />;
+  if (featureBlocked) return <FeatureUnavailable featureKey="meetings" />;
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
+      <ResidentMeetingsPage />
+    </Suspense>
+  );
 }
 
 function App() {
@@ -309,30 +304,34 @@ function App() {
                 </Suspense>
               </ProtectedRoute>
             } />
-            {/* v118.67 — /announcements role-split. Resident → full-screen
-                ResidentAnnouncementsPage без Layout chrome. Staff/executor
-                → Layout (через AnnouncementsRoleSplit). НЕ используем
-                allowedRoles здесь иначе ProtectedRoute редиректит staff
-                на / при попытке открыть /announcements через Sidebar. */}
-            <Route path="/announcements" element={
-              <ProtectedRoute>
-                <AnnouncementsRoleSplit />
-              </ProtectedRoute>
-            } />
-            {/* v118.72 — /notifications standalone fullscreen for residents.
-                No requiredFeature gate (notifications are universal). */}
-            <Route path="/notifications" element={
-              <ProtectedRoute>
-                <NotificationsRoleSplit />
-              </ProtectedRoute>
-            } />
-            {/* /meetings is standalone for resident and commercial owners;
-                staff and tenants fall through to Layout. */}
-            <Route path="/meetings" element={
-              <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
-                <MeetingsRoleSplit />
-              </ProtectedRoute>
-            } />
+            {/* /announcements, /notifications и /meetings объявляются ТОЛЬКО
+                для ролей, которым положен full-screen вариант. Отсутствие
+                этих маршрутов для staff — намеренное: они обязаны дойти до
+                "/*" ниже и отрисоваться внутри Layout. Объявить маршрут для
+                всех и отдать staff'у <Layout /> из элемента нельзя — Layout
+                окажется вложенным в точный путь, его внутренний <Routes>
+                получит остаток "/" и покажет дашборд, не меняя адреса. */}
+            {isResidentShellRole(user?.role) && (
+              <Route path="/announcements" element={
+                <ProtectedRoute>
+                  <ResidentAnnouncementsRoute />
+                </ProtectedRoute>
+              } />
+            )}
+            {isResidentShellRole(user?.role) && (
+              <Route path="/notifications" element={
+                <ProtectedRoute>
+                  <ResidentNotificationsRoute />
+                </ProtectedRoute>
+              } />
+            )}
+            {isResidentMeetingsRole(user?.role) && (
+              <Route path="/meetings" element={
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
+                  <ResidentMeetingsRoute />
+                </ProtectedRoute>
+              } />
+            )}
             <Route path="/*" element={
               <ProtectedRoute>
                 <Layout />
