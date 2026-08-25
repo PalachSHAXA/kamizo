@@ -112,8 +112,10 @@ route('GET', '/api/executors/:id', async (request, env, params) => {
   const user = await getUser(request, env);
   if (!user) return error('Unauthorized', 401);
 
+  // Management can view any executor; an executor may view their OWN record
+  // (needed so the dashboard can read/refresh its own shift status).
   const allowedRoles = ['admin', 'director', 'manager', 'dispatcher', 'department_head'];
-  if (!allowedRoles.includes(user.role)) {
+  if (!allowedRoles.includes(user.role) && user.id !== params.id) {
     return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
   }
 
