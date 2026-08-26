@@ -728,11 +728,19 @@ export function Layout() {
                   <WorkOrdersPage />
                 </ProtectedRoute>
               } />
+              {/* Staff-side /meetings and /announcements are UI-only shells;
+                  the actual data is gated by requireFeature on every API
+                  endpoint. Feature-gating the ROUTE too meant tenants whose
+                  features string lacks "meetings"/"announcements" (which is
+                  most legacy rows — see 2026-08-25 investigation) served
+                  staff a FeatureUnavailable wall instead of an empty section.
+                  Same pattern as v118.93 for /useful-contacts. Residents
+                  still see the marketing gate via the RoleSplit in App.tsx. */}
               <Route path="/meetings" element={
-                <ProtectedRoute allowedRoles={getRouteRoles('meetings')} requiredFeature="meetings">{getMeetingsPage()}</ProtectedRoute>
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>{getMeetingsPage()}</ProtectedRoute>
               } />
               <Route path="/announcements" element={
-                <ProtectedRoute requiredFeature="announcements">{getAnnouncementsPage()}</ProtectedRoute>
+                <ProtectedRoute>{getAnnouncementsPage()}</ProtectedRoute>
               } />
               <Route path="/schedule" element={
                 <ProtectedRoute allowedRoles={['executor']}>
