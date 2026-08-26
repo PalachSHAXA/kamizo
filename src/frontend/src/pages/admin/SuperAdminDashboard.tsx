@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, LayoutDashboard, LogOut } from 'lucide-react';
+import { Plus, RefreshCw, Settings, X, XCircle, BarChart3, Megaphone, Image, LayoutDashboard, LogOut, ShieldOff } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useNavigate } from 'react-router-dom';
-import { apiRequest } from '../../services/api';
+import { apiRequest, ApiError } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
 import {
   DashboardTab,
@@ -35,7 +35,25 @@ export function SuperAdminDashboard() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState<TenantFormData>(INITIAL_FORM_DATA);
   const [error, setError] = useState<string>('');
+  // When the API rejects our credentials for a super-admin route, we don't
+  // want to render the dashboard with zeros — that looks like data loss.
+  // Show a session-expired notice with a "log in" action instead.
+  //   'unauthorized' — 401, JWT missing/invalid/expired
+  //   'forbidden'    — 403, JWT valid but role !== super_admin
+  const [authError, setAuthError] = useState<null | 'unauthorized' | 'forbidden'>(null);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
+  // Route the ApiError from any load-fn through here so we can distinguish
+  // "you're not authorised" from a data-loading failure. Returns true when
+  // the error was handled as an auth problem — caller should not also
+  // setError() to avoid double-messaging.
+  const handleLoadError = (err: unknown): boolean => {
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      setAuthError(err.status === 401 ? 'unauthorized' : 'forbidden');
+      return true;
+    }
+    return false;
+  };
 
   // Analytics
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -74,6 +92,7 @@ export function SuperAdminDashboard() {
       const response = await apiRequest<{ tenants: Tenant[] }>('/api/tenants');
       setTenants(response.tenants);
     } catch (err: unknown) {
+      if (handleLoadError(err)) return;
       setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки данных');
     } finally {
       setIsLoading(false);
@@ -86,6 +105,7 @@ export function SuperAdminDashboard() {
       const response = await apiRequest<{ analytics: AnalyticsData }>('/api/super-admin/analytics');
       setAnalytics(response.analytics);
     } catch (err: unknown) {
+      if (handleLoadError(err)) return;
       setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки аналитики');
     } finally {
       setIsLoadingAnalytics(false);
@@ -102,6 +122,7 @@ export function SuperAdminDashboard() {
       setAllAds(adsRes.ads || []);
       setAdCategories(catRes.categories || []);
     } catch (err: unknown) {
+      if (handleLoadError(err)) return;
       setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки рекламы');
     } finally {
       setIsLoadingAds(false);
@@ -114,6 +135,7 @@ export function SuperAdminDashboard() {
       const res = await apiRequest<{ banners: SuperBannerDto[] }>('/api/super-admin/banners');
       setBanners(res.banners || []);
     } catch (err: unknown) {
+      if (handleLoadError(err)) return;
       setError((err instanceof Error ? err.message : '') || 'Ошибка загрузки баннеров');
     } finally {
       setIsLoadingBanners(false);
@@ -211,6 +233,34 @@ export function SuperAdminDashboard() {
     return (
       <div className="flex items-center justify-center h-screen">
         <RefreshCw className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  // Auth-blocked short-circuit: render before the dashboard so we never
+  // paint zeros over a real 401/403. 401 = session expired (log in again);
+  // 403 = wrong role (log in as super-admin).
+  if (authError) {
+    const isForbidden = authError === 'forbidden';
+    const title = isForbidden ? 'Нет доступа к панели' : 'Сессия истекла';
+    const body = isForbidden
+      ? 'Этот раздел доступен только под учётной записью супер-администратора. Войдите заново под нужной ролью.'
+      : 'Срок сессии истёк или токен не принят. Войдите снова, чтобы продолжить работу с панелью.';
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50/50 via-white to-amber-50/30 flex items-center justify-center px-6">
+        <div className="max-w-md w-full bg-white border border-gray-100 rounded-2xl shadow-sm p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center mx-auto mb-4">
+            <ShieldOff className="w-7 h-7" strokeWidth={1.8} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{title}</h1>
+          <p className="text-sm text-gray-600 leading-relaxed mb-6">{body}</p>
+          <button
+            onClick={() => { logout(); navigate('/login', { replace: true }); }}
+            className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-sm font-semibold shadow-sm hover:from-orange-600 hover:to-amber-600"
+          >
+            Войти заново
+          </button>
+        </div>
       </div>
     );
   }
