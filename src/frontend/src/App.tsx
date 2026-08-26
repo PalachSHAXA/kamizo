@@ -24,20 +24,6 @@ import { NativeSplashOverlay } from './components/NativeSplashOverlay';
 import { NavigationDirectionTracker } from './components/NavigationDirectionTracker';
 import { getRouteRoles, isResidentMeetingsRole } from './navigation/adminNavigation';
 
-// ─── TEMPORARY DEBUG INSTRUMENTATION — remove after routing bug diagnosis ────
-// Renders `children` and logs whenever this component mounts / renders. Since
-// React only renders an element passed to a Route once that Route matches, a
-// log inside this wrapper tells us EXACTLY which Route won for the current URL.
-// Also stamps the current pathname + user.role from the store at render time.
-// Filter DevTools console with "[DEBUG-ROUTES]" to see just these lines.
-function RouteLog({ name, children }: { name: string; children: React.ReactNode }) {
-  const role = useAuthStore.getState().user?.role;
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] MATCH "${name}"  pathname=${window.location.pathname}  role=${role ?? 'null'}`);
-  return <>{children}</>;
-}
-// ─── END DEBUG ───────────────────────────────────────────────────────────────
-
 const Layout = lazyWithRetry(() =>
   import('./components/layout/Layout').then((module) => ({ default: module.Layout }))
 );
@@ -121,8 +107,6 @@ function AnnouncementsRoleSplit() {
   const { user } = useAuthStore();
   const isResidentRole = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
   const featureBlocked = useFeatureBlocked('announcements');
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] AnnouncementsRoleSplit  role=${user?.role ?? 'null'}  isResidentRole=${isResidentRole}  → ${isResidentRole ? 'ResidentAnnouncementsPage' : 'Layout'}`);
   if (isResidentRole) {
     if (featureBlocked) return <FeatureUnavailable featureKey="announcements" />;
     return (
@@ -141,8 +125,6 @@ function AnnouncementsRoleSplit() {
 function NotificationsRoleSplit() {
   const { user } = useAuthStore();
   const isResidentRole = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] NotificationsRoleSplit  role=${user?.role ?? 'null'}  isResidentRole=${isResidentRole}  → ${isResidentRole ? 'NotificationsPage' : 'Layout'}`);
   if (isResidentRole) {
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--app-bg, #F4F0E8)' }} />}>
@@ -160,9 +142,6 @@ function NotificationsRoleSplit() {
 function MeetingsRoleSplit() {
   const { user } = useAuthStore();
   const featureBlocked = useFeatureBlocked('meetings');
-  const isResident = isResidentMeetingsRole(user?.role);
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] MeetingsRoleSplit  role=${user?.role ?? 'null'}  isResidentMeetings=${isResident}  → ${isResident ? 'ResidentMeetingsPage' : 'Layout'}`);
   if (isResidentMeetingsRole(user?.role)) {
     if (featureBlocked) return <FeatureUnavailable featureKey="meetings" />;
     return (
@@ -363,38 +342,30 @@ function App() {
                 make Layout's <Route path="/"> win via relative matching). */}
             {wantsStandaloneAnnouncements && (
               <Route path="/announcements" element={
-                <RouteLog name="App /announcements (resident standalone)">
-                  <ProtectedRoute>
-                    <AnnouncementsRoleSplit />
-                  </ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute>
+                  <AnnouncementsRoleSplit />
+                </ProtectedRoute>
               } />
             )}
             {wantsStandaloneAnnouncements && (
               <Route path="/notifications" element={
-                <RouteLog name="App /notifications (resident standalone)">
-                  <ProtectedRoute>
-                    <NotificationsRoleSplit />
-                  </ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute>
+                  <NotificationsRoleSplit />
+                </ProtectedRoute>
               } />
             )}
             {wantsStandaloneMeetings && (
               <Route path="/meetings" element={
-                <RouteLog name="App /meetings (resident standalone)">
-                  <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
-                    <MeetingsRoleSplit />
-                  </ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
+                  <MeetingsRoleSplit />
+                </ProtectedRoute>
               } />
             )}
             <Route path="/*" element={
-              <RouteLog name="App /* (Layout catchall)">
-                <ProtectedRoute>
-                  <Layout />
-                  <PushNotificationPrompt />
-                </ProtectedRoute>
-              </RouteLog>
+              <ProtectedRoute>
+                <Layout />
+                <PushNotificationPrompt />
+              </ProtectedRoute>
             } />
             </Routes>
           </Suspense>

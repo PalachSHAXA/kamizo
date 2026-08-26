@@ -38,17 +38,6 @@ import {
 // - Separates two distinct situations: truly missing route vs role has no access.
 // - Gives a sensible "home" destination per role (security → scanner, others → /).
 // - Back + home both available.
-// ─── TEMPORARY DEBUG INSTRUMENTATION — remove after routing bug diagnosis ────
-// Wrapping a Route's element with this component makes React invoke its render
-// only when the Route matches — so its console.log tells us definitively which
-// Route won the match for the current URL. Filter DevTools with "[DEBUG-ROUTES]".
-function RouteLog({ name, children }: { name: string; children: React.ReactNode }) {
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] MATCH "${name}"  pathname=${window.location.pathname}`);
-  return <>{children}</>;
-}
-// ─── END DEBUG ───────────────────────────────────────────────────────────────
-
 const NotFoundPage = () => {
   const { language } = useLanguageStore();
   const { user } = useAuthStore();
@@ -212,8 +201,6 @@ const FactReportPage = lazyWithRetry(() => import('../../pages/finance/estimate-
 export function Layout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  // eslint-disable-next-line no-console
-  console.log(`[DEBUG-ROUTES] Layout() render  pathname=${location.pathname}  role=${user?.role ?? 'null'}`);
   const { language } = useLanguageStore();
   // Sprint 87 — гейт по загрузке tenant config. Пока не подгружен
   // (или упал и нет валидного cache) — не рендерим каркас: NativeSplashOverlay
@@ -428,8 +415,6 @@ export function Layout() {
 
   // Determine which dashboard to show based on role and account_type
   const getDashboard = () => {
-    // eslint-disable-next-line no-console
-    console.log(`[DEBUG-ROUTES] Layout.getDashboard() called  pathname=${location.pathname}  role=${user?.role ?? 'null'}`);
     // Check account_type or role for special accounts
     if (user?.account_type === 'advertiser' || user?.role === 'advertiser') {
       return <AdvertiserDashboard />;
@@ -463,8 +448,6 @@ export function Layout() {
 
   // Determine which announcements page to show based on role
   const getAnnouncementsPage = () => {
-    // eslint-disable-next-line no-console
-    console.log(`[DEBUG-ROUTES] Layout.getAnnouncementsPage() called  pathname=${location.pathname}  role=${user?.role ?? 'null'}`);
     if (user?.role === 'resident') {
       return <ResidentAnnouncementsPage />;
     }
@@ -476,8 +459,6 @@ export function Layout() {
 
   // Determine which meetings page to show based on role
   const getMeetingsPage = () => {
-    // eslint-disable-next-line no-console
-    console.log(`[DEBUG-ROUTES] Layout.getMeetingsPage() called  pathname=${location.pathname}  role=${user?.role ?? 'null'}`);
     if (isResidentMeetingsRole(user?.role)) {
       return <ResidentMeetingsPage />;
     }
@@ -708,7 +689,7 @@ export function Layout() {
                     the viewport, not this wrapper (no transform). */}
             <div key={location.pathname} className="page-transition">
             <Routes>
-              <Route path="/" element={<RouteLog name='Layout "/" (dashboard)'>{getDashboard()}</RouteLog>} />
+              <Route path="/" element={getDashboard()} />
               {/* Requests page - not accessible by super_admin (they manage tenants, not individual requests) */}
               {user?.role !== 'super_admin' && (
                 <Route path="/requests" element={<RequestsPage />} />
@@ -757,23 +738,17 @@ export function Layout() {
                   Same pattern as v118.93 for /useful-contacts. Residents
                   still see the marketing gate via the RoleSplit in App.tsx. */}
               <Route path="/meetings" element={
-                <RouteLog name='Layout "/meetings"'>
-                  <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>{getMeetingsPage()}</ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>{getMeetingsPage()}</ProtectedRoute>
               } />
               <Route path="/announcements" element={
-                <RouteLog name='Layout "/announcements"'>
-                  <ProtectedRoute>{getAnnouncementsPage()}</ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute>{getAnnouncementsPage()}</ProtectedRoute>
               } />
               {/* Staff also needs /notifications inside Layout now that the
                   top-level App-level route is registered only for residents.
                   Same NotificationsPage the residents see — no staff-specific
                   variant exists today (see NotificationsRoleSplit comment). */}
               <Route path="/notifications" element={
-                <RouteLog name='Layout "/notifications"'>
-                  <ProtectedRoute><NotificationsPage /></ProtectedRoute>
-                </RouteLog>
+                <ProtectedRoute><NotificationsPage /></ProtectedRoute>
               } />
               <Route path="/schedule" element={
                 <ProtectedRoute allowedRoles={['executor']}>
@@ -981,7 +956,7 @@ export function Layout() {
                 <Route path="/super-admin" element={<SuperAdminDashboard />} />
               )}
               {/* 404 — catch all unmatched routes */}
-              <Route path="*" element={<RouteLog name='Layout "*" (NotFound)'><NotFoundPage /></RouteLog>} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
             </div>
           </Suspense>
