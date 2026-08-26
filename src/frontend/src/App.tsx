@@ -314,21 +314,30 @@ function App() {
                 → Layout (через AnnouncementsRoleSplit). НЕ используем
                 allowedRoles здесь иначе ProtectedRoute редиректит staff
                 на / при попытке открыть /announcements через Sidebar. */}
-            <Route path="/announcements" element={
+            {/* Trailing /* is REQUIRED. These RoleSplit elements fall through
+                to <Layout /> for staff, and Layout renders its own descendant
+                <Routes>. Without /*, React Router 6 matches those descendant
+                routes RELATIVE to the parent path — so Layout's <Route path="/">
+                (dashboard) wins and the intended page never mounts. Symptom:
+                URL is /announcements, breadcrumb reads "Объявления", sidebar
+                highlights right, but the dashboard content renders instead of
+                the announcements page. Residents return the page directly
+                without a nested Routes tree, so /* is a no-op for them. */}
+            <Route path="/announcements/*" element={
               <ProtectedRoute>
                 <AnnouncementsRoleSplit />
               </ProtectedRoute>
             } />
             {/* v118.72 — /notifications standalone fullscreen for residents.
                 No requiredFeature gate (notifications are universal). */}
-            <Route path="/notifications" element={
+            <Route path="/notifications/*" element={
               <ProtectedRoute>
                 <NotificationsRoleSplit />
               </ProtectedRoute>
             } />
             {/* /meetings is standalone for resident and commercial owners;
                 staff and tenants fall through to Layout. */}
-            <Route path="/meetings" element={
+            <Route path="/meetings/*" element={
               <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
                 <MeetingsRoleSplit />
               </ProtectedRoute>
