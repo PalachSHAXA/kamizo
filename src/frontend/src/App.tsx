@@ -176,6 +176,17 @@ function MeetingsRoleSplit() {
 
 function App() {
   const { user } = useAuthStore();
+  // Role checks that decide whether a URL gets a chrome-less full-screen
+  // standalone route (registered here at App level) or falls through to /*
+  // and Layout's own routing. Match the RoleSplit functions above exactly:
+  //   AnnouncementsRoleSplit + NotificationsRoleSplit: resident/tenant/commercial_owner
+  //   MeetingsRoleSplit:                                isResidentMeetingsRole (resident/commercial_owner only; NO tenant)
+  // For any non-matching role, DO NOT register the top-level route — that
+  // lets the /* catchall match instead, so Layout takes over via its
+  // working absolute-path context (fixes the /announcements → dashboard bug
+  // caused by descendant Routes matching relative to the parent path).
+  const wantsStandaloneAnnouncements = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '');
+  const wantsStandaloneMeetings = isResidentMeetingsRole(user?.role);
   const { fetchBuildings } = useCRMStore();
   // Audit P0: was useDataStore() (full barrel) — top-level App was being
   // re-rendered by every store change in the app. Focused selectors limit
@@ -344,31 +355,39 @@ function App() {
                 highlights right, but the dashboard content renders instead of
                 the announcements page. Residents return the page directly
                 without a nested Routes tree, so /* is a no-op for them. */}
-            <Route path="/announcements/*" element={
-              <RouteLog name="App /announcements/*">
-                <ProtectedRoute>
-                  <AnnouncementsRoleSplit />
-                </ProtectedRoute>
-              </RouteLog>
-            } />
-            {/* v118.72 — /notifications standalone fullscreen for residents.
-                No requiredFeature gate (notifications are universal). */}
-            <Route path="/notifications/*" element={
-              <RouteLog name="App /notifications/*">
-                <ProtectedRoute>
-                  <NotificationsRoleSplit />
-                </ProtectedRoute>
-              </RouteLog>
-            } />
-            {/* /meetings is standalone for resident and commercial owners;
-                staff and tenants fall through to Layout. */}
-            <Route path="/meetings/*" element={
-              <RouteLog name="App /meetings/*">
-                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
-                  <MeetingsRoleSplit />
-                </ProtectedRoute>
-              </RouteLog>
-            } />
+            {/* Standalone full-screen routes for RESIDENTS only. Staff omit
+                these top-level Routes entirely so they fall to /* → Layout,
+                which routes correctly (Layout's descendant Routes match
+                against the full URL only when the parent path is /* on the
+                catchall — a specific parent path like /announcements would
+                make Layout's <Route path="/"> win via relative matching). */}
+            {wantsStandaloneAnnouncements && (
+              <Route path="/announcements" element={
+                <RouteLog name="App /announcements (resident standalone)">
+                  <ProtectedRoute>
+                    <AnnouncementsRoleSplit />
+                  </ProtectedRoute>
+                </RouteLog>
+              } />
+            )}
+            {wantsStandaloneAnnouncements && (
+              <Route path="/notifications" element={
+                <RouteLog name="App /notifications (resident standalone)">
+                  <ProtectedRoute>
+                    <NotificationsRoleSplit />
+                  </ProtectedRoute>
+                </RouteLog>
+              } />
+            )}
+            {wantsStandaloneMeetings && (
+              <Route path="/meetings" element={
+                <RouteLog name="App /meetings (resident standalone)">
+                  <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>
+                    <MeetingsRoleSplit />
+                  </ProtectedRoute>
+                </RouteLog>
+              } />
+            )}
             <Route path="/*" element={
               <RouteLog name="App /* (Layout catchall)">
                 <ProtectedRoute>

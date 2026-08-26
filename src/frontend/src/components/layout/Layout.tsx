@@ -147,6 +147,7 @@ const DirectorDashboard = lazyWithRetry(() => import('../../pages/DirectorDashbo
 const BuildingsPage = lazyWithRetry(() => import('../../pages/BuildingsPage').then(m => ({ default: m.BuildingsPage })));
 const AnnouncementsPage = lazyWithRetry(() => import('../../pages/AnnouncementsPage').then(m => ({ default: m.AnnouncementsPage })));
 const MeetingsPage = lazyWithRetry(() => import('../../pages/MeetingsPage').then(m => ({ default: m.MeetingsPage })));
+const NotificationsPage = lazyWithRetry(() => import('../../pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const ResidentAnnouncementsPage = lazyWithRetry(() => import('../../pages/ResidentAnnouncementsPage').then(m => ({ default: m.ResidentAnnouncementsPage })));
 const ResidentMeetingsPage = lazyWithRetry(() => import('../../pages/ResidentMeetingsPage').then(m => ({ default: m.ResidentMeetingsPage })));
 const ResidentRateEmployeesPage = lazyWithRetry(() => import('../../pages/ResidentRateEmployeesPage').then(m => ({ default: m.ResidentRateEmployeesPage })));
@@ -763,6 +764,15 @@ export function Layout() {
               <Route path="/announcements" element={
                 <RouteLog name='Layout "/announcements"'>
                   <ProtectedRoute>{getAnnouncementsPage()}</ProtectedRoute>
+                </RouteLog>
+              } />
+              {/* Staff also needs /notifications inside Layout now that the
+                  top-level App-level route is registered only for residents.
+                  Same NotificationsPage the residents see — no staff-specific
+                  variant exists today (see NotificationsRoleSplit comment). */}
+              <Route path="/notifications" element={
+                <RouteLog name='Layout "/notifications"'>
+                  <ProtectedRoute><NotificationsPage /></ProtectedRoute>
                 </RouteLog>
               } />
               <Route path="/schedule" element={
