@@ -8924,27 +8924,50 @@
 // controllerchange auto-reload + chunk-load guard (v55) in index.html,
 // every device transitions seamlessly to the new version.
 
-const SW_VERSION = '3.9.0';
-const STATIC_CACHE = 'kamizo-static-v333';
-const ASSET_CACHE = 'kamizo-assets-v313';
-const DYNAMIC_CACHE = 'kamizo-dynamic-v313';
+const SW_VERSION = '3.10.0';
+const STATIC_CACHE = 'kamizo-static-v334';
+const ASSET_CACHE = 'kamizo-assets-v314';
+const DYNAMIC_CACHE = 'kamizo-dynamic-v314';
 const MAX_DYNAMIC_CACHE_SIZE = 50;
 
 // Static shell to cache on install
+// Canonical URLs — the ones CF's ASSETS binding actually serves without a
+// redirect. Prior list ('/index.html', '/offline.html') 307-redirected to
+// '/', '/offline'; Cache.addAll REJECTS redirected responses per the SW spec
+// (Response.redirected === true → TypeError). That meant install silently
+// failed for months, skipWaiting() never fired, and STATIC_CACHE was
+// populated only as a side effect of successful navigation caching. When
+// the SW_VERSION bump wiped the old cache, the empty STATIC_CACHE started
+// serving the bare 503 "Offline" body.
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
+  '/offline',
   '/manifest.json',
-  '/offline.html',
 ];
 
-// Install event - cache static shell
+// Install event — cache static shell. Uses individual cache.put() instead of
+// cache.addAll() so a single failing/redirecting URL doesn't reject the whole
+// batch. Each fetch is guarded, so precache is best-effort: whatever we can
+// fetch gets cached, everything else is skipped without blocking install.
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    try {
+      const cache = await caches.open(STATIC_CACHE);
+      await Promise.all(STATIC_ASSETS.map(async (url) => {
+        try {
+          const response = await fetch(url, { redirect: 'follow' });
+          if (response.ok) {
+            await cache.put(url, response);
+          }
+        } catch {
+          /* skip: precache is best-effort, runtime cache handles the rest */
+        }
+      }));
+    } catch {
+      /* even opening the cache can throw (private mode / disk full) — proceed */
+    }
+    await self.skipWaiting();
+  })());
 });
 
 // Activate event - clean old caches, claim clients
@@ -9074,16 +9097,30 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
-        // Offline fallback
-        return caches.match(request).then((cached) => {
-          if (cached) return cached;
-          // For navigation requests, show offline page (better UX than blank screen)
-          if (request.mode === 'navigate') {
-            return caches.match('/offline.html') || caches.match('/index.html');
-          }
-          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
-        });
+      .catch(async () => {
+        // Offline fallback.
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        // For navigation requests, prefer a real cached shell.
+        // Match by canonical URLs (see STATIC_ASSETS above).
+        if (request.mode === 'navigate') {
+          const shell = (await caches.match('/offline')) || (await caches.match('/'));
+          if (shell) return shell;
+        }
+        // Belt-and-braces: never let the client see a bare 503 "Offline"
+        // body — that reads as a live server outage and shows up in
+        // DevTools as a real network failure. Synthesize a tiny inline
+        // HTML page (200 OK) so the browser renders SOMETHING legible
+        // and the console stays clean. This branch fires only when the
+        // network is unreachable AND the precache is empty (fresh SW
+        // install before its first successful navigation).
+        return new Response(
+          '<!doctype html><meta charset="utf-8"><title>Offline</title>' +
+          '<style>body{font-family:system-ui,-apple-system,sans-serif;padding:24px;color:#333;text-align:center}h1{font-size:18px;margin:32px 0 8px}p{color:#666;font-size:14px}</style>' +
+          '<h1>Нет соединения / Aloqa yo\'q</h1>' +
+          '<p>Проверьте интернет и обновите страницу. / Internetni tekshiring va sahifani yangilang.</p>',
+          { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
       })
   );
 });
