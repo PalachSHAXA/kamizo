@@ -71,8 +71,11 @@ export default defineConfig(({ mode }) => ({
     },
   },
   // Remove console/debugger in production only
+  // TEMPORARY: 'console' removed from drop list so [DEBUG-ROUTES] logs survive
+  // the production build for the routing-bug diagnosis. Restore ['console',
+  // 'debugger'] as soon as diagnosis lands.
   esbuild: mode === 'production' ? {
-    drop: ['console', 'debugger'],
+    drop: ['debugger'],
   } : {},
   resolve: {
     dedupe: ['react', 'react-dom', 'scheduler', 'use-sync-external-store'],
