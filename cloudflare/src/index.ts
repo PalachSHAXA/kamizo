@@ -752,7 +752,21 @@ export default {
       return response;
     };
 
-    // env.ASSETS is automatically provided by Cloudflare when using assets config
+    // env.ASSETS is automatically provided by Cloudflare when using assets config.
+    // The binding is GET/HEAD-only — any other method (POST/PUT/PATCH/DELETE)
+    // that reaches this SPA fallback (i.e. no API route matched, no static
+    // file matched) used to throw inside ASSETS.fetch(), the fallback catch
+    // then re-issued the SAME non-GET request under the hood, that threw
+    // again, and the outer catch returned a bogus 503 "Service temporarily
+    // unavailable". Answer 405 instead — accurate, and doesn't advertise a
+    // fake outage in DevTools. GET / HEAD keep their original SPA-fallback
+    // path so hard-reloads still work.
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response('Method not allowed', {
+        status: 405,
+        headers: { 'Content-Type': 'text/plain', 'Allow': 'GET, HEAD' },
+      });
+    }
     try {
       // Try to serve the requested asset
       const assetResponse = await env.ASSETS.fetch(request);
