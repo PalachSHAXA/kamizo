@@ -136,33 +136,69 @@ export async function handleContactShared(
     'INSERT INTO telegram_pending_phones (id, telegram_user_id, phone, expires_at) VALUES (?, ?, ?, ?)'
   ).bind(id, fromId, phone, expiresAt.toISOString()).run();
 
-  // Если номер где-то уже стоит и отличается — показываем оба. Молча
-  // подменять контакт, по которому с человеком связывается УК, нельзя.
-  const existing = linked
-    .map(u => (u.phone || '').trim())
-    .filter(p => p && p !== phone);
-
-  const lines = [
-    `📱 Ваш номер: <b>${escapeHtml(prettyPhone(phone))}</b>`,
-    '',
-  ];
-  if (existing.length) {
-    lines.push(`В профиле сейчас указан другой: ${escapeHtml(existing[0])}`, '');
-  }
-  lines.push(
-    linked.length > 1
-      ? `Записать этот номер как рабочий в ваши профили Kamizo (${linked.length})?`
-      : 'Записать этот номер как рабочий в ваш профиль Kamizo?'
-  );
+  // Аккаунты делятся на три группы, и обращаться с ними одинаково
+  // нельзя.
+  //
+  // Первая версия писала номер во ВСЕ привязки разом. На реальных
+  // данных это сразу вылезло: у одного аккаунта поле пустое, у другого
+  // стоит осмысленный рабочий номер — и оба перезаписывались молча.
+  // Человек делится контактом, чтобы ЗАПОЛНИТЬ пустое поле, а заодно
+  // менял контакт там, где он был выставлен осознанно.
+  const isBlank = (p: unknown) => !String(p ?? '').trim();
+  const empty = linked.filter(u => isBlank(u.phone));
+  const conflicting = linked.filter(u => !isBlank(u.phone) && String(u.phone).trim() !== phone);
+  const already = linked.filter(u => String(u.phone ?? '').trim() === phone);
 
   // Клавиатуру запроса контакта снимаем отдельным ходом: reply-разметку
   // и inline-кнопки в одном сообщении Telegram не совмещает.
   await sendTelegramMessage(env, chatId, 'Спасибо!', { replyMarkup: REMOVE_KEYBOARD });
+
+  // Нечего делать: этот номер уже стоит везде, где мог бы.
+  if (!empty.length && !conflicting.length) {
+    await env.DB.prepare(
+      `UPDATE telegram_pending_phones SET used_at = datetime('now') WHERE id = ?`
+    ).bind(id).run();
+    await sendTelegramMessage(env, chatId,
+      `📱 Этот номер уже указан в вашем профиле Kamizo (${already.length}). Ничего менять не нужно.`);
+    return;
+  }
+
+  const lines = [`📱 Ваш номер: <b>${escapeHtml(prettyPhone(phone))}</b>`, ''];
+
+  if (empty.length) {
+    lines.push(empty.length > 1
+      ? `Профилей без номера: ${empty.length}. Записать туда этот номер как рабочий?`
+      : 'В вашем профиле Kamizo номер не указан. Записать туда этот как рабочий?');
+  }
+
+  if (conflicting.length) {
+    if (empty.length) lines.push('');
+    const list = conflicting.map(u => `• ${escapeHtml(String(u.phone).trim())}`).join('\n');
+    lines.push(
+      conflicting.length > 1
+        ? `А в других профилях уже указаны другие номера:\n${list}`
+        : `А в другом профиле уже указан другой номер:\n${list}`,
+      'Их можно оставить как есть или заменить.'
+    );
+  }
+
+  // Кнопки в столбец: три длинные подписи в одну строку Telegram
+  // сожмёт до нечитаемого. Набор зависит от того, есть ли что заполнять
+  // и есть ли что заменять — лишних вариантов не показываем.
+  const rows: { text: string; callback_data: string }[][] = [];
+  if (empty.length) {
+    rows.push([{
+      text: conflicting.length ? '✅ Заполнить только пустые' : '✅ Да, это мой рабочий номер',
+      callback_data: `ph:y:${id}`,
+    }]);
+  }
+  if (conflicting.length) {
+    rows.push([{ text: '🔁 Заменить во всех профилях', callback_data: `ph:a:${id}` }]);
+  }
+  rows.push([{ text: 'Нет', callback_data: `ph:n:${id}` }]);
+
   await sendTelegramMessage(env, chatId, lines.join('\n'), {
-    buttons: [
-      { text: '✅ Да, это мой рабочий номер', callback_data: `ph:y:${id}` },
-      { text: 'Нет', callback_data: `ph:n:${id}` },
-    ],
+    replyMarkup: { inline_keyboard: rows },
   });
 }
 
@@ -178,8 +214,9 @@ export async function handlePhoneCallback(
   const data: string = callback?.data || '';
   if (!data.startsWith('ph:')) return;
 
+  // y — заполнить только пустые, a — заменить везде, n — отказ.
   const [, action, pendingId] = data.split(':');
-  if (!pendingId || (action !== 'y' && action !== 'n')) return;
+  if (!pendingId || !['y', 'a', 'n'].includes(action)) return;
 
   const chatId = callback?.message?.chat?.id;
   const fromId = String(callback?.from?.id ?? '');
@@ -218,26 +255,37 @@ export async function handlePhoneCallback(
   }
 
   // §16: один Telegram может быть привязан к аккаунтам в нескольких УК.
-  // Человек и номер одни и те же, поэтому пишем во все активные
-  // привязки — и перечисляем куда, чтобы это не было сюрпризом.
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.name FROM telegram_users t
+    SELECT u.id, u.name, u.phone FROM telegram_users t
     JOIN users u ON u.id = t.user_id
     WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
   `).bind(fromId).all();
   const linked = (results || []) as any[];
 
+  // 'y' заполняет только пустые: условие вынесено в сам UPDATE, а не в
+  // предварительную выборку. Между показом кнопок и нажатием человек
+  // мог указать номер в приложении — фильтр по свежепрочитанной строке
+  // пропустил бы это и всё равно перезаписал.
+  const onlyEmpty = action === 'y';
+  let changed = 0;
   for (const u of linked) {
-    await env.DB.prepare(
-      "UPDATE users SET phone = ?, updated_at = datetime('now') WHERE id = ?"
+    const res = await env.DB.prepare(
+      `UPDATE users SET phone = ?, updated_at = datetime('now')
+       WHERE id = ?${onlyEmpty ? " AND (phone IS NULL OR TRIM(phone) = '')" : ''}`
     ).bind(pending.phone, u.id).run();
+    changed += res.meta?.changes || 0;
   }
 
-  await answerCallbackQuery(env, callback.id, 'Номер сохранён');
+  await answerCallbackQuery(env, callback.id, changed ? 'Номер сохранён' : 'Изменений не потребовалось');
   if (chatId) {
+    const tail = onlyEmpty && linked.length > changed
+      ? '\n\nОстальные профили оставлены без изменений.'
+      : '';
     await editTelegramMessage(env, chatId, callback.message.message_id,
-      `✅ Номер <b>${escapeHtml(prettyPhone(pending.phone))}</b> записан в профиль Kamizo.\n\nИзменить его можно в приложении или командой /phone.`);
+      changed
+        ? `✅ Номер <b>${escapeHtml(prettyPhone(pending.phone))}</b> записан${changed > 1 ? ` в профили Kamizo (${changed})` : ' в профиль Kamizo'}.${tail}\n\nИзменить его можно в приложении или командой /phone.`
+        : 'Ничего не изменилось — номер уже был указан.');
   }
 
-  log.info('phone_saved_from_telegram', { accounts: linked.length });
+  log.info('phone_saved_from_telegram', { mode: action, changed, linked: linked.length });
 }
