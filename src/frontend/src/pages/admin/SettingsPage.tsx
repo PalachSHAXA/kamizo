@@ -43,6 +43,16 @@ export function SettingsPage() {
   // once a contract exists; it's added from the dashboard overview, then
   // managed here.
   const canManageContract = ['director', 'admin', 'manager'].includes(user?.role || '');
+  // Вкладка «Интеграции» была за `role === 'admin'`, хотя бэкенд для
+  // подключения Telegram-групп требует лишь isManagement (admin,
+  // director, manager, super_admin — utils/helpers.ts). Фронт оказался
+  // строже сервера: менеджер, которому подключение домовых чатов и
+  // поручено, просто не видел раздела.
+  //
+  // Список ровно повторяет isManagement, чтобы гейты не разъезжались.
+  // Прочие карточки вкладки (MENING UYIM, платежи, 1С) — справочные, без
+  // органов управления, так что их показ менеджеру ничего не открывает.
+  const canManageIntegrations = ['director', 'admin', 'manager'].includes(user?.role || '');
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users' | 'contract'>('profile');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [saved, setSaved] = useState(false);
@@ -319,6 +329,11 @@ export function SettingsPage() {
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
         { id: 'modules' as const, label: language === 'ru' ? 'Модули' : 'Modullar', icon: ToggleRight },
         { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
+        // Директору и менеджеру — «Интеграции»: подключение домовых
+        // Telegram-групп бэкенд им уже разрешает (isManagement).
+        ...(canManageIntegrations
+          ? [{ id: 'integrations' as const, label: language === 'ru' ? 'Интеграции' : 'Integratsiyalar', icon: Globe }]
+          : []),
       ];
   // Append the contract tab ONLY once a contract is attached (it's added
   // from the dashboard overview). Visible to director / admin / manager.
@@ -1247,7 +1262,7 @@ export function SettingsPage() {
       )}
 
       {/* Integrations */}
-      {activeTab === 'integrations' && isAdmin && (
+      {activeTab === 'integrations' && canManageIntegrations && (
         <div className="space-y-4 md:space-y-6">
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Интеграции' : 'Integratsiyalar'}</h2>
