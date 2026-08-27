@@ -28,8 +28,50 @@ import {
   sendTelegramMessage, editTelegramMessage, answerCallbackQuery, escapeHtml,
 } from '../../utils/telegram';
 import {
-  classifyZhkhMessage, SUGGESTION_THRESHOLD, CATEGORY_LABELS,
+  classifyZhkhMessage, SUGGESTION_THRESHOLD, categoryLabel,
+  detectLanguage, type ZhkhLang,
 } from '../../utils/zhkh-classifier';
+
+// Тексты диспетчера на обоих языках.
+//
+// Язык берётся из САМОГО сообщения, а не из users.language: в группе бот
+// не знает, кто написал, пока человек не привязал аккаунт. Отвечать
+// по-русски на узбекское сообщение — верный способ, чтобы предложением
+// не воспользовались.
+//
+// Узбекский апостроф здесь — модификатор ʻ, а не машинописный: по
+// правилу из CLAUDE.md, чтобы не экранировать его в каждой строке.
+const D = {
+  suggest: (lang: ZhkhLang, label: string) => lang === 'uz'
+    ? `Siz ${label} haqida xabar berdingiz shekilli.\n\nKamizoda ariza rasmiylashtirilsinmi?`
+    : `Похоже, вы сообщили о ${label}.\n\nОформить заявку в Kamizo?`,
+
+  btnCreate: (lang: ZhkhLang) => lang === 'uz'
+    ? '📝 Ariza rasmiylashtirish' : '📝 Оформить заявку',
+  btnSkipRu: 'Не нужно',
+  btnSkipUz: 'Kerak emas',
+
+  dismissed: (lang: ZhkhLang) => lang === 'uz'
+    ? 'Tushunarli, ariza kerak emas.' : 'Понял, заявка не нужна.',
+
+  dismissedToast: (lang: ZhkhLang) => lang === 'uz'
+    ? 'Yaxshi, boshqa taklif qilmayman' : 'Хорошо, не буду предлагать',
+
+  openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю Kamizo',
+
+  draft: (lang: ZhkhLang, url: string) => lang === 'uz'
+    ? `📝 <b>Ariza rasmiylashtirish</b>\n\n<a href="${url}">Kamizoda shaklni ochish</a>\n\nHavola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
+    : `📝 <b>Оформление заявки</b>\n\n<a href="${url}">Открыть форму в Kamizo</a>\n\nСсылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+
+  handled: (lang: ZhkhLang) => lang === 'uz' ? 'Allaqachon koʻrib chiqilgan' : 'Уже обработано',
+
+  notAuthor: (lang: ZhkhLang) => lang === 'uz'
+    ? 'Bu taklif xabar muallifiga tegishli'
+    : 'Это предложение адресовано автору сообщения',
+
+  groupGone: (lang: ZhkhLang) => lang === 'uz'
+    ? 'Guruh endi ulanmagan' : 'Группа больше не подключена',
+};
 
 // §14: «Не более одного предложения одному пользователю в одной группе
 // за несколько часов». Шесть — сознательно много: раздражение от
@@ -109,21 +151,27 @@ export async function handleGroupMessage(
 
   // Отвечаем реплаем на конкретное сообщение (§12), а не в пустоту —
   // в живом чате иначе непонятно, к чему относится предложение.
-  const label = CATEGORY_LABELS[hit.category];
+  //
+  // Язык — из самого сообщения: в группе неизвестно, кто автор, пока он
+  // не привязал аккаунт, так что users.language недоступен.
+  const label = categoryLabel(hit.category, hit.lang);
   const sent = await sendTelegramMessage(
-    env, chatId,
-    `Похоже, вы сообщили о ${label}.\n\nОформить заявку в Kamizo?`,
+    env, chatId, D.suggest(hit.lang, label),
     {
       buttons: [
-        { text: '📝 Оформить заявку', callback_data: `sg:y:${suggestionId}` },
-        { text: 'Не нужно', callback_data: `sg:n:${suggestionId}` },
+        { text: D.btnCreate(hit.lang), callback_data: `sg:y:${suggestionId}` },
+        {
+          text: hit.lang === 'uz' ? D.btnSkipUz : D.btnSkipRu,
+          callback_data: `sg:n:${suggestionId}`,
+        },
       ],
     }
   );
 
   if (sent.ok) {
     log.info('dispatcher_suggested', {
-      tenantId: group.tenant_id, category: hit.category, confidence: hit.confidence,
+      tenantId: group.tenant_id, category: hit.category,
+      confidence: hit.confidence, lang: hit.lang,
     });
   }
 }
@@ -146,12 +194,19 @@ export async function handleSuggestionCallback(
   const chatId = callback?.message?.chat?.id;
   const fromId = String(callback?.from?.id ?? '');
 
+  // Язык определяем по СОБСТВЕННОМУ сообщению бота, под которым нажали
+  // кнопку: оно уже составлено на языке исходной реплики жителя. Так
+  // ответы остаются в одном языке на всю цепочку, и не нужна ни колонка
+  // в telegram_suggestions, ни хранение чужого текста — а §15 требует
+  // как раз его не хранить.
+  const lang = detectLanguage(String(callback?.message?.text ?? ''));
+
   const sug = await env.DB.prepare(
     'SELECT * FROM telegram_suggestions WHERE id = ?'
   ).bind(suggestionId).first() as any;
 
   if (!sug || sug.outcome !== 'offered') {
-    await answerCallbackQuery(env, callback.id, 'Уже обработано');
+    await answerCallbackQuery(env, callback.id, D.handled(lang));
     return;
   }
 
@@ -159,7 +214,7 @@ export async function handleSuggestionCallback(
   // заявку от чужого имени и с чужим текстом — а заявка потом
   // фигурирует как обращение конкретного жителя.
   if (String(sug.telegram_user_id) !== fromId) {
-    await answerCallbackQuery(env, callback.id, 'Это предложение адресовано автору сообщения');
+    await answerCallbackQuery(env, callback.id, D.notAuthor(lang));
     return;
   }
 
@@ -168,10 +223,10 @@ export async function handleSuggestionCallback(
       `UPDATE telegram_suggestions SET outcome = 'dismissed',
        resolved_at = datetime('now') WHERE id = ? AND outcome = 'offered'`
     ).bind(suggestionId).run();
-    await answerCallbackQuery(env, callback.id, 'Хорошо, не буду предлагать');
+    await answerCallbackQuery(env, callback.id, D.dismissedToast(lang));
     if (chatId) {
       await editTelegramMessage(env, chatId, callback.message.message_id,
-        'Понял, заявка не нужна.');
+        D.dismissed(lang));
     }
     log.info('dispatcher_dismissed', { category: sug.category });
     return;
@@ -181,7 +236,7 @@ export async function handleSuggestionCallback(
     'SELECT building_id, entrance FROM telegram_groups WHERE id = ?'
   ).bind(sug.telegram_group_id).first() as any;
   if (!group) {
-    await answerCallbackQuery(env, callback.id, 'Группа больше не подключена');
+    await answerCallbackQuery(env, callback.id, D.groupGone(lang));
     return;
   }
 
@@ -218,13 +273,13 @@ export async function handleSuggestionCallback(
   // корень с параметром — ResidentDashboard подхватит токен.
   const url = `${base}/?telegramDraft=${token}`;
 
-  await answerCallbackQuery(env, callback.id, 'Открываю Kamizo');
+  await answerCallbackQuery(env, callback.id, D.openingToast(lang));
   if (chatId) {
     await editTelegramMessage(env, chatId, callback.message.message_id,
-      `📝 <b>Оформление заявки</b>\n\n<a href="${escapeHtml(url)}">Открыть форму в Kamizo</a>\n\nСсылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`);
+      D.draft(lang, escapeHtml(url)));
   }
 
-  log.info('dispatcher_accepted', { category: sug.category });
+  log.info('dispatcher_accepted', { category: sug.category, lang });
 }
 
 // ──────────────────────────────────────────────────────────────────

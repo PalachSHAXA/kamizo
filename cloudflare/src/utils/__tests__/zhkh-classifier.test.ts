@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  classifyZhkhMessage, SUGGESTION_THRESHOLD,
+  classifyZhkhMessage, SUGGESTION_THRESHOLD, detectLanguage, categoryLabel,
 } from '../zhkh-classifier';
 
 /** Сработал ли бот, то есть прошло ли сообщение порог. */
@@ -127,6 +127,59 @@ describe('классификатор ЖКХ', () => {
       ['Лампочка перегорела, не горит', 'lighting'],
     ])('%s → %s', (text, category) => {
       expect(classifyZhkhMessage(text)?.category).toBe(category);
+    });
+  });
+
+  describe('определение языка', () => {
+    it.each([
+      'Podezdda suv oqyapti',
+      'Lift ishlamayapti',
+      'Чироқ йўқ',                       // узбекская кириллица: ў, қ
+      'Batareya sovuq',
+    ])('узбекский: %s', (text) => {
+      expect(detectLanguage(text)).toBe('uz');
+    });
+
+    it.each([
+      'В подъезде течёт труба',
+      'Лифт не работает',
+      'Нет света на площадке',
+    ])('русский: %s', (text) => {
+      expect(detectLanguage(text)).toBe('ru');
+    });
+
+    it('узбекскую кириллицу отличает от русского по буквам ў/қ/ғ/ҳ', () => {
+      // В русском этих букв нет вовсе — признак стопроцентный.
+      expect(detectLanguage('Лифт бузуқ')).toBe('uz');
+      expect(detectLanguage('Лифт сломан')).toBe('ru');
+    });
+
+    it('смешанную фразу относит к узбекскому по служебным словам', () => {
+      expect(detectLanguage('в подъезде suv yoq')).toBe('uz');
+    });
+
+    it('классификация возвращает язык вместе с категорией', () => {
+      expect(classifyZhkhMessage('Lift ishlamayapti')?.lang).toBe('uz');
+      expect(classifyZhkhMessage('Лифт не работает')?.lang).toBe('ru');
+    });
+
+    it('подписи категорий переводятся', () => {
+      expect(categoryLabel('leak', 'ru')).toBe('протечке');
+      expect(categoryLabel('leak', 'uz')).toBe('suv oqishi');
+    });
+  });
+
+  describe('узбекские опечатки', () => {
+    it.each([
+      'Lift ishlamayapti',
+      'Kanalizatsia tikilib koldi',      // q→k дважды
+      'Suv okyapti podezdda',            // oqyapti → okyapti
+      'Chirok yonmaydi',                 // chiroq → chirok
+      'Axlat konteyner tulib ketdi',     // tolib → tulib
+      'Domofon buzuk',                   // buzuq → buzuk
+      'Xid kelyapti kanalizatsiyadan',   // hid → xid
+    ])('ловит: %s', (text) => {
+      expect(fires(text)).toBe(true);
     });
   });
 

@@ -36,9 +36,13 @@ export type ZhkhCategory =
   | 'leak' | 'sewage' | 'electricity' | 'elevator'
   | 'heating' | 'garbage' | 'lighting' | 'common_property';
 
+export type ZhkhLang = 'ru' | 'uz';
+
 export interface Classification {
   category: ZhkhCategory;
   confidence: number;
+  /** Язык исходного сообщения — на нём бот и ответит. */
+  lang: ZhkhLang;
 }
 
 // ── Нормализация ─────────────────────────────────────────────────────
@@ -71,58 +75,114 @@ function normalize(raw: string): string {
 
 const N = (list: string[]) => list.map(normalize);
 
+// ── Определение языка ────────────────────────────────────────────────
+//
+// Нужно, чтобы бот отвечал на языке сообщения. В группе он не знает, кто
+// написал, пока человек не привязал аккаунт, поэтому users.language тут
+// недоступен — язык приходится читать из самого текста.
+//
+// Три признака по убыванию надёжности:
+//
+//   1. Узбекские буквы кириллицы — ў, қ, ғ, ҳ. В русском их нет вовсе,
+//      это стопроцентный признак.
+//   2. Преобладание латиницы. В домовых чатах Узбекистана латиница —
+//      это узбекский; русский пишут кириллицей. Транслит по-русски
+//      («techet truba») теоретически возможен и будет определён как
+//      узбекский, но это редкость, а цена ошибки — один ответ не на том
+//      языке.
+//   3. Служебные узбекские слова. Ловят смешанные фразы вроде
+//      «в подъезде suv yoq», где скриптов поровну.
+//
+// Порядок важен: сначала однозначное, потом статистика, потом лексика.
+const UZ_MARKERS = N([
+  'yoq', 'yok', 'bor', 'qoldi', 'koldi', 'ketdi', 'emas', 'uchun',
+  'bilan', 'yana', 'juda', 'iltimos', 'xona', 'uyda', 'yordam', 'kerak',
+  'boldi', 'qilib', 'qiling', 'nima', 'qachon', 'kachon', 'menda',
+  'bizda', 'edi', 'yapti', 'moqda',
+  'йўқ', 'бор', 'қолди', 'кетди', 'эмас', 'учун', 'билан', 'керак',
+  'илтимос', 'ёрдам', 'қачон',
+]);
+
+export function detectLanguage(raw: string): ZhkhLang {
+  const text = normalize(raw);
+  if (/[ўқғҳ]/.test(text)) return 'uz';
+
+  const cyrillic = (text.match(/[а-я]/g) || []).length;
+  const latin = (text.match(/[a-z]/g) || []).length;
+  if (latin > cyrillic) return 'uz';
+
+  if (UZ_MARKERS.some(m => text.includes(m))) return 'uz';
+  return 'ru';
+}
+
 // ── Темы ─────────────────────────────────────────────────────────────
 // Корни слов, а не слова целиком: узбекский агглютинативен, и «suvni»,
 // «suvdan», «suvi» ловятся одним «suv».
+// Про узбекские опечатки: самые частые — это q↔k, x↔h и разнобой в
+// заимствованиях из русского («kanalizatsiya / kanalizatsia /
+// kanalizasiya»). Апострофы и удвоения снимает normalize(), а вот замену
+// букв она не покрывает — эти варианты перечислены явно.
 const TOPICS: Record<ZhkhCategory, string[]> = {
   leak: N([
     // русский
     'теч', 'тич', 'протеч', 'потоп', 'залив', 'зали', 'кран', 'труб',
-    'вода', 'воды', 'сантех', 'смесител', 'стояк', 'бойлер',
+    'вода', 'воды', 'сантех', 'смесител', 'стояк', 'бойлер', 'вентил',
     // узбекский латиницей
-    'suv', 'kran', 'quvur', 'truba', 'santex', 'stoyak',
+    'suv', 'kran', 'krant', 'quvur', 'kuvur', 'truba', 'santex',
+    'santexnik', 'stoyak', 'oqava', 'okava', 'ventil', 'boyler',
+    'issiq suv', 'sovuq suv',
     // узбекский кириллицей
-    'сув', 'қувур',
+    'сув', 'қувур', 'кран', 'сантехник',
   ]),
   sewage: N([
     'канализ', 'каннализ', 'засор', 'засар', 'слив', 'унитаз', 'воняет',
-    'вон', 'запах', 'фекал', 'септик',
-    'kanalizatsiya', 'kanalizatsia', 'unitaz', 'chiqindi suvi', 'hid',
-    'канализатсия', 'ҳид',
+    'вон', 'запах', 'фекал', 'септик', 'стояк канализ',
+    'kanalizatsiya', 'kanalizatsia', 'kanalizatsya', 'kanalizasiya',
+    'kanalizasia', 'unitaz', 'hojatxona', 'xojatxona', 'hojathona',
+    'hid', 'xid', 'chiqindi suvi', 'chikindi suvi', 'septik',
+    'канализатсия', 'канализация', 'ҳид', 'хид', 'ҳожатхона',
   ]),
   electricity: N([
     'электр', 'элетр', 'свет', 'света', 'розетк', 'провод', 'щиток',
-    'пробк', 'напряжен', 'коротк', 'ток',
-    'elektr', 'svet', 'rozetka', 'shchitok', 'tok', 'simlar', 'quvvat',
-    'электр', 'чироқ', 'ток',
+    'пробк', 'напряжен', 'коротк', 'ток', 'счетчик', 'автомат',
+    'elektr', 'elektir', 'elektor', 'svet', 'rozetka', 'razetka',
+    'shchitok', 'shitok', 'tok', 'sim', 'simlar', 'quvvat', 'kuvvat',
+    'hisoblagich', 'avtomat',
+    'электр', 'ток', 'симлар', 'ҳисоблагич',
   ]),
   elevator: N([
     'лифт', 'подъемник',
-    'lift',
+    'lift', 'lifit',
     'лифт',
   ]),
   heating: N([
-    'отоплен', 'атоплен', 'батаре', 'радиатор', 'котел',
-    'горячая вода', 'теплоснаб',
-    'isitish', 'isitis', 'batareya', 'issiq suv', 'qozon',
-    'иситиш', 'батарея',
+    'отоплен', 'атоплен', 'батаре', 'радиатор', 'котел', 'теплоснаб',
+    'горячая вода', 'обогрев',
+    'isitish', 'isitis', 'issiqlik', 'isiqlik', 'batareya', 'botareya',
+    'radiator', 'qozon', 'kozon', 'gaz',
+    'иситиш', 'иссиқлик', 'батарея', 'радиатор', 'газ',
   ]),
   garbage: N([
     'мусор', 'мусар', 'помойк', 'контейнер', 'урна', 'свалк', 'отход',
-    'axlat', 'chiqindi', 'konteyner',
-    'ахлат', 'чиқинди',
+    'бак', 'мусаропровод', 'мусоропровод',
+    'axlat', 'ahlat', 'axlot', 'chiqindi', 'chikindi', 'konteyner',
+    'kanteyner', 'musor', 'baklar',
+    'ахлат', 'чиқинди', 'контейнер', 'мусор',
   ]),
   lighting: N([
-    'лампоч', 'фонар', 'освещен', 'светильник',
-    'lampochka', 'chiroq', 'yoruglik',
-    'лампочка', 'чироқ', 'ёруғлик',
+    'лампоч', 'фонар', 'освещен', 'светильник', 'плафон',
+    'lampochka', 'lampa', 'chiroq', 'chirok', 'yoruglik', 'yorugchilik',
+    'fonar', 'projektor',
+    'лампочка', 'чироқ', 'ёруғлик', 'фонар',
   ]),
   common_property: N([
     'дверь', 'двер', 'домофон', 'подъезд', 'подьезд', 'окно', 'перил',
     'ступен', 'крыш', 'фасад', 'козырек', 'потолок', 'стена', 'лестниц',
-    'eshik', 'domofon', 'podezd', 'deraza', 'tom', 'shift', 'devor',
-    'zinapoya', 'panjara',
-    'эшик', 'домофон', 'том', 'девор',
+    'замок', 'ворот', 'шлагбаум', 'скамей', 'детская площадк',
+    'eshik', 'domofon', 'damofon', 'podezd', 'podyezd', 'deraza',
+    'tom', 'shift', 'devor', 'zinapoya', 'panjara', 'qulf', 'kulf',
+    'darvoza', 'shlagbaum', 'skameyka', 'maydoncha',
+    'эшик', 'домофон', 'том', 'девор', 'зинапоя', 'қулф', 'дарвоза',
   ]),
 };
 
@@ -146,15 +206,24 @@ const SYMPTOMS = N([
   'не открыва', 'не убира', 'переполн', 'завал', 'мига', 'капает',
   'отключил', 'отключен', 'пропал', 'холодн', 'ледян', 'темно',
   'перегорел', 'не вывоз',
-  // узбекский латиницей
-  'oqyap', 'oqmoq', 'oqib', 'oqayap', 'buzil', 'buzuq', 'sindi',
-  'singan', 'ishlamay', 'ishlamaydi', 'ishlamas', 'yonmay', 'yoq',
-  'tiqil', 'tiqilib', 'sasi', 'hid kel', 'qotib qol', 'yiqil',
-  'tushib ket', 'ochilmay', 'yopilmay', 'tokil', 'sizib',
-  'sovuq', 'qorongi', 'tolib', 'toldi', 'kelmay',
+  // узбекский латиницей.
+  // Пары вроде oqyap/okyap и tiqil/tikil — не дубли, а самая частая
+  // узбекская опечатка: q набирают как k. То же с x↔h (xid/hid).
+  'oqyap', 'okyap', 'oqmoq', 'okmoq', 'oqib', 'okib', 'oqayap',
+  'buzil', 'buzuq', 'buzuk', 'buzildi', 'buzulgan',
+  'sindi', 'singan', 'sinib', 'sinди',
+  'ishlamay', 'ishlamaydi', 'ishlamas', 'iwlamay',
+  'yonmay', 'yonmaydi', 'ochmay', 'ochilmay', 'yopilmay',
+  'yoq', 'yok', 'yuq', 'tiqil', 'tikil', 'tiqilib', 'tikilib',
+  'sasi', 'sasiy', 'hid kel', 'xid kel', 'qotib qol', 'kotib kol',
+  'yiqil', 'yikil', 'tushib ket', 'tokil', 'tukil', 'sizib', 'sizmoq',
+  'sovuq', 'sovuk', 'qorongi', 'korongi', 'tolib', 'toldi', 'tulib',
+  'kelmay', 'kelmayapti', 'uzilib', 'uzildi', 'portlab', 'yorilib',
+  'teshilib', 'tomchila', 'shikastlan', 'ochilmayapti',
   // узбекский кириллицей
-  'оқяп', 'бузил', 'синди', 'ишламай', 'йўқ', 'йук', 'тиқил',
-  'совуқ', 'қоронғи', 'тўлиб',
+  'оқяп', 'бузил', 'бузуқ', 'синди', 'синган', 'ишламай', 'ишламайди',
+  'йўқ', 'йук', 'тиқил', 'совуқ', 'қоронғи', 'тўлиб', 'келмай',
+  'узилиб', 'ёнмай', 'йиқил',
 ]);
 
 // ── Стоп-маркеры ─────────────────────────────────────────────────────
@@ -168,10 +237,13 @@ const NEGATIVE = N([
   'когда почин', 'уже почин', 'починили', 'исправил', 'все работает',
   'отремонтир', 'сделали', 'поздрав',
   // узбекский
-  'kim biladi', 'qayerdan', 'qayerda sotil', 'maslahat', 'sotaman',
-  'sotiladi', 'olaman', 'ijaraga', 'rahmat', 'tuzatildi', 'tuzatishdi',
-  'tuzatdi', 'ishlayapti', 'tabrik', 'hazil',
-  'раҳмат', 'сотилади', 'ким билади',
+  'kim biladi', 'kim bilad', 'qayerdan', 'kayerdan', 'qayerda sotil',
+  'maslahat', 'sotaman', 'sotiladi', 'sotib ol', 'olaman', 'ijaraga',
+  'ijara', 'rahmat', 'raxmat', 'rahmet', 'tuzatildi', 'tuzatishdi',
+  'tuzatdi', 'tuzatib', 'ishlayapti', 'iwlayapti', 'tabrik', 'hazil',
+  'xazil', 'muammo yoq', 'muammo yok', 'hammasi joyida',
+  'раҳмат', 'рахмат', 'сотилади', 'ким билади', 'тузатилди',
+  'муаммо йўқ', 'ишлаяпти',
 ]);
 
 // Верхняя граница длины. Простыни на тысячу символов — это обсуждение,
@@ -213,7 +285,7 @@ export function classifyZhkhMessage(raw: string): Classification | null {
   // давало больше уверенности и чтобы шкала не выходила за единицу.
   const confidence = Math.min(1, 0.45 + best.hits * 0.15 + Math.min(symptoms, 3) * 0.1);
 
-  return { category: best.category, confidence };
+  return { category: best.category, confidence, lang: detectLanguage(raw) };
 }
 
 // Порог сработки. §14 требует «использовать порог уверенности».
@@ -222,7 +294,9 @@ export function classifyZhkhMessage(raw: string): Classification | null {
 // предложением — жители отключат бота после второго такого.
 export const SUGGESTION_THRESHOLD = 0.7;
 
-export const CATEGORY_LABELS: Record<ZhkhCategory, string> = {
+// Подписи категорий на обоих языках. Русские — в дательном падеже, они
+// подставляются в «Похоже, вы сообщили о …».
+const CATEGORY_LABELS_RU: Record<ZhkhCategory, string> = {
   leak: 'протечке',
   sewage: 'проблеме с канализацией',
   electricity: 'проблеме с электричеством',
@@ -232,3 +306,21 @@ export const CATEGORY_LABELS: Record<ZhkhCategory, string> = {
   lighting: 'проблеме с освещением',
   common_property: 'повреждении общего имущества',
 };
+
+const CATEGORY_LABELS_UZ: Record<ZhkhCategory, string> = {
+  leak: 'suv oqishi',
+  sewage: 'kanalizatsiya muammosi',
+  electricity: 'elektr muammosi',
+  elevator: 'lift muammosi',
+  heating: 'isitish muammosi',
+  garbage: 'chiqindi muammosi',
+  lighting: 'yoritish muammosi',
+  common_property: 'umumiy mulk shikastlanishi',
+};
+
+export function categoryLabel(category: ZhkhCategory, lang: ZhkhLang): string {
+  return lang === 'uz' ? CATEGORY_LABELS_UZ[category] : CATEGORY_LABELS_RU[category];
+}
+
+// Оставлено для обратной совместимости с прежним импортом.
+export const CATEGORY_LABELS = CATEGORY_LABELS_RU;
