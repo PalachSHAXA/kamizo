@@ -60,10 +60,33 @@ export async function createLoginApproval(
   meta: { device?: string | null; ip?: string | null },
   log: ReturnType<typeof createRequestLogger>
 ): Promise<PendingApproval | null> {
-  const link = await env.DB.prepare(
-    `SELECT telegram_chat_id, security_enabled
-     FROM telegram_users WHERE user_id = ? AND revoked_at IS NULL`
-  ).bind(user.id).first() as any;
+  // Запрос обёрнут в try/catch, и это не перестраховка.
+  //
+  // createLoginApproval вызывается на КАЖДОМ входе. Любая ошибка здесь —
+  // отсутствующая таблица (миграция 074 ещё не прогнана), заблокированная
+  // БД, что угодно — превращалась бы в 500 на /api/auth/login, то есть в
+  // полную потерю доступа для всех пользователей окружения.
+  //
+  // Именно так и случилось: E2E-харнесс поднимает воркер со свежей
+  // схемой без telegram_users, и логин начал падать. В проде миграцию
+  // прогнали раньше рестарта, поэтому там не проявилось — то есть
+  // фича молча завязала критический путь на порядок деплоя.
+  //
+  // Провал проверки второго фактора означает «второго фактора нет»:
+  // вход идёт обычным путём. Это сознательный fail-open, той же природы,
+  // что и ниже при недоставке сообщения.
+  let link: any = null;
+  try {
+    link = await env.DB.prepare(
+      `SELECT telegram_chat_id, security_enabled
+       FROM telegram_users WHERE user_id = ? AND revoked_at IS NULL`
+    ).bind(user.id).first();
+  } catch (err) {
+    log.warn('login_approval_lookup_failed', {
+      reason: String((err as Error)?.message || err),
+    });
+    return null;
+  }
 
   if (!link?.telegram_chat_id || link.security_enabled !== 1) return null;
 

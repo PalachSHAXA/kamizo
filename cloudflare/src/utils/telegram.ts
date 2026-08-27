@@ -162,10 +162,20 @@ export async function sendTelegramToUser(
   text: string,
   opts: { requireNotifications?: boolean } = {}
 ): Promise<TelegramResult> {
-  const row = await env.DB.prepare(
-    `SELECT id, telegram_chat_id, notifications_enabled
-     FROM telegram_users WHERE user_id = ? AND revoked_at IS NULL`
-  ).bind(userId).first() as any;
+  // Запрос обёрнут: telegram_users появляется только с миграцией 074, а
+  // эта функция вызывается из бизнес-путей (например, выдача кода
+  // подтверждения). Незавершённая миграция или сбой БД не должны
+  // превращаться в 500 на операции, которая к Telegram отношения не
+  // имеет — «канал недоступен» здесь корректный ответ.
+  let row: any = null;
+  try {
+    row = await env.DB.prepare(
+      `SELECT id, telegram_chat_id, notifications_enabled
+       FROM telegram_users WHERE user_id = ? AND revoked_at IS NULL`
+    ).bind(userId).first();
+  } catch (e: any) {
+    return { ok: false, reason: `lookup failed: ${String(e?.message || e)}` };
+  }
 
   if (!row?.telegram_chat_id) return { ok: false, reason: 'telegram not linked' };
   if (opts.requireNotifications !== false && row.notifications_enabled !== 1) {
