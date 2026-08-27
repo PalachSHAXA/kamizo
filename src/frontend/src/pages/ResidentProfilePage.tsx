@@ -7,7 +7,7 @@ import {
   Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
-  Shield,
+  Shield, Send,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -19,6 +19,7 @@ import { useBuildingStore } from '../stores/buildingStore';
 import { formatName } from '../utils/formatName';
 import { formatPhone } from '../utils/formatPhone';
 import { InstallAppSection } from '../components/InstallAppSection';
+import { useTelegramLink } from '../hooks/useTelegramLink';
 // v118.91 — Capacitor runtime detection so the "Установить как
 // приложение" item can be hidden when we're already in the native iOS/
 // Android app (where there is nothing to "install"). Apple sometimes
@@ -101,6 +102,10 @@ export function ResidentProfilePage() {
   // check — the toggle that drives it lives in the "Приложение"
   // settings section below.
   const { language, setLanguage } = useLanguageStore();
+  // Привязка Telegram: состояние и действия. Хук сам опрашивает
+  // /status после открытия ссылки — браузер иначе не узнает, что
+  // человек нажал «Запустить» в Telegram.
+  const tg = useTelegramLink();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
   // УК (управляющая компания) identity for the new "Управляющая
@@ -860,6 +865,49 @@ export function ResidentProfilePage() {
             value={t.notifValue}
             chevron
           />
+          {/* Привязка Telegram (§16 ТЗ). Даёт бесплатные уведомления и
+              коды подтверждения для голосования на собраниях — в
+              отличие от SMS, за которые платит УК. Строка ведёт себя
+              как переключатель состояния, поэтому value меняется, а не
+              появляется отдельная кнопка. */}
+          <SettingsRow
+            icon={<Send size={17} />}
+            label="Telegram"
+            value={
+              tg.loading
+                ? '…'
+                : tg.linked
+                  ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
+                  : tg.awaiting
+                    ? (language === 'ru' ? 'Ожидание…' : 'Kutilmoqda…')
+                    : (language === 'ru' ? 'Не привязан' : 'Ulanmagan')
+            }
+            chevron={!tg.linked}
+            onClick={() => {
+              if (tg.loading || tg.awaiting) return;
+              if (tg.linked) {
+                const ok = window.confirm(language === 'ru'
+                  ? 'Отвязать Telegram? Уведомления и коды подтверждения перестанут туда приходить.'
+                  : 'Telegram uzilsinmi? Bildirishnomalar va tasdiqlash kodlari u yerga kelmaydi.');
+                if (ok) void tg.unlink();
+              } else {
+                void tg.link();
+              }
+            }}
+          />
+          {/* Второй фактор (ТЗ §17) — строка появляется только после
+              привязки: без Telegram подтверждать вход негде. */}
+          {tg.linked && (
+            <SettingsRow
+              icon={<Shield size={17} />}
+              label={language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+              value={tg.securityEnabled
+                ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
+                : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
+              chevron
+              onClick={() => void tg.setPreference('security', !tg.securityEnabled)}
+            />
+          )}
           <SettingsRow
             icon={<Moon size={17} />}
             label={t.darkMode}

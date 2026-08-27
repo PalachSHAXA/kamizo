@@ -143,6 +143,11 @@ export function LoginPage() {
   const authError = useAuthStore((state) => state.error);
   const pickerTenants = useAuthStore((state) => state.pickerTenants);
   const clearPicker = useAuthStore((state) => state.clearPicker);
+  // Второй фактор через Telegram (ТЗ §17). Подписка на конкретные поля,
+  // а не на весь стор — правило из CLAUDE.md.
+  const pendingApproval = useAuthStore((state) => state.pendingApproval);
+  const awaitLoginApproval = useAuthStore((state) => state.awaitLoginApproval);
+  const clearPendingApproval = useAuthStore((state) => state.clearPendingApproval);
   const language = useLanguageStore((state) => state.language);
   const setLanguage = useLanguageStore((state) => state.setLanguage);
   const t = useLanguageStore((state) => state.t);
@@ -250,6 +255,31 @@ export function LoginPage() {
     }
   };
 
+  // Ожидание подтверждения входа в Telegram (ТЗ §17).
+  //
+  // Опрос ведёт стор; здесь только реакция на исход. «Запрещён» и
+  // «истёк» разделены намеренно: первое означает, что кто-то осознанно
+  // отклонил вход, и человек должен это увидеть, а не решить, что
+  // подвела связь.
+  const handleAwaitApproval = async () => {
+    const res = await awaitLoginApproval();
+    if (res === 'denied') {
+      setError(language === 'ru'
+        ? 'Вход запрещён из Telegram. Если это были не вы — смените пароль.'
+        : "Kirish Telegramdan taqiqlandi. Agar bu siz bo'lmasangiz — parolni o'zgartiring.");
+    } else if (res === 'expired') {
+      setError(language === 'ru'
+        ? 'Время подтверждения истекло. Войдите заново.'
+        : 'Tasdiqlash vaqti tugadi. Qaytadan kiring.');
+    }
+    // 'success' — App перерисуется сам, как только в сторе появится user.
+  };
+
+  const handleCancelApproval = () => {
+    clearPendingApproval();
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -261,11 +291,16 @@ export function LoginPage() {
       // (tenant resolution fail / rate limit / 5xx / etc). The auth
       // store has already normalised the server message into authError
       // for us — `displayError = error || authError` will surface it.
-      await login(loginValue, password);
+      const outcome = await login(loginValue, password);
       // outcome === 'picker' → the workspace picker render below opens
       //   (driven by store.pickerTenants); password stays in this
       //   component's useState for the re-submit.
       // outcome === 'success' → App re-renders with Layout when user is set.
+      // outcome === 'approval' → второй фактор через Telegram (ТЗ §17):
+      //   пароль верен, но токена нет, пока человек не нажмёт «Это я» в
+      //   боте. Экран ожидания рисуется по store.pendingApproval, а
+      //   опрос статуса ведёт сам стор.
+      if (outcome === 'approval') await handleAwaitApproval();
     } catch {
       setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
     }
@@ -696,6 +731,40 @@ export function LoginPage() {
       </div>
       </div>
 
+
+      {/* Ожидание подтверждения входа в Telegram (ТЗ §17).
+          Появляется, когда пароль принят, но у аккаунта включён второй
+          фактор: JWT ещё не выдан, и сессии нет до нажатия «Это я» в
+          боте. Форма остаётся смонтированной под этим слоем, чтобы при
+          отмене пароль не пришлось вводить заново — та же логика, что у
+          оверлея выбора рабочего пространства ниже. */}
+      {pendingApproval && (
+        <div
+          className="fixed inset-0 z-50 bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 flex items-center justify-center px-6"
+          style={{ height: '100svh' }}
+        >
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-primary-100 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary-600 animate-spin" />
+            </div>
+            <h2 className="text-lg font-semibold mb-2">
+              {language === 'ru' ? 'Подтвердите вход' : 'Kirishni tasdiqlang'}
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              {language === 'ru'
+                ? 'Мы отправили запрос в ваш Telegram. Откройте чат с ботом и нажмите «Это я».'
+                : "So'rov Telegramingizga yuborildi. Bot bilan chatni oching va «Bu men» ni bosing."}
+            </p>
+            <button
+              type="button"
+              onClick={handleCancelApproval}
+              className="w-full py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600"
+            >
+              {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tenant-picker overlay.
           Mounted when authStore.pickerTenants is non-null — i.e. the

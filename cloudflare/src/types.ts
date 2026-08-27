@@ -50,6 +50,28 @@ export interface Env {
   APNS_KEY_PATH?: string;
   APNS_TOPIC?: string;
   APNS_ENVIRONMENT?: 'production' | 'sandbox';
+
+  // Telegram-бот. Все три живут в /opt/kamizo/app/.env, в git не
+  // попадают. Без TELEGRAM_BOT_TOKEN клиент в utils/telegram.ts
+  // возвращает ok=false с причиной 'not configured' и НЕ бросает — тот
+  // же контракт, что у APNs выше: не настроенный канал уведомлений не
+  // должен ронять бизнес-операцию, которая его дёрнула.
+  //
+  // TELEGRAM_BOT_TOKEN      — от @BotFather. Секрет-эквивалент: даёт
+  //                           полный контроль над ботом, включая чтение
+  //                           всех входящих сообщений.
+  // TELEGRAM_WEBHOOK_SECRET — общий секрет, передаётся в setWebhook как
+  //                           secret_token и возвращается в заголовке
+  //                           X-Telegram-Bot-Api-Secret-Token. Это
+  //                           ЕДИНСТВЕННОЕ, что отличает настоящий
+  //                           апдейт от подделки: без проверки любой,
+  //                           кто знает URL вебхука, привяжет свой
+  //                           Telegram к чужому аккаунту Kamizo.
+  // TELEGRAM_BOT_USERNAME   — без @. Нужен только чтобы собрать
+  //                           deep-link https://t.me/<username>?start=…
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  TELEGRAM_BOT_USERNAME?: string;
 }
 
 export interface User {

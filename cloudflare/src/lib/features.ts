@@ -30,6 +30,13 @@ export const TENANT_FEATURES = [
   'communal',
   'advertiser',
   'reports',
+  // Telegram-интеграция (ТЗ §5): рубильник суперадмина на тенанта.
+  // Отдельной таблицы настроек для этого заводить не нужно — механизм
+  // включения фич тенанту уже есть, и requireFeature('telegram', ...)
+  // на бэке плюс hasFeature на фронте закрывают требование целиком.
+  // НЕ входит в DEFAULT_TENANT_FEATURES: интеграция включается вручную
+  // после того, как УК согласилась и подключила группы.
+  'telegram',
 ] as const;
 
 export type TenantFeature = (typeof TENANT_FEATURES)[number];

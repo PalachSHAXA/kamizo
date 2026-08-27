@@ -15,6 +15,7 @@ import { registerFinanceRoutes } from './finance';
 import { registerFinanceV2Routes } from './finance-v2';
 import { registerTenantContractRoutes } from './tenants/contracts';
 import { registerDeviceRoutes } from './devices';
+import { registerTelegramRoutes } from './telegram';
 
 export function registerAllRoutes() {
   registerUserRoutes();
@@ -40,4 +41,9 @@ export function registerAllRoutes() {
   // Read by future business-event push paths (chat, requests, meetings)
   // through device_tokens WHERE is_active = 1.
   registerDeviceRoutes();
+  // Telegram-бот: привязка аккаунта (/api/telegram/link*) + приёмник
+  // апдейтов Bot API (/api/telegram/webhook). Порядок здесь не значим —
+  // пути /api/telegram/* ни с чем не пересекаются, в отличие от пары
+  // super-admin / tenant-contracts выше.
+  registerTelegramRoutes();
 }

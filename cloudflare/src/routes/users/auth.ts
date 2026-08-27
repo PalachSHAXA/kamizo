@@ -11,6 +11,7 @@ import { createRequestLogger } from '../../utils/logger';
 import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
+import { createLoginApproval } from '../telegram/login-approval';
 
 const NATIVE_APP_ORIGINS = new Set([
   'https://localhost',
@@ -464,6 +465,42 @@ route('POST', '/api/auth/login', async (request, env) => {
     'X-RateLimit-Remaining': rateLimit.remaining.toString(),
     'X-RateLimit-Reset': rateLimit.resetAt.toString()
   };
+
+  // Второй фактор через Telegram (ТЗ §17, Этап 4).
+  //
+  // Врезка СТРОГО аддитивна и молчалива по умолчанию: путь ниже
+  // включается только у аккаунтов с активной привязкой Telegram И
+  // security_enabled = 1. Колонка заведена в миграции 074 со значением
+  // по умолчанию 0, то есть на сегодня не затрагивает никого. Это
+  // сознательно: логин — критический путь, и изменение, способное
+  // запереть пользователей снаружи, обязано включаться поштучно.
+  //
+  // createLoginApproval возвращает null, если подтверждение не нужно
+  // ИЛИ если сообщение не удалось доставить (бот заблокирован, Telegram
+  // недоступен). Во втором случае вход проходит как обычно, а факт
+  // пишется в лог — иначе падение стороннего сервиса превращается в
+  // отказ в обслуживании для всех, кто включил защиту.
+  const approval = await createLoginApproval(
+    env,
+    { id: user.id, name: user.name, tenant_id: user.tenant_id },
+    {
+      device: request.headers.get('User-Agent'),
+      ip: request.headers.get('CF-Connecting-IP')
+        || request.headers.get('X-Forwarded-For'),
+    },
+    createRequestLogger(request)
+  );
+
+  if (approval) {
+    // JWT здесь НЕ выдаётся. Клиент опрашивает
+    // POST /api/auth/login-approval/status и получает токен только
+    // после нажатия «Это я» в Telegram.
+    return new Response(JSON.stringify({
+      requiresApproval: true,
+      requestId: approval.requestId,
+      expiresAt: approval.expiresAt,
+    }), { status: 200, headers });
+  }
 
   // Issue JWT token (7 days)
   const jwtToken = await createJWT(
