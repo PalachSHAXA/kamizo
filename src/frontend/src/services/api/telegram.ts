@@ -37,6 +37,21 @@ export interface TelegramDelivery {
   building_id: string | null;
 }
 
+/** Один корень словаря классификатора. */
+export interface DictionaryEntry {
+  /** Есть только у правок — по нему их и отменяют. */
+  id?: string;
+  term: string;
+  kind: 'topic' | 'symptom' | 'negative';
+  category: string | null;
+  lang?: string;
+  /** 'builtin' — из кода, 'custom' — добавлено через интерфейс. */
+  source: 'builtin' | 'custom';
+  /** false у встроенного, который выключили. */
+  active: boolean;
+  createdAt?: string;
+}
+
 export const telegramApi = {
   // ── Домовые группы (кабинет УК) ─────────────────────────────────
   listGroups: () =>
@@ -85,6 +100,51 @@ export const telegramApi = {
       deliveries: TelegramDelivery[];
       summary: { total: number; sent: number; failed: number; blocked: number };
     }>(`/api/telegram/announcements/${announcementId}/deliveries`),
+
+  // ── Словарь классификатора (суперадмин) ─────────────────────────
+  //
+  // Встроенные 400+ корней живут в коде и приходят как source:'builtin';
+  // правки — как 'custom'. Удалить можно только правку, встроенное —
+  // выключить. Так видно, что менялось руками.
+  dictionary: () =>
+    apiRequest<{
+      entries: DictionaryEntry[];
+      categories: { key: string; label: string }[];
+      threshold: number;
+      overrides: { id: string; kind: string; term: string; action: string; created_at: string }[];
+    }>('/api/super-admin/telegram/dictionary'),
+
+  addTerm: (payload: { kind: string; term: string; category?: string | null; lang?: 'ru' | 'uz' }) =>
+    apiRequest<{ ok: true }>('/api/super-admin/telegram/dictionary', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  disableTerm: (payload: { kind: string; term: string }) =>
+    apiRequest<{ ok: true }>('/api/super-admin/telegram/dictionary/disable', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  removeOverride: (id: string) =>
+    apiRequest<{ ok: true }>(`/api/super-admin/telegram/dictionary/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Предпросмотр: прогоняет фразы через словарь в его текущем виде.
+  // Главный предохранитель редактора — показывает последствия правки
+  // до того, как их увидят жители.
+  previewPhrases: (phrases: string[]) =>
+    apiRequest<{
+      threshold: number;
+      results: {
+        text: string; fires: boolean; category: string | null;
+        categoryLabel: string | null; confidence: number; lang: string | null;
+      }[];
+    }>('/api/super-admin/telegram/dictionary/preview', {
+      method: 'POST',
+      body: JSON.stringify({ phrases }),
+    }),
 
   // ── Черновик заявки из домовой группы (Этап 2, §12–§13) ─────────
   //

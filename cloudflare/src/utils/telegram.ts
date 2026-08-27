@@ -88,8 +88,17 @@ export async function sendTelegramMessage(
   env: Env,
   chatId: string | number,
   text: string,
-  opts: { buttons?: InlineButton[] } = {}
+  opts: {
+    buttons?: InlineButton[];
+    // Сырой reply_markup для клавиатур, которых не выразить кнопками:
+    // запрос контакта (request_contact) и снятие клавиатуры. Взаимно
+    // исключается с buttons — Telegram принимает только одну разметку.
+    replyMarkup?: unknown;
+  } = {}
 ): Promise<TelegramResult> {
+  const markup = opts.replyMarkup
+    ?? (opts.buttons?.length ? { inline_keyboard: [opts.buttons] } : null);
+
   return callTelegram(env, 'sendMessage', {
     chat_id: String(chatId),
     text,
@@ -97,11 +106,27 @@ export async function sendTelegramMessage(
     // Уведомления Kamizo — служебные, ссылки в них на собственный
     // домен. Превью только зашумляет ленту.
     disable_web_page_preview: true,
-    ...(opts.buttons?.length
-      ? { reply_markup: { inline_keyboard: [opts.buttons] } }
-      : {}),
+    ...(markup ? { reply_markup: markup } : {}),
   });
 }
+
+// Клавиатура с единственной кнопкой «поделиться номером».
+//
+// request_contact работает ТОЛЬКО в личном чате и только как обычная
+// (reply), а не inline-кнопка — так устроен Telegram. Нажатие
+// присылает боту message.contact с номером, подтверждённым Telegram:
+// это номер, на который зарегистрирован аккаунт, а не введённая руками
+// строка.
+export const REQUEST_CONTACT_KEYBOARD = {
+  keyboard: [[{ text: '📱 Поделиться номером', request_contact: true }]],
+  resize_keyboard: true,
+  one_time_keyboard: true,
+};
+
+// Снятие клавиатуры после того, как номер получен: оставленная кнопка
+// «Поделиться номером» висит внизу экрана и предлагает сделать то, что
+// уже сделано.
+export const REMOVE_KEYBOARD = { remove_keyboard: true };
 
 // Правка уже отправленного сообщения.
 //

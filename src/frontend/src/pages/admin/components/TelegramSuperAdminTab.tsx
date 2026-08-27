@@ -9,8 +9,9 @@
 // использована.
 
 import { useState, useEffect, useCallback } from 'react';
-import { Send, Loader2, AlertTriangle, RefreshCw, Power } from 'lucide-react';
+import { Send, Loader2, AlertTriangle, RefreshCw, Power, BookOpen, LayoutDashboard } from 'lucide-react';
 import { apiRequest } from '../../../services/api';
+import { TelegramDictionaryEditor } from './TelegramDictionaryEditor';
 
 interface Overview {
   botUsername: string | null;
@@ -56,6 +57,7 @@ export function TelegramSuperAdminTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [view, setView] = useState<'overview' | 'dictionary'>('overview');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +114,27 @@ export function TelegramSuperAdminTab() {
     );
   }
 
+  // Два разных занятия: следить за состоянием интеграции и править
+  // словарь классификатора. Держать их на одном экране — значит
+  // заставлять пролистывать четыреста корней ради счётчика доставок.
+  if (view === 'dictionary') {
+    return (
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setView('overview')}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            К состоянию
+          </button>
+          <h2 className="text-base md:text-lg font-semibold">Словарь диспетчера</h2>
+        </div>
+        <TelegramDictionaryEditor />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
@@ -122,9 +145,19 @@ export function TelegramSuperAdminTab() {
               Telegram{overview?.botUsername ? ` — @${overview.botUsername}` : ''}
             </h2>
           </div>
-          <button onClick={() => void load()} aria-label="Обновить" className="p-2 text-gray-500 hover:text-primary-600">
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setView('dictionary')}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Словарь диспетчера</span>
+              <span className="sm:hidden">Словарь</span>
+            </button>
+            <button onClick={() => void load()} aria-label="Обновить" className="p-2 text-gray-500 hover:text-primary-600">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {error && (
