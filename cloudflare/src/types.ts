@@ -72,6 +72,20 @@ export interface Env {
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
   TELEGRAM_BOT_USERNAME?: string;
+
+  // Антиспам умного диспетчера (ТЗ §14: «Конкретное значение должно быть
+  // настраиваемым»). Обе величины подбираются по живым чатам, поэтому
+  // читаются из окружения, а не зашиты в код.
+  //
+  // TELEGRAM_COOLDOWN_HOURS  — не чаще одного предложения человеку в
+  //                            одной группе за это время. Умолчание 2.
+  // TELEGRAM_DEDUPE_MINUTES  — не повторять предложение по той же
+  //                            категории в той же группе. Умолчание 30.
+  //
+  // 0 отключает соответствующую проверку — удобно для тестов, но в
+  // проде означает, что бот ответит на каждое подходящее сообщение.
+  TELEGRAM_COOLDOWN_HOURS?: string;
+  TELEGRAM_DEDUPE_MINUTES?: string;
 }
 
 export interface User {

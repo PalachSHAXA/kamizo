@@ -74,15 +74,30 @@ const D = {
 };
 
 // §14: «Не более одного предложения одному пользователю в одной группе
-// за несколько часов». Шесть — сознательно много: раздражение от
-// лишнего бота в домовом чате обходится дороже, чем пропущенная заявка,
-// которую человек всё равно может оформить руками.
-const USER_COOLDOWN_HOURS = 6;
+// за несколько часов», причём «Конкретное значение должно быть
+// настраиваемым».
+//
+// Отсюда чтение из окружения, а не константа в коде. Значение подбирают
+// по живым чатам, и подбирать его правкой файла с последующим деплоем —
+// негодный способ. Для проверок ставится 0, для прода возвращается
+// разумное число, и всё это без пересборки.
+//
+// Умолчания: 2 часа на человека в группе и 30 минут на повтор той же
+// категории. Это осознанный компромисс — раздражение от лишнего бота в
+// домовом чате обходится дороже, чем пропущенная заявка, которую житель
+// всё равно может оформить руками. Но и держать человека в тишине
+// полдня, как было при шести часах, чрезмерно.
+//
+// Значение 0 отключает соответствующую проверку целиком.
+function cooldownHours(env: Env): number {
+  const raw = Number(env.TELEGRAM_COOLDOWN_HOURS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 2;
+}
 
-// Дедупликация по проблеме (§14: «не создавать несколько предложений по
-// одной проблеме»). Пять человек, обсуждающих один прорыв трубы, должны
-// получить одно предложение на всех, а не пять.
-const CATEGORY_DEDUPE_MINUTES = 60;
+function dedupeMinutes(env: Env): number {
+  const raw = Number(env.TELEGRAM_DEDUPE_MINUTES);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 30;
+}
 
 // Срок жизни черновика. Человек нажал кнопку, открыл приложение, вошёл,
 // проверил форму — полчаса с запасом. Дольше держать нельзя: ссылка
@@ -121,22 +136,28 @@ export async function handleGroupMessage(
   // Кулдаун по человеку. Сравнение времени в SQL здесь корректно: обе
   // стороны — datetime('now'), одинаковый формат. (В отличие от мест,
   // где хранится ISO-строка из toISOString(); там сверка идёт в JS.)
-  const recent = await env.DB.prepare(
-    `SELECT 1 FROM telegram_suggestions
-     WHERE telegram_chat_id = ? AND telegram_user_id = ?
-       AND created_at > datetime('now', ?)
-     LIMIT 1`
-  ).bind(chatId, fromId, `-${USER_COOLDOWN_HOURS} hours`).first();
-  if (recent) return;
+  const hours = cooldownHours(env);
+  if (hours > 0) {
+    const recent = await env.DB.prepare(
+      `SELECT 1 FROM telegram_suggestions
+       WHERE telegram_chat_id = ? AND telegram_user_id = ?
+         AND created_at > datetime('now', ?)
+       LIMIT 1`
+    ).bind(chatId, fromId, `-${hours} hours`).first();
+    if (recent) return;
+  }
 
   // Дедупликация по категории в этой группе.
-  const sameIssue = await env.DB.prepare(
-    `SELECT 1 FROM telegram_suggestions
-     WHERE telegram_chat_id = ? AND category = ?
-       AND created_at > datetime('now', ?)
-     LIMIT 1`
-  ).bind(chatId, hit.category, `-${CATEGORY_DEDUPE_MINUTES} minutes`).first();
-  if (sameIssue) return;
+  const minutes = dedupeMinutes(env);
+  if (minutes > 0) {
+    const sameIssue = await env.DB.prepare(
+      `SELECT 1 FROM telegram_suggestions
+       WHERE telegram_chat_id = ? AND category = ?
+         AND created_at > datetime('now', ?)
+       LIMIT 1`
+    ).bind(chatId, hit.category, `-${minutes} minutes`).first();
+    if (sameIssue) return;
+  }
 
   const suggestionId = generateId();
   await env.DB.prepare(`
