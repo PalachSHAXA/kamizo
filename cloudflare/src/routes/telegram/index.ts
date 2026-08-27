@@ -12,6 +12,7 @@ import { registerTelegramGroupRoutes } from './groups';
 import { registerLoginApprovalRoutes } from './login-approval';
 import { registerTelegramSuperAdminRoutes } from './super-admin';
 import { registerDispatcherRoutes } from './dispatcher';
+import { registerDictionaryRoutes } from './dictionary';
 import { registerTelegramWebhookRoutes } from './webhook';
 
 export function registerTelegramRoutes() {
@@ -20,5 +21,6 @@ export function registerTelegramRoutes() {
   registerLoginApprovalRoutes();
   registerTelegramSuperAdminRoutes();
   registerDispatcherRoutes();
+  registerDictionaryRoutes();
   registerTelegramWebhookRoutes();
 }

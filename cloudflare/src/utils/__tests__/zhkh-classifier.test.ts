@@ -10,9 +10,10 @@
 // предложение в домовом чате раздражает всех и заканчивается тем, что
 // администратор выключает слушателя.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   classifyZhkhMessage, SUGGESTION_THRESHOLD, detectLanguage, categoryLabel,
+  applyDictionaryOverrides,
 } from '../zhkh-classifier';
 
 /** Сработал ли бот, то есть прошло ли сообщение порог. */
@@ -221,6 +222,22 @@ describe('классификатор ЖКХ', () => {
       expect(fires('Сосед сломал мою машину во дворе')).toBe(false);
     });
 
+    // Сторож против самой коварной ошибки этого классификатора.
+    //
+    // Нормализация удаляет пробелы, поэтому короткий корень совпадает и
+    // в СЕРЕДИНЕ чужого слова. Так узбекское «том» (крыша) срабатывало
+    // внутри русского «пятом», а «бор» — внутри «забор» и «выбор».
+    // Каждый новый короткий корень надо проверять на этот класс.
+    it.each([
+      'Встретимся на пятом этаже',
+      'Мы уже сделали выбор',
+      'Забор во дворе покрасили',
+      'Потом обсудим на собрании',
+      'В этом доме живёт мой брат',
+    ])('короткий корень не ловится внутри чужого слова: %s', (text) => {
+      expect(fires(text)).toBe(false);
+    });
+
     it.each([
       'На улице сегодня холодно',
       'Вечером во дворе темно, гулять страшно',
@@ -237,5 +254,53 @@ describe('классификатор ЖКХ', () => {
       expect(strong.confidence).toBeGreaterThan(weak.confidence);
       expect(strong.confidence).toBeLessThanOrEqual(1);
     });
+  });
+});
+
+// ── Правки словаря из интерфейса (миграция 079) ──────────────────────
+describe('правки словаря', () => {
+  // Каждый тест возвращает состояние к встроенному: словари живут в
+  // модуле, и незачищенная правка утекла бы в соседний тест.
+  afterEach(() => applyDictionaryOverrides());
+
+  const NONE = {
+    topics: {}, symptoms: [], negative: [],
+    disabled: { topics: [], symptoms: [], negative: [] },
+  };
+
+  it('добавленная тема начинает ловить', () => {
+    // «Жёлоб» во встроенном словаре отсутствует — база молчит.
+    expect(fires('Жёлоб забился')).toBe(false);
+    applyDictionaryOverrides({ ...NONE, topics: { garbage: ['желоб'] } });
+    expect(fires('Жёлоб забился')).toBe(true);
+  });
+
+  it('добавленный стоп-маркер выключает срабатывание', () => {
+    expect(fires('В подъезде течёт труба')).toBe(true);
+    applyDictionaryOverrides({ ...NONE, negative: ['в подъезде'] });
+    expect(fires('В подъезде течёт труба')).toBe(false);
+  });
+
+  it('отключённый встроенный корень перестаёт работать', () => {
+    expect(fires('Лифт не работает')).toBe(true);
+    applyDictionaryOverrides({
+      ...NONE,
+      disabled: { topics: ['лифт'], symptoms: [], negative: [] },
+    });
+    // Тема снята — «не работает» остаётся симптомом без темы.
+    expect(fires('Лифт не работает')).toBe(false);
+  });
+
+  it('пустая дельта возвращает встроенное состояние', () => {
+    applyDictionaryOverrides({ ...NONE, negative: ['в подъезде'] });
+    expect(fires('В подъезде течёт труба')).toBe(false);
+    applyDictionaryOverrides();
+    expect(fires('В подъезде течёт труба')).toBe(true);
+  });
+
+  it('дубль не удваивает вклад в уверенность', () => {
+    const before = classifyZhkhMessage('Лифт не работает')!.confidence;
+    applyDictionaryOverrides({ ...NONE, topics: { elevator: ['лифт'] } });
+    expect(classifyZhkhMessage('Лифт не работает')!.confidence).toBe(before);
   });
 });

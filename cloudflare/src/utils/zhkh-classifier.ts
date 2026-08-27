@@ -99,7 +99,8 @@ const UZ_MARKERS = N([
   'bilan', 'yana', 'juda', 'iltimos', 'xona', 'uyda', 'yordam', 'kerak',
   'boldi', 'qilib', 'qiling', 'nima', 'qachon', 'kachon', 'menda',
   'bizda', 'edi', 'yapti', 'moqda',
-  'йўқ', 'бор', 'қолди', 'кетди', 'эмас', 'учун', 'билан', 'керак',
+  // «бор» убрано по той же причине: «забор», «выбор», «сбор».
+  'йўқ', 'қолди', 'кетди', 'эмас', 'учун', 'билан', 'керак',
   'илтимос', 'ёрдам', 'қачон',
 ]);
 
@@ -122,7 +123,7 @@ export function detectLanguage(raw: string): ZhkhLang {
 // заимствованиях из русского («kanalizatsiya / kanalizatsia /
 // kanalizasiya»). Апострофы и удвоения снимает normalize(), а вот замену
 // букв она не покрывает — эти варианты перечислены явно.
-const TOPICS: Record<ZhkhCategory, string[]> = {
+const BUILTIN_TOPICS: Record<ZhkhCategory, string[]> = {
   leak: N([
     // русский
     'теч', 'тич', 'протеч', 'потоп', 'залив', 'зали', 'кран', 'труб',
@@ -182,7 +183,10 @@ const TOPICS: Record<ZhkhCategory, string[]> = {
     'eshik', 'domofon', 'damofon', 'podezd', 'podyezd', 'deraza',
     'tom', 'shift', 'devor', 'zinapoya', 'panjara', 'qulf', 'kulf',
     'darvoza', 'shlagbaum', 'skameyka', 'maydoncha',
-    'эшик', 'домофон', 'том', 'девор', 'зинапоя', 'қулф', 'дарвоза',
+    // Кириллическое «том» (крыша) убрано: оно сидит внутри русских
+    // «пятом», «потом», «этом» и давало ложные срабатывания. Латинское
+    // tom безопасно — в кириллическом тексте не встречается.
+    'эшик', 'домофон', 'девор', 'зинапоя', 'қулф', 'дарвоза',
   ]),
 };
 
@@ -195,7 +199,7 @@ const TOPICS: Record<ZhkhCategory, string[]> = {
 // фраза «на улице холодно» дала бы разом и тему, и симптом — то есть
 // сработку на погоде. Как симптом они безобидны: без темы («батарея»,
 // «отопление») ничего не произойдёт.
-const SYMPTOMS = N([
+const BUILTIN_SYMPTOMS = N([
   // русский
   'теч', 'тич', 'протек', 'капа', 'подтек', 'потоп', 'зали', 'прорв',
   'прарв', 'не работа', 'неработа', 'не рабоч', 'сломал', 'сломан',
@@ -211,13 +215,14 @@ const SYMPTOMS = N([
   // окончаний не трогает: «нету света» не содержит ни «нет свет», ни
   // «света нет». Само по себе безобидно — без темы не сработает.
   'нету', 'вырубил', 'вырубило', 'отрубил', 'отрубило', 'сдох',
+  'забил', 'забит', 'забива',
   'потух', 'погас', 'льет', 'льёт', 'хлещет', 'подтопил',
   // узбекский латиницей.
   // Пары вроде oqyap/okyap и tiqil/tikil — не дубли, а самая частая
   // узбекская опечатка: q набирают как k. То же с x↔h (xid/hid).
   'oqyap', 'okyap', 'oqmoq', 'okmoq', 'oqib', 'okib', 'oqayap',
   'buzil', 'buzuq', 'buzuk', 'buzildi', 'buzulgan',
-  'sindi', 'singan', 'sinib', 'sinди',
+  'sindi', 'singan', 'sinib', 'singan edi',
   'ishlamay', 'ishlamaydi', 'ishlamas', 'iwlamay',
   'yonmay', 'yonmaydi', 'ochmay', 'ochilmay', 'yopilmay',
   'yoq', 'yok', 'yuq', 'tiqil', 'tikil', 'tiqilib', 'tikilib',
@@ -235,7 +240,7 @@ const SYMPTOMS = N([
 // ── Стоп-маркеры ─────────────────────────────────────────────────────
 // Каждый — про то, что человек НЕ сообщает о поломке, а спрашивает,
 // продаёт, благодарит или шутит.
-const NEGATIVE = N([
+const BUILTIN_NEGATIVE = N([
   // русский
   'кто знает', 'где купить', 'где найти', 'посоветуй', 'подскажите где',
   'продам', 'продаю', 'куплю', 'сдам', 'сдаю', 'аренд', 'спасибо',
@@ -251,6 +256,70 @@ const NEGATIVE = N([
   'раҳмат', 'рахмат', 'сотилади', 'ким билади', 'тузатилди',
   'муаммо йўқ', 'ишлаяпти',
 ]);
+
+// ── Правки из интерфейса ─────────────────────────────────────────────
+//
+// Встроенные словари выше — база, которая работает всегда. Поверх неё
+// накладывается дельта из таблицы telegram_dictionary: добавленные
+// термины и отключённые встроенные (миграция 079).
+//
+// Полной замены словаря из БД сознательно нет: пустая или недоступная
+// таблица тогда означала бы классификатор, молчащий на всё, и заметили
+// бы это не сразу — диспетчер и в норме отвечает не на каждое
+// сообщение. При дельте пустая таблица значит «как в коде».
+//
+// Состояние держится в модуле, а не передаётся аргументом, чтобы
+// classifyZhkhMessage осталась синхронной и тестируемой без БД.
+export interface DictionaryOverrides {
+  /** Добавленные термины: kind → (category для тем) → список. */
+  topics: Partial<Record<ZhkhCategory, string[]>>;
+  symptoms: string[];
+  negative: string[];
+  /** Отключённые ВСТРОЕННЫЕ термины, уже нормализованные. */
+  disabled: { topics: string[]; symptoms: string[]; negative: string[] };
+}
+
+const EMPTY_OVERRIDES: DictionaryOverrides = {
+  topics: {}, symptoms: [], negative: [],
+  disabled: { topics: [], symptoms: [], negative: [] },
+};
+
+let TOPICS: Record<ZhkhCategory, string[]> = BUILTIN_TOPICS;
+let SYMPTOMS: string[] = BUILTIN_SYMPTOMS;
+let NEGATIVE: string[] = BUILTIN_NEGATIVE;
+
+/**
+ * Пересобирает действующие словари из встроенных плюс дельты.
+ * Зовётся загрузчиком (utils/zhkh-dictionary.ts) после чтения таблицы.
+ */
+export function applyDictionaryOverrides(ov: DictionaryOverrides = EMPTY_OVERRIDES): void {
+  const off = (list: string[], disabled: string[]) =>
+    disabled.length ? list.filter(w => !disabled.includes(w)) : list;
+
+  const topics = {} as Record<ZhkhCategory, string[]>;
+  for (const [cat, words] of Object.entries(BUILTIN_TOPICS) as [ZhkhCategory, string[]][]) {
+    const added = N(ov.topics[cat] || []);
+    // Дубли схлопываем: один и тот же корень дважды удвоил бы вклад в
+    // уверенность и сдвинул бы порог без всякого основания.
+    topics[cat] = Array.from(new Set([...off(words, ov.disabled.topics), ...added]));
+  }
+
+  TOPICS = topics;
+  SYMPTOMS = Array.from(new Set([...off(BUILTIN_SYMPTOMS, ov.disabled.symptoms), ...N(ov.symptoms)]));
+  NEGATIVE = Array.from(new Set([...off(BUILTIN_NEGATIVE, ov.disabled.negative), ...N(ov.negative)]));
+}
+
+/** Встроенные словари в исходном виде — для интерфейса редактора. */
+export function builtinDictionary() {
+  return {
+    topics: BUILTIN_TOPICS,
+    symptoms: BUILTIN_SYMPTOMS,
+    negative: BUILTIN_NEGATIVE,
+  };
+}
+
+/** Нормализация одного термина — нужна редактору для сверки с базой. */
+export const normalizeTerm = normalize;
 
 // Верхняя граница длины. Простыни на тысячу символов — это обсуждение,
 // объявление или пересланная статья, а не «у меня течёт». Разбирать их

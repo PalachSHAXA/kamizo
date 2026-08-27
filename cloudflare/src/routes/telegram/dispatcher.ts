@@ -31,6 +31,7 @@ import {
   classifyZhkhMessage, SUGGESTION_THRESHOLD, categoryLabel,
   detectLanguage, type ZhkhLang,
 } from '../../utils/zhkh-classifier';
+import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 
 // Тексты диспетчера на обоих языках.
 //
@@ -122,8 +123,13 @@ export async function handleGroupMessage(
   // §14: не реагируем на сообщения ботов, включая собственные.
   if (message?.from?.is_bot) return;
 
-  // Классификация до похода в БД: подавляющее большинство сообщений в
-  // домовом чате — не про поломки, и платить за них запросом незачем.
+  // Правки словаря из БД. Кэш на минуту, поэтому запроса на каждое
+  // сообщение не происходит: иначе главное свойство классификации —
+  // дешевизна — исчезло бы, ведь подавляющее большинство реплик в
+  // домовом чате не про поломки, и платить за них обращением к базе
+  // нельзя.
+  await ensureDictionaryLoaded(env);
+
   const hit = classifyZhkhMessage(text);
   if (!hit || hit.confidence < SUGGESTION_THRESHOLD) return;
 
