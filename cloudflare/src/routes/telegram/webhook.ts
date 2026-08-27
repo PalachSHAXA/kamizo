@@ -21,10 +21,12 @@
 // Обрабатываемые типы апдейтов:
 //   message         — /start в личке (привязка пользователя),
 //                     /start@bot в группе (подключение группы),
-//                     /unlink, /help, служебное migrate_to_chat_id,
-//                     а также обычный текст в группе → умный диспетчер
-//   callback_query  — кнопки: подтверждение входа (§17) и предложение
-//                     оформить заявку (§12)
+//                     /phone, /unlink, /help, служебное
+//                     migrate_to_chat_id, присланный контакт (сбор
+//                     номера телефона), а также обычный текст в группе
+//                     → умный диспетчер
+//   callback_query  — кнопки: подтверждение входа (§17), предложение
+//                     оформить заявку (§12), запись номера в профиль
 //   my_chat_member  — бота добавили/выгнали/сменили права
 //   chat_member     — то же для обычных участников (нужно только для
 //                     отслеживания статуса бота, остальное игнорируем)
@@ -40,6 +42,7 @@ import {
 } from './helpers';
 import { resolveLoginRequest } from './login-approval';
 import { handleGroupMessage, handleSuggestionCallback } from './dispatcher';
+import { offerPhoneShare, handleContactShared, handlePhoneCallback } from './phone';
 
 // Тексты бота. i18n тем же паттерном, что во всём проекте:
 // language === 'ru' ? ... : ... (CLAUDE.md). Язык берём из
@@ -69,8 +72,8 @@ const T = {
     : 'Bu chat hech qanday Kamizo hisobiga ulanmagan.',
 
   help: (ru: boolean) => ru
-    ? 'Команды:\n/start — привязать аккаунт по ссылке из Kamizo\n/unlink — отвязать\n/help — эта справка'
-    : "Buyruqlar:\n/start — Kamizo\"dagi havola orqali hisobni ulash\n/unlink — uzish\n/help — shu yordam",
+    ? 'Команды:\n/start — привязать аккаунт по ссылке из Kamizo\n/phone — записать номер телефона в профиль\n/unlink — отвязать\n/help — эта справка'
+    : "Buyruqlar:\n/start — Kamizo\"dagi havola orqali hisobni ulash\n/phone — telefon raqamini profilga yozish\n/unlink — uzish\n/help — shu yordam",
 
   // §6 шаг 7 + §15: при подключении бот публикует понятное уведомление
   // участникам группы. Люди в чате не нажимали никаких кнопок и должны
@@ -164,6 +167,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       // callback_data по префиксу.
       await resolveLoginRequest(e, update.callback_query, log);
       await handleSuggestionCallback(e, update.callback_query, log);
+      await handlePhoneCallback(e, update.callback_query, log);
       return json({ ok: true });
     }
 
@@ -197,6 +201,13 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
 
     // §14: не реагируем на сообщения ботов, включая собственные.
     if (!chatId || message.from?.is_bot) return json({ ok: true });
+
+    // Житель поделился контактом (кнопка request_contact в личке).
+    // Проверка «свой контакт или чужой» — внутри обработчика.
+    if (message.contact) {
+      await handleContactShared(e, message, log);
+      return json({ ok: true });
+    }
 
     // Обычное (не командное) сообщение в группе — работа умного
     // диспетчера (§11). Внутри стоит собственный отсев: он молча
@@ -313,7 +324,22 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       ).bind(row.id).run();
 
       await sendTelegramMessage(e, chatId, T.linked(ru, escapeHtml(user?.name || '')));
+
+      // Сразу после привязки предлагаем поделиться номером, если в
+      // профиле его нет. Момент выбран не случайно: человек только что
+      // осознанно связал аккаунт с ботом и понимает, кому и зачем даёт
+      // данные. Просьба, пришедшая через неделю сама по себе, читается
+      // куда хуже. offerPhoneShare молчит, если номер уже есть.
+      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId));
+
       log.info('telegram_linked', { userId: row.user_id });
+      return json({ ok: true });
+    }
+
+    // /phone — повторно вызвать запрос номера. Нужна тем, кто отказался
+    // сразу после привязки или сменил номер.
+    if (command === '/phone') {
+      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId));
       return json({ ok: true });
     }
 
