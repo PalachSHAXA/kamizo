@@ -12,6 +12,8 @@ import { apiRequest, usersApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 import { ContractUploader } from '../../components/contracts/ContractUploader';
 import { DemoReadOnlyBanner } from '../../components/demo/DemoReadOnlyBanner';
+import { TelegramIntegration } from './components/TelegramIntegration';
+import { useTelegramLink } from '../../hooks/useTelegramLink';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -26,6 +28,7 @@ export function SettingsPage() {
   const { language, setLanguage } = useLanguageStore();
   const { hasFeature, fetchConfig } = useTenantStore();
   const tenantContract = useTenantStore(s => s.config?.tenant?.contract);
+  const tg = useTelegramLink();
   const isDemoSession = user?.demoSession === true;
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
   const [moduleMessage, setModuleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -994,18 +997,64 @@ export function SettingsPage() {
                   ariaLabel={language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}
                 />
               </div>
+              {/* Личная привязка Telegram (§16 ТЗ). Раньше здесь стоял
+                  Switch с пустым onChange («wiring TBD») — он ничего не
+                  делал, но выглядел рабочим. Теперь это кнопка: привязка
+                  не булев флаг, она требует перехода в Telegram и
+                  нажатия «Запустить», потому что бот не может написать
+                  пользователю первым. */}
               <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}</div>
-                  <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Через Telegram' : 'Telegram orqali'}</div>
+                  <div className="font-medium text-sm md:text-base">Telegram</div>
+                  <div className="text-xs md:text-sm text-gray-500">
+                    {tg.awaiting
+                      ? (language === 'ru' ? 'Нажмите «Запустить» в Telegram…' : 'Telegramda «Ishga tushirish» ni bosing…')
+                      : tg.linked
+                        ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
+                        : (language === 'ru' ? 'Уведомления и коды подтверждения' : 'Bildirishnomalar va tasdiqlash kodlari')}
+                  </div>
                 </div>
-                <Switch
-                  checked={false}
-                  disabled={isDemoSession}
-                  onChange={() => { /* Telegram-бот wiring TBD */ }}
-                  ariaLabel={language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}
-                />
+                <button
+                  onClick={() => {
+                    if (tg.loading || tg.awaiting) return;
+                    if (tg.linked) { void tg.unlink(); } else { void tg.link(); }
+                  }}
+                  disabled={isDemoSession || tg.loading || tg.awaiting}
+                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium flex-shrink-0 disabled:opacity-50 ${
+                    tg.linked ? 'border border-gray-200 text-gray-600' : 'bg-primary-600 text-white'
+                  }`}
+                >
+                  {tg.linked
+                    ? (language === 'ru' ? 'Отвязать' : 'Uzish')
+                    : (language === 'ru' ? 'Привязать' : 'Ulash')}
+                </button>
               </div>
+
+              {/* Второй фактор (ТЗ §17). Показывается только после
+                  привязки: включать подтверждение входа некуда, пока
+                  Telegram не подключён. Отдельно от уведомлений —
+                  согласие получать сообщения о заявках не означает
+                  согласия сделать мессенджер ключом от аккаунта. */}
+              {tg.linked && (
+                <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="font-medium text-sm md:text-base">
+                      {language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+                    </div>
+                    <div className="text-xs md:text-sm text-gray-500">
+                      {language === 'ru'
+                        ? 'Запрашивать подтверждение в Telegram при входе'
+                        : 'Kirishda Telegramda tasdiqlash so‘ralsin'}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={tg.securityEnabled}
+                    disabled={isDemoSession}
+                    onChange={(v: boolean) => void tg.setPreference('security', v)}
+                    ariaLabel={language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1248,22 +1297,15 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div className="p-3 md:p-4 bg-white/30 rounded-xl opacity-60">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl">🤖</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium text-sm md:text-base">Telegram Bot</div>
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">{language === 'ru' ? 'Скоро' : 'Tez kunda'}</span>
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'В разработке' : 'Ishlab chiqilmoqda'}</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
+
+          {/* Telegram — заменяет прежнюю заглушку «Скоро».
+              Карточка появляется только у тенантов, которым суперадмин
+              включил фичу 'telegram' (ТЗ §5): интеграция требует
+              согласия УК и подключённых групп, показывать её всем
+              подряд незачем. */}
+          {hasFeature('telegram') && <TelegramIntegration />}
         </div>
       )}
 

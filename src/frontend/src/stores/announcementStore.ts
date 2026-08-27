@@ -116,6 +116,15 @@ export const useAnnouncementStore = create<AnnouncementState>()(
           attachments: announcementData.attachments,
           // Personalized data for debt-based announcements
           personalized_data: announcementData.personalizedData,
+          // Каналы публикации (§8). Передаём только если автор что-то
+          // снял: бэкенд трактует отсутствие поля как «все включены»,
+          // и лишний объект в теле ничего не меняет, но зашумляет лог.
+          ...(announcementData.channels ? {
+            channels: {
+              push: announcementData.channels.push !== false,
+              telegram_groups: announcementData.channels.telegramGroups !== false,
+            },
+          } : {}),
         };
 
         const result = await announcementsApi.create(apiData);

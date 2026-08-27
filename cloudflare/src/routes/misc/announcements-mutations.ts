@@ -8,6 +8,8 @@ import { json, error, generateId, isManagement, sanitizeAttachmentUrl, sanitizeF
 import { sendPushNotification } from '../../index';
 import { createRequestLogger } from '../../utils/logger';
 import { broadcastWithConnectionManager } from '../../utils/connection-manager';
+import { normalizeAudience } from '../../utils/audience';
+import { deliverAnnouncementToTelegram } from '../telegram/announcements';
 
 export function registerAnnouncementMutationRoutes() {
 
@@ -110,6 +112,17 @@ route('POST', '/api/announcements', async (request, env) => {
   // branch_code, and `type='all'` would push to every executor in
   // every tenant. Now: refuse to fan out without a tenant context.
   // (For super-admin global broadcasts a separate path is needed.)
+  // Каналы публикации (ТЗ §8).
+  //
+  // Отсутствие поля означает «все включены» — так старые клиенты
+  // (в том числе уже установленные мобильные сборки) продолжают
+  // работать ровно как раньше. Отключать можно только вторичные
+  // каналы: сама запись в announcements и есть канал «приложение», её
+  // не создать «выключенной».
+  const channels = (body.channels && typeof body.channels === 'object') ? body.channels : {};
+  const pushEnabled = channels.push !== false;
+  const telegramGroupsEnabled = channels.telegram_groups !== false;
+
   const isUrgent = body.priority === 'urgent';
   const icon = isUrgent ? '\u{1F6A8}' : '\u{1F4E2}';
   const targetType = body.target_type || 'all';
@@ -220,7 +233,11 @@ route('POST', '/api/announcements', async (request, env) => {
   }
 
   // Send push notifications in parallel (non-blocking, don't await each batch sequentially)
-  Promise.allSettled(
+  //
+  // §8: канал «push» можно снять галочкой. Записи в `notifications`
+  // (лента внутри приложения) при этом остаются — они относятся к
+  // каналу «приложение», который не отключается.
+  if (pushEnabled) Promise.allSettled(
     targetUsers.map(targetUser =>
       sendPushNotification(env, targetUser.id, {
         title: `${icon} ${body.title}`,
@@ -238,6 +255,29 @@ route('POST', '/api/announcements', async (request, env) => {
       }).catch(err => createRequestLogger(request).error('Push failed for user', err, { userId: targetUser.id }))
     )
   ).catch(() => {});
+
+  // Дублирование объявления в домовые Telegram-группы (ТЗ §8).
+  //
+  // Telegram — вторичный канал: объявление уже создано и уже разослано
+  // push'ами, здесь только копия. Отсюда два свойства вызова:
+  //   • НЕ await — рассылка идёт последовательно по группам (лимиты
+  //     Telegram), и держать ради неё HTTP-ответ администратора нельзя;
+  //   • .catch() — §23 требует, чтобы лежащий Telegram не ломал
+  //     публикацию. Ровно тот же приём, что у sendPushNotification
+  //     выше и в доменном правиле из CLAUDE.md.
+  //
+  // Галочка «Telegram-группы» (§8) — это ВЕРХНИЙ уровень отбора.
+  // Ниже фан-аут всё равно спросит announcements_enabled у каждой
+  // группы: автор объявления решает, идёт ли рассылка вообще, а УК —
+  // какие конкретно чаты её получают.
+  if (tenantIdForPush && telegramGroupsEnabled) {
+    deliverAnnouncementToTelegram(
+      env,
+      tenantIdForPush,
+      { id, title: body.title, content: body.content, type: body.type || 'residents', priority: body.priority || 'normal' },
+      normalizeAudience(body)
+    ).catch(err => createRequestLogger(request).error('Telegram announcement fanout failed', err, { announcementId: id }));
+  }
 
   // Invalidate cache and broadcast WebSocket update
   invalidateCache('announcements:');

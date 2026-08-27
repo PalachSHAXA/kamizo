@@ -24,6 +24,32 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   'POST:/api/meetings/otp/request': { maxRequests: 3, windowSeconds: 600 },
   'POST:/api/meetings/otp/verify': { maxRequests: 10, windowSeconds: 600 },
 
+  // Telegram-бот.
+  //
+  // Вебхук — намеренно ЩЕДРЫЙ лимит, и это не недосмотр. Telegram на
+  // любой не-200 (включая наш 429) уходит в ретраи с нарастающей
+  // задержкой и в итоге снимает вебхук целиком — бот умирает для всех
+  // тенантов сразу. Защита здесь не в лимите, а в проверке секрета
+  // X-Telegram-Bot-Api-Secret-Token: без него апдейт отбивается до
+  // единого запроса к БД. Лимит остаётся как потолок против флуда с
+  // валидным секретом (то есть при утечке .env — тогда у нас проблемы
+  // покрупнее).
+  'POST:/api/telegram/webhook': { maxRequests: 600, windowSeconds: 60 },
+  // Выдача deep-link — наоборот, узко. Каждый вызов гасит предыдущие
+  // токены пользователя, так что цикл «жми кнопку» это дешёвый способ
+  // не дать человеку привязаться. Плюс сама ссылка — предъявительский
+  // секрет, плодить её незачем.
+  'POST:/api/telegram/link-token': { maxRequests: 5, windowSeconds: 600 },
+  // Токен подключения группы — та же логика, но админ УК подключает
+  // группы пачками при заведении нового ЖК, поэтому потолок выше.
+  'POST:/api/telegram/groups/connect-token': { maxRequests: 20, windowSeconds: 600 },
+  // Опрос подтверждения входа (§17). Роут публичный — JWT ещё не
+  // выдан, — поэтому лимит нужен. Клиент опрашивает раз в 2 секунды в
+  // окне 2 минут, то есть ~60 обращений на попытку входа; 120 за 5
+  // минут покрывают две попытки подряд и при этом ограничивают перебор
+  // request_id.
+  'POST:/api/auth/login-approval/status': { maxRequests: 120, windowSeconds: 300 },
+
   // Sprint 74 P1/F3: password reset / change — brute resistance.
   'POST:/api/users/me/password': { maxRequests: 5, windowSeconds: 60 },
   'POST:/api/users/:id/password': { maxRequests: 10, windowSeconds: 60 },

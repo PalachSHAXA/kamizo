@@ -737,8 +737,16 @@ export function Layout() {
                   staff a FeatureUnavailable wall instead of an empty section.
                   Same pattern as v118.93 for /useful-contacts. Residents
                   still see the marketing gate via the RoleSplit in App.tsx. */}
+              {/* requiredFeature вернулся: он потерялся при рефакторинге
+                  роутинга, из-за чего /meetings открывался по прямой
+                  ссылке даже у тенантов с отключёнными собраниями, хотя
+                  FEATURE_PATHS помечает путь закрытым и сайдбар рисует
+                  на нём замок. Молчаливого выброса на главную это больше
+                  не вызывает: ProtectedRoute показывает FeatureUnavailable
+                  с объяснением, а useFeatureBlocked ждёт загрузки конфига
+                  тенанта. Регрессию поймал featureRoutes.test.ts. */}
               <Route path="/meetings" element={
-                <ProtectedRoute allowedRoles={getRouteRoles('meetings')}>{getMeetingsPage()}</ProtectedRoute>
+                <ProtectedRoute allowedRoles={getRouteRoles('meetings')} requiredFeature="meetings">{getMeetingsPage()}</ProtectedRoute>
               } />
               <Route path="/announcements" element={
                 <ProtectedRoute>{getAnnouncementsPage()}</ProtectedRoute>

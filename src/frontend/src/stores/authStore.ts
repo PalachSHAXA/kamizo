@@ -39,7 +39,10 @@ const isUser = (value: unknown): value is User => {
  *   'error'   — credentials rejected / network issue. state.error holds
  *               the message to display.
  */
-export type LoginOutcome = 'success' | 'picker' | 'error';
+// 'approval' — пароль верен, но у аккаунта включён второй фактор через
+// Telegram (ТЗ §17). Сессии ещё нет: экран логина должен показать
+// «подтвердите вход в Telegram» и вызвать awaitLoginApproval().
+export type LoginOutcome = 'success' | 'picker' | 'error' | 'approval';
 
 interface AuthState {
   user: User | null;
@@ -55,6 +58,17 @@ interface AuthState {
   pickerTenants: TenantPickEntry[] | null;
   // Legacy compatibility - to be removed after full migration
   additionalUsers: Record<string, MockUserData>;
+  /**
+   * Ожидающее подтверждение входа через Telegram (ТЗ §17). Непусто
+   * ровно между ответом login() = 'approval' и решением пользователя.
+   */
+  pendingApproval: { requestId: string; expiresAt: string } | null;
+  /**
+   * Опрашивает статус подтверждения, пока человек не нажмёт кнопку в
+   * боте. При 'approved' сам ставит сессию и возвращает 'success'.
+   */
+  awaitLoginApproval: () => Promise<'success' | 'denied' | 'expired' | 'error'>;
+  clearPendingApproval: () => void;
   login: (loginStr: string, password: string, tenantSlug?: string) => Promise<LoginOutcome>;
   demoLogin: (roleKey: string) => Promise<LoginOutcome>;
   /** Dismiss the picker without resubmitting (user cancelled). */
@@ -128,6 +142,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
       pickerTenants: null,
+      pendingApproval: null,
       additionalUsers: {},
 
       login: async (loginStr: string, password: string, tenantSlug?: string) => {
@@ -153,6 +168,20 @@ export const useAuthStore = create<AuthState>()(
               pickerTenants: result.tenants,
             });
             return 'picker';
+          }
+
+          if (result.kind === 'approval') {
+            // Пароль верен, но JWT не выдан: ждём нажатия в Telegram.
+            // user/token не трогаем — сессии пока нет.
+            set({
+              isLoading: false,
+              error: null,
+              pendingApproval: {
+                requestId: result.requestId,
+                expiresAt: result.expiresAt,
+              },
+            });
+            return 'approval';
           }
 
           if (!isUser(result.user)) {
@@ -187,6 +216,60 @@ export const useAuthStore = create<AuthState>()(
 
       clearPicker: () => {
         set({ pickerTenants: null });
+      },
+
+      clearPendingApproval: () => {
+        set({ pendingApproval: null });
+      },
+
+      // Опрос подтверждения входа (ТЗ §17).
+      //
+      // Раз в 2 секунды, максимум 65 попыток — чуть больше, чем окно
+      // в 2 минуты, чтобы последняя проверка попала уже на истёкший
+      // запрос и мы честно показали 'expired', а не бросили опрос
+      // молча.
+      //
+      // Токен приходит РОВНО ОДИН РАЗ: сервер помечает запрос
+      // использованным до выдачи, поэтому installSession вызывается
+      // немедленно при первом же 'approved'.
+      awaitLoginApproval: async () => {
+        const pending = get().pendingApproval;
+        if (!pending) return 'error';
+
+        const POLL_MS = 2000;
+        const MAX_ATTEMPTS = 65;
+
+        for (let i = 0; i < MAX_ATTEMPTS; i++) {
+          // Пользователь мог нажать «Отмена» — прекращаем опрос, иначе
+          // сессия установится уже после ухода с экрана логина.
+          if (!get().pendingApproval) return 'error';
+
+          try {
+            const res = await authApi.loginApprovalStatus(pending.requestId);
+
+            if (res.status === 'approved' && res.token && isUser(res.user)) {
+              set({ pendingApproval: null });
+              installSession(set, res.user, res.token);
+              return 'success';
+            }
+            if (res.status === 'denied') {
+              set({ pendingApproval: null });
+              return 'denied';
+            }
+            if (res.status === 'expired' || res.status === 'consumed') {
+              set({ pendingApproval: null });
+              return 'expired';
+            }
+          } catch {
+            // Сетевой сбой на одном опросе не должен обрывать ожидание:
+            // человек в это время держит телефон в руках. Пробуем снова.
+          }
+
+          await new Promise(r => setTimeout(r, POLL_MS));
+        }
+
+        set({ pendingApproval: null });
+        return 'expired';
       },
 
       logout: () => {

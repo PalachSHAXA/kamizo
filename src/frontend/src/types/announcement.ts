@@ -51,4 +51,15 @@ export interface Announcement {
   target?: AnnouncementTarget;
   // Personalized data for debt-based announcements (template variables per login)
   personalizedData?: AnnouncementPersonalizedData;
+  /**
+   * Каналы публикации (ТЗ §8). Канала «приложение» здесь нет: он не
+   * отключается — сама запись объявления и есть этот канал.
+   * Отсутствие поля означает «всё включено».
+   */
+  channels?: AnnouncementChannels;
+}
+
+export interface AnnouncementChannels {
+  push?: boolean;
+  telegramGroups?: boolean;
 }

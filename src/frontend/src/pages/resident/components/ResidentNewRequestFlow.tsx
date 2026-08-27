@@ -113,11 +113,22 @@ export interface ResidentNewRequestFlowProps {
     priority: RequestPriority; scheduledDate?: string; scheduledTime?: string; photos?: string[];
   }) => Promise<Request | null>;
   onGoToRequests: () => void;
+  /**
+   * Предзаполнение из Telegram-черновика (ТЗ §12–§13). Когда задано,
+   * каталог категорий пропускается — человек уже выбрал проблему,
+   * описав её в домовом чате, и второй раз спрашивать незачем.
+   * Заявка всё равно создаётся только по его явному подтверждению.
+   */
+  initialCategory?: ExecutorSpecialization | null;
+  initialDescription?: string;
 }
 
-export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate, onGoToRequests }: ResidentNewRequestFlowProps) {
-  const [step, setStep] = useState<'catalog' | 'form'>('catalog');
-  const [category, setCategory] = useState<ExecutorSpecialization | null>(null);
+export function ResidentNewRequestFlow({
+  open, language, user, onClose, onCreate, onGoToRequests,
+  initialCategory, initialDescription,
+}: ResidentNewRequestFlowProps) {
+  const [step, setStep] = useState<'catalog' | 'form'>(initialCategory ? 'form' : 'catalog');
+  const [category, setCategory] = useState<ExecutorSpecialization | null>(initialCategory ?? null);
   if (!open) return null;
   return (
     <SheetShell onDismiss={onClose}>
@@ -139,6 +150,7 @@ export function ResidentNewRequestFlow({ open, language, user, onClose, onCreate
             onClose={requestClose}
             onCreate={onCreate}
             onGoToRequests={onGoToRequests}
+            initialDescription={initialDescription}
           />
         )
       )}
@@ -576,18 +588,22 @@ function ServiceSheet({ language, onPick, onClose, shell }: { language: string; 
 }
 
 // ── Step 2: form ─────────────────────────────────────────────
-function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests, shell }: {
+function RequestForm({ language, user, category, onBack, onClose, onCreate, onGoToRequests, shell, initialDescription }: {
   language: string; user: User | null; category: ExecutorSpecialization;
   onBack: () => void; onClose: () => void;
   onCreate: ResidentNewRequestFlowProps['onCreate']; onGoToRequests: () => void;
   shell: ShellDrag;
+  initialDescription?: string;
 }) {
   const ru = language === 'ru';
   const svc = NR_SERVICES.find(s => s.category === category) || NR_SERVICES[0];
   const catInfo = SERVICE_CATEGORIES.find(c => c.id === category);
   const tone = TONES[svc.tone] || TONES.brand;
   const isTrash = category === 'trash';
-  const [desc, setDesc] = useState('');
+  // Предзаполнение из Telegram-черновика: текст, который человек уже
+  // написал в домовом чате. Остаётся редактируемым — §13 требует,
+  // чтобы пользователь проверил и подтвердил заявку сам.
+  const [desc, setDesc] = useState(initialDescription || '');
   const [priority, setPriority] = useState<RequestPriority>('medium');
   const [slotId, setSlotId] = useState('asap');
   const [photos, setPhotos] = useState<string[]>([]);

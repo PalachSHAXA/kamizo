@@ -44,6 +44,11 @@ export const announcementsApi = {
     expires_at?: string;
     attachments?: { name: string; url: string; type: string; size: number }[];
     personalized_data?: Record<string, { name: string; debt: number }>;
+    // Каналы публикации (ТЗ §8). Отсутствие поля = все включены, так
+    // что уже установленные мобильные сборки продолжают работать как
+    // раньше. Канал «приложение» не отключается: сама запись
+    // объявления и есть этот канал.
+    channels?: { push?: boolean; telegram_groups?: boolean };
   }) => {
     const result = await apiRequest<{ id: string }>('/api/announcements', {
       method: 'POST',

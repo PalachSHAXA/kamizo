@@ -102,7 +102,7 @@ export interface TenantStats {
 
 export type DetailTab = 'requests' | 'residents' | 'votes' | 'qr' | 'staff' | 'settings';
 
-export type TabType = 'dashboard' | 'analytics' | 'ads' | 'banners';
+export type TabType = 'dashboard' | 'analytics' | 'ads' | 'banners' | 'telegram';
 
 export interface SuperAd {
   id: string;

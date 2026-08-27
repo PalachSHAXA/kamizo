@@ -1,7 +1,7 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import {
   Key, Phone, Save, Eye, EyeOff, Edit3,
-  Shield, Loader2, X, Globe, Moon,
+  Shield, Loader2, X, Globe, Moon, Send,
   User as UserIcon, Wrench, Briefcase, ShieldCheck, Radio, Store, Megaphone, Crown, CheckCircle
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
@@ -9,6 +9,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { ThemeToggle } from '../components/common';
 import { formatName } from '../utils/formatName';
+import { useTelegramLink } from '../hooks/useTelegramLink';
 
 const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: ComponentType<{ className?: string }>; color: string; bgColor: string }> = {
   executor: { labelRu: 'Исполнитель', labelUz: 'Ijrochi', icon: Wrench, color: 'text-amber-600', bgColor: 'bg-amber-50' },
@@ -40,6 +41,7 @@ const SPECIALIZATION_LABELS: Record<string, { ru: string; uz: string }> = {
 export function StaffProfilePage() {
   const { user, changePassword, updateProfile } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
+  const tg = useTelegramLink();
 
   const [editingPhone, setEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState(user?.phone || '');
@@ -311,6 +313,75 @@ export function StaffProfilePage() {
             </div>
             <ThemeToggle ariaLabel={t.darkMode} />
           </div>
+        </div>
+
+        {/* Telegram (§16 ТЗ) — бесплатный канал уведомлений и кодов
+            подтверждения. Бот не может написать первым, поэтому
+            привязка идёт через одноразовую ссылку, а состояние
+            подтягивается опросом /status после её открытия. */}
+        <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="px-4 pt-4 pb-3">
+            <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+              <Send className="w-4 h-4 text-primary-500" />
+              Telegram
+            </h2>
+          </div>
+          <div className="px-4 pb-4 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-medium text-gray-900">
+                {tg.linked
+                  ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
+                  : (language === 'ru' ? 'Не привязан' : 'Ulanmagan')}
+              </div>
+              <div className="text-[12px] text-gray-500 mt-0.5">
+                {tg.awaiting
+                  ? (language === 'ru' ? 'Нажмите «Запустить» в Telegram…' : 'Telegramda «Ishga tushirish» ni bosing…')
+                  : (language === 'ru'
+                      ? 'Уведомления и коды подтверждения в Telegram'
+                      : 'Telegramda bildirishnomalar va tasdiqlash kodlari')}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (tg.loading || tg.awaiting) return;
+                if (tg.linked) { void tg.unlink(); } else { void tg.link(); }
+              }}
+              disabled={tg.loading || tg.awaiting}
+              className={`px-3 py-1.5 rounded-lg text-[13px] font-medium flex-shrink-0 disabled:opacity-50 ${
+                tg.linked ? 'border border-gray-200 text-gray-600' : 'bg-primary-600 text-white'
+              }`}
+            >
+              {tg.linked
+                ? (language === 'ru' ? 'Отвязать' : 'Uzish')
+                : (language === 'ru' ? 'Привязать' : 'Ulash')}
+            </button>
+          </div>
+
+          {/* Второй фактор (ТЗ §17) — только после привязки. */}
+          {tg.linked && (
+            <div className="px-4 pb-4 pt-3 border-t border-gray-100 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-medium text-gray-900">
+                  {language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+                </div>
+                <div className="text-[12px] text-gray-500 mt-0.5">
+                  {language === 'ru'
+                    ? 'Спрашивать в Telegram при входе в аккаунт'
+                    : 'Hisobga kirishda Telegramda so‘ralsin'}
+                </div>
+              </div>
+              <button
+                onClick={() => void tg.setPreference('security', !tg.securityEnabled)}
+                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium flex-shrink-0 ${
+                  tg.securityEnabled ? 'bg-primary-600 text-white' : 'border border-gray-200 text-gray-600'
+                }`}
+              >
+                {tg.securityEnabled
+                  ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
+                  : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Change Password */}

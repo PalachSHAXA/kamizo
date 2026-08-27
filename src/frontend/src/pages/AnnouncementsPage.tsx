@@ -5,6 +5,7 @@ import type { StatusTone } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { buildingsApi, uploadApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import type { Announcement, AnnouncementType, AnnouncementPriority, AnnouncementTargetType, AnnouncementTarget, FileAttachment } from '../types';
@@ -33,6 +34,8 @@ export function AnnouncementsPage() {
   const updateAnnouncement = useAnnouncementStore(s => s.updateAnnouncement);
   const fetchAnnouncements = useAnnouncementStore(s => s.fetchAnnouncements);
   const { t, language } = useLanguageStore();
+  // hasFeature — гейт для галочки «Telegram-группы» в каналах публикации.
+  const hasFeature = useTenantStore(s => s.hasFeature);
 
   // Only admin, manager, director can create/edit announcements
   const canManageAnnouncements = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'director';
@@ -48,6 +51,13 @@ export function AnnouncementsPage() {
     priority: 'normal' as AnnouncementPriority,
     expiresAt: '',
   });
+
+  // Каналы публикации (ТЗ §8). По умолчанию включены оба вторичных —
+  // это ровно прежнее поведение, галочки лишь позволяют их снять.
+  // Канал «приложение» не выводим: он не отключается, объявление
+  // всегда появляется в ленте.
+  const [channelPush, setChannelPush] = useState(true);
+  const [channelTelegram, setChannelTelegram] = useState(true);
 
   // Targeting state
   const [targetType, setTargetType] = useState<AnnouncementTargetType>('all');
@@ -411,6 +421,7 @@ export function AnnouncementsPage() {
         expiresAt: newAnnouncement.expiresAt || undefined,
         target,
         attachments: attachments.length > 0 ? attachments : undefined,
+        channels: { push: channelPush, telegramGroups: channelTelegram },
         personalizedData,
       });
     } else {
@@ -425,6 +436,7 @@ export function AnnouncementsPage() {
         expiresAt: newAnnouncement.expiresAt || undefined,
         target,
         attachments: attachments.length > 0 ? attachments : undefined,
+        channels: { push: channelPush, telegramGroups: channelTelegram },
       });
     }
 
@@ -958,6 +970,49 @@ export function AnnouncementsPage() {
                   onChange={(e) => setNewAnnouncement({ ...newAnnouncement, expiresAt: e.target.value })}
                   className="glass-input"
                 />
+              </div>
+
+              {/* Каналы публикации (ТЗ §8).
+                  «Приложение» показано неактивным намеренно: объявление
+                  всегда попадает в ленту, отключить этот канал нельзя —
+                  сама запись и есть публикация. Галочка Telegram видна
+                  только тем УК, кому включена интеграция. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {language === 'ru' ? 'Каналы публикации' : 'Nashr kanallari'}
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-2 rounded-lg opacity-60">
+                    <input type="checkbox" checked readOnly disabled className="w-4 h-4" />
+                    <span className="text-sm">
+                      {language === 'ru' ? 'Приложение Kamizo' : 'Kamizo ilovasi'}
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/30 cursor-pointer touch-manipulation">
+                    <input
+                      type="checkbox"
+                      checked={channelPush}
+                      onChange={(e) => setChannelPush(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">
+                      {language === 'ru' ? 'Push-уведомление' : 'Push-bildirishnoma'}
+                    </span>
+                  </label>
+                  {hasFeature('telegram') && (
+                    <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/30 cursor-pointer touch-manipulation">
+                      <input
+                        type="checkbox"
+                        checked={channelTelegram}
+                        onChange={(e) => setChannelTelegram(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">
+                        {language === 'ru' ? 'Telegram-группы домов' : 'Uylarning Telegram guruhlari'}
+                      </span>
+                    </label>
+                  )}
+                </div>
               </div>
 
               {/* File Attachments */}

@@ -14,7 +14,7 @@ import { useFinanceStore } from '../stores/financeStore';
 import { useVehicleStore } from '../stores/vehicleStore';
 import { useGuestAccessStore } from '../stores/guestAccessStore';
 import { useNotificationStore } from '../stores/notificationStore';
-import type { Request, RescheduleRequest } from '../types';
+import type { Request, RescheduleRequest, ExecutorSpecialization } from '../types';
 import { formatAddress } from '../utils/formatAddress';
 import { formatName } from '../utils/formatName';
 import RescheduleModal from '../components/modals/RescheduleModal';
@@ -74,10 +74,18 @@ export function ResidentDashboard() {
 
   // Read tab from URL params (e.g. /?tab=requests from bottom bar)
   const tabParam = searchParams.get('tab');
+  // Токен черновика из deep link, который прислал бот (ТЗ §12).
+  // В URL лежит ТОЛЬКО непрозрачный токен: ни текста сообщения, ни
+  // tenant_id — §12 запрещает класть их в открытые параметры.
+  const draftToken = searchParams.get('telegramDraft');
 
   // All state declarations (must come before any useEffect)
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => tabParam === 'requests' ? 'requests' : 'home');
   const [showAllServices, setShowAllServices] = useState(false);
+  // Черновик заявки, пришедший из домовой Telegram-группы (ТЗ §12–§13).
+  const [tgDraft, setTgDraft] = useState<
+    { category: ExecutorSpecialization | null; description: string } | null
+  >(null);
   const [financeBalance, setFinanceBalance] = useState<Record<string, unknown> | null>(null);
   const [requestsSubTab, setRequestsSubTab] = useState<RequestsSubTab>('active');
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
@@ -93,6 +101,44 @@ export function ResidentDashboard() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
 
   // Fetch requests and reschedules from D1 database on mount
+  // Черновик заявки из Telegram (ТЗ §12–§13).
+  //
+  // Сервер по токену проверяет всё существенное: авторизацию, срок,
+  // совпадение тенанта и доступ к дому. Клиент только показывает
+  // результат — если проверка не прошла, форма просто не откроется, а
+  // токен убирается из URL, чтобы обновление страницы не било в тот же
+  // отказ.
+  //
+  // Заявка при этом НЕ создаётся: открывается форма с заполненным
+  // описанием, которую человек редактирует и отправляет сам (§13).
+  useEffect(() => {
+    if (!draftToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { telegramApi } = await import('../services/api');
+        const draft = await telegramApi.requestDraft(draftToken);
+        if (cancelled) return;
+        setTgDraft({
+          category: (draft.category as ExecutorSpecialization) || null,
+          description: draft.description || '',
+        });
+        setShowAllServices(true);
+      } catch {
+        // Просрочен, чужой тенант, нет доступа к дому — молча ничего не
+        // открываем. Подробности пользователю не нужны, а серверу они
+        // уже известны из логов.
+      } finally {
+        if (!cancelled) {
+          searchParams.delete('telegramDraft');
+          setSearchParams(searchParams, { replace: true });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftToken]);
+
   useEffect(() => {
     fetchRequests();
     fetchPendingReschedules();
@@ -469,7 +515,11 @@ export function ResidentDashboard() {
         open
         language={language}
         user={user}
-        onClose={() => setShowAllServices(false)}
+        // Предзаполнение из Telegram-черновика (ТЗ §12–§13). Пусто,
+        // если человек открыл форму обычной кнопкой.
+        initialCategory={tgDraft?.category ?? null}
+        initialDescription={tgDraft?.description}
+        onClose={() => { setShowAllServices(false); setTgDraft(null); }}
         onCreate={(data) => addRequest({
           ...data,
           residentId: user?.id || 'resident1',

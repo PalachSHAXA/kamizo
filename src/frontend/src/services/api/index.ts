@@ -75,4 +75,8 @@ export type {
 
 // Settings, Notifications, Tenant
 export { settingsApi, notificationsApi, tenantApi } from './settings';
+
+// Telegram: домовые группы (кабинет УК) + личная привязка аккаунта
+export { telegramApi } from './telegram';
+export type { TelegramGroup, TelegramDelivery } from './telegram';
 export type { AppSettings, Notification } from './settings';
