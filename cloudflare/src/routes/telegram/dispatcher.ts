@@ -42,10 +42,18 @@ import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 //
 // Узбекский апостроф здесь — модификатор ʻ, а не машинописный: по
 // правилу из CLAUDE.md, чтобы не экранировать его в каждой строке.
+// «о» или «об» — по первой букве подписи категории. Пока все подписи
+// начинались с согласной, вопрос не вставал; «уборке» — первая с
+// гласной, и «о уборке» читается как опечатка. Правило по звуку, а не
+// по букве: «об аварии», но «о ёлке» и «о юге» — там в начале [й].
+function ruPrep(label: string): string {
+  return /^[аоиуэ]/.test(label) ? 'об' : 'о';
+}
+
 const D = {
   suggest: (lang: ZhkhLang, label: string) => lang === 'uz'
     ? `Siz ${label} haqida xabar berdingiz shekilli.\n\nKamizoda ariza rasmiylashtirilsinmi?`
-    : `Похоже, вы сообщили о ${label}.\n\nОформить заявку в Kamizo?`,
+    : `Похоже, вы сообщили ${ruPrep(label)} ${label}.\n\nОформить заявку в Kamizo?`,
 
   btnCreate: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Ariza rasmiylashtirish' : '📝 Оформить заявку',
