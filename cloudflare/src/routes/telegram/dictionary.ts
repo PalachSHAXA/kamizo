@@ -34,7 +34,7 @@ import { ensureDictionaryLoaded, invalidateDictionaryCache } from '../../utils/z
 const KINDS = ['topic', 'symptom', 'negative'] as const;
 const CATEGORIES: ZhkhCategory[] = [
   'leak', 'sewage', 'electricity', 'elevator',
-  'heating', 'garbage', 'lighting', 'common_property',
+  'heating', 'garbage', 'lighting', 'common_property', 'cleaning',
 ];
 
 // Длина термина. Однобуквенный корень совпадёт почти со всем и

@@ -20,6 +20,38 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- App Links: ссылка вида https://<тенант>.kamizo.uz/... открывает
+                 приложение вместо браузера, если оно установлено. autoVerify
+                 заставляет Android сверить подпись приложения с файлом
+                 /.well-known/assetlinks.json на самом домене — его отдаёт
+                 Worker, одинаково для всех поддоменов.
+
+                 Хосты перечислены и с маской, и явно: маска покрывает
+                 тенантов (service.kamizo.uz, demo.kamizo.uz), а голый
+                 kamizo.uz под неё не подпадает. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="kamizo.uz" />
+                <data android:scheme="https" android:host="*.kamizo.uz" />
+            </intent-filter>
+
+            <!-- Собственная схема. Нужна не вместо App Links, а ради
+                 встроенного браузера Telegram: из него привязка по https
+                 не срабатывает, и страница /open передаёт управление
+                 приложению через intent:// с этой схемой. Проверки подписи
+                 у собственной схемы нет, поэтому её перехватить может любое
+                 приложение — ничего чувствительного в такой ссылке нет,
+                 только одноразовый токен черновика, который сервер всё
+                 равно проверяет по JWT, сроку и доступу к дому. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kamizo" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -69,11 +69,54 @@ function setIOSPwaGap() {
   )
 }
 
+// Ссылка, по которой открыли приложение (App Links, Universal Links или
+// схема kamizo://), сама по себе никуда не ведёт: Capacitor грузит
+// локальный бандл, а не адрес перехода. Без этого обработчика
+// приложение просто откроется на главной, а токен черновика из
+// telegram-группы потеряется — то есть весь смысл ссылки исчезнет.
+//
+// Переносим только параметры: путь из внешней ссылки нам не нужен,
+// маршрутизация внутри приложения своя. Токен непрозрачный, проверяет
+// его сервер, здесь он просто доезжает до ResidentDashboard.
+function applyDeepLink(url: string) {
+  let incoming: URL
+  try {
+    incoming = new URL(url)
+  } catch {
+    return
+  }
+  const token = incoming.searchParams.get('telegramDraft')
+  if (!token) return
+
+  const next = new URL(window.location.href)
+  next.searchParams.set('telegramDraft', token)
+  // replaceState, а не переход: приложение уже загружено, а
+  // ResidentDashboard читает параметр из адресной строки.
+  window.history.replaceState({}, '', next.toString())
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+function installDeepLinkHandler() {
+  void import('@capacitor/app').then(({ App: CapApp }) => {
+    // Приложение уже запущено, ссылку открыли поверх него.
+    CapApp.addListener('appUrlOpen', (event) => applyDeepLink(event.url))
+    // Холодный старт: событие успевает пройти до того, как повесили
+    // слушатель, поэтому спрашиваем начальный адрес отдельно.
+    void CapApp.getLaunchUrl().then((launch) => {
+      if (launch?.url) applyDeepLink(launch.url)
+    })
+  }).catch(() => {
+    // Плагин не установлен в этой сборке — приложение работает как
+    // прежде, просто без переходов по ссылке.
+  })
+}
+
 export async function bootstrap(reload?: () => void) {
   if (await installImpersonationExchange(reload)) return
 
   if (Capacitor.isNativePlatform()) {
     Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {})
+    installDeepLinkHandler()
   }
   setIOSPwaGap()
   ;['resize', 'orientationchange', 'pageshow'].forEach(e =>

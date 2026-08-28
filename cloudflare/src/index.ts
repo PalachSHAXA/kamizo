@@ -439,7 +439,72 @@ export default {
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   },
 
+  // ── Привязка домена к мобильным приложениям ──────────────────────────
+  //
+  // Отдаём кодом, а не файлами в public/, по двум причинам. Wrangler
+  // пропускает пути, начинающиеся с точки, так что каталог .well-known
+  // до раздачи может не доехать вовсе. И Apple требует, чтобы её файл
+  // отдавался как application/json, а расширения у него нет — угадать
+  // тип по имени невозможно.
+  //
+  // Отвечаем ДО всякой логики: проверяющий робот ходит без заголовков,
+  // без тенанта и не должен упереться ни в SPA-фолбэк, отдающий
+  // index.html, ни в определение тенанта по поддомену.
+  //
+  // Оба файла одинаковы для всех поддоменов kamizo.uz — это и нужно:
+  // ссылка бота ведёт на домен тенанта (service.kamizo.uz), а не на
+  // app.kamizo.uz, и привязку Android проверяет по каждому хосту
+  // отдельно.
+  _appAssociation(pathname: string): Response | null {
+    if (pathname === '/.well-known/assetlinks.json') {
+      // Оба отпечатка: ключ, которым Google подписывает то, что
+      // скачивают из Play, и ключ загрузки — с ним работают сборки,
+      // поставленные на устройство напрямую, минуя Play.
+      const body = [{
+        relation: ['delegate_permission/common.handle_all_urls'],
+        target: {
+          namespace: 'android_app',
+          package_name: 'uz.kamizo.app',
+          sha256_cert_fingerprints: [
+            '14:C3:63:D3:38:96:69:7E:D8:59:86:68:D7:7C:E8:6F:B7:60:59:79:AA:F9:F1:FF:CF:47:03:A4:6D:6C:C8:22',
+            '5E:01:00:A3:DA:CC:1A:EB:E7:66:08:00:09:09:30:78:D8:96:EB:C1:87:F6:CC:25:8B:F5:BD:59:B1:AD:90:0C',
+          ],
+        },
+      }];
+      return new Response(JSON.stringify(body), {
+        headers: {
+          'Content-Type': 'application/json',
+          // Сутки: отпечаток меняется разве что при смене ключа
+          // подписи, а робот проверки ходит редко.
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    }
+
+    if (pathname === '/.well-known/apple-app-site-association') {
+      const body = {
+        applinks: {
+          details: [{
+            appIDs: ['5NBLYK695J.uz.kamizo.app'],
+            components: [{ '/': '/*', comment: 'Весь сайт: ссылки бота ведут в корень с параметром' }],
+          }],
+        },
+      };
+      return new Response(JSON.stringify(body), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    }
+
+    return null;
+  },
+
   async _handleRequest(request: Request, env: Env): Promise<Response> {
+    const association = this._appAssociation(new URL(request.url).pathname);
+    if (association) return association;
+
     // ── Static-asset fast path ───────────────────────────────────────────
     // run_worker_first=true means EVERY request (including ~20 concurrent JS
     // chunks a page pulls on load) is routed through this worker. Running each
@@ -465,9 +530,14 @@ export default {
       // SPA fallback at the end of the handler still catches anything
       // ASSETS can't serve, so /privacy works without us treating it
       // as a special case beyond skipping the SPA fallback.
+      // /open — страница-посредник, на которую ведёт кнопка бота. Она
+      // пытается передать управление мобильному приложению и откатывается
+      // на веб-версию. Обрабатывается тем же путём, что и /privacy: файл
+      // статический, а SPA-фолбэк его перехватывать не должен.
       if (
         request.method === 'GET' &&
-        (assetPath === '/privacy' || assetPath === '/privacy/')
+        (assetPath === '/privacy' || assetPath === '/privacy/' ||
+         assetPath === '/open' || assetPath === '/open/')
       ) {
         try {
           const resp = await env.ASSETS.fetch(request);

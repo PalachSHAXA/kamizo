@@ -25,11 +25,11 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import {
-  sendTelegramMessage, editTelegramMessage, answerCallbackQuery, escapeHtml,
+  sendTelegramMessage, editTelegramMessage, answerCallbackQuery,
 } from '../../utils/telegram';
 import {
   classifyZhkhMessage, SUGGESTION_THRESHOLD, categoryLabel,
-  detectLanguage, type ZhkhLang,
+  detectLanguage, type ZhkhLang, type ZhkhCategory,
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 
@@ -42,10 +42,46 @@ import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 //
 // Узбекский апостроф здесь — модификатор ʻ, а не машинописный: по
 // правилу из CLAUDE.md, чтобы не экранировать его в каждой строке.
+// «о» или «об» — по первой букве подписи категории. Пока все подписи
+// начинались с согласной, вопрос не вставал; «уборке» — первая с
+// гласной, и «о уборке» читается как опечатка. Правило по звуку, а не
+// по букве: «об аварии», но «о ёлке» и «о юге» — там в начале [й].
+// Категория классификатора → специализация исполнителя.
+//
+// Это два разных словаря, и до сих пор они соприкасались напрямую:
+// эндпоинт черновика отдавал 'leak', а форма заявки ждёт значение из
+// ExecutorSpecialization ('plumber'). Совпадали случайно только
+// 'elevator' и 'cleaning'; во всех прочих случаях житель, пришедший из
+// группы, создавал заявку с категорией, которой нет ни в одной строке
+// categories, — и она повисала, потому что маршрутизация исполнителям
+// идёт по specialization.
+//
+// Соответствие огрублённое и это осознанно: классификатор различает
+// протечку и канализацию, а чинит и то и другое сантехник. Освещение
+// уходит к электрику по той же причине. 'common_property' сваливает в
+// 'other' — под ним и двери, и крыша, и домофон, и развести их без
+// повторной классификации нельзя, а угадывать хуже, чем честно
+// показать «Другое» и дать человеку поправить в форме.
+export const SPECIALIZATION_BY_CATEGORY: Record<ZhkhCategory, string> = {
+  leak: 'plumber',
+  sewage: 'plumber',
+  electricity: 'electrician',
+  lighting: 'electrician',
+  elevator: 'elevator',
+  heating: 'boiler',
+  garbage: 'trash',
+  cleaning: 'cleaning',
+  common_property: 'other',
+};
+
+function ruPrep(label: string): string {
+  return /^[аоиуэ]/.test(label) ? 'об' : 'о';
+}
+
 const D = {
   suggest: (lang: ZhkhLang, label: string) => lang === 'uz'
     ? `Siz ${label} haqida xabar berdingiz shekilli.\n\nKamizoda ariza rasmiylashtirilsinmi?`
-    : `Похоже, вы сообщили о ${label}.\n\nОформить заявку в Kamizo?`,
+    : `Похоже, вы сообщили ${ruPrep(label)} ${label}.\n\nОформить заявку в Kamizo?`,
 
   btnCreate: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Ariza rasmiylashtirish' : '📝 Оформить заявку',
@@ -60,9 +96,21 @@ const D = {
 
   openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю Kamizo',
 
-  draft: (lang: ZhkhLang, url: string) => lang === 'uz'
-    ? `📝 <b>Ariza rasmiylashtirish</b>\n\n<a href="${url}">Kamizoda shaklni ochish</a>\n\nHavola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
-    : `📝 <b>Оформление заявки</b>\n\n<a href="${url}">Открыть форму в Kamizo</a>\n\nСсылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+  // Ссылка отдаётся кнопкой, а не разметкой внутри текста. Текстовый
+  // якорь Telegram рисует по-разному в разных клиентах, а при
+  // невалидном href молча превращает в обычный текст — человек видит
+  // фразу «Открыть форму», по которой некуда нажать. С кнопкой так не
+  // выйдет: она либо появится, либо запрос упадёт с ошибкой в логах.
+  draft: (lang: ZhkhLang) => lang === 'uz'
+    ? `📝 <b>Ariza rasmiylashtirish</b>
+
+Havola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
+    : `📝 <b>Оформление заявки</b>
+
+Ссылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+
+  btnOpen: (lang: ZhkhLang) => lang === 'uz'
+    ? '📝 Kamizoda shaklni ochish' : '📝 Открыть форму в Kamizo',
 
   handled: (lang: ZhkhLang) => lang === 'uz' ? 'Allaqachon koʻrib chiqilgan' : 'Уже обработано',
 
@@ -294,16 +342,35 @@ export async function handleSuggestionCallback(
   const tenant = await env.DB.prepare(
     'SELECT url FROM tenants WHERE id = ?'
   ).bind(sug.tenant_id).first() as any;
-  const base = tenant?.url ? String(tenant.url).replace(/\/$/, '') : 'https://app.kamizo.uz';
-  // Маршрута /requests/new в приложении нет: житель создаёт заявку
-  // из своего дашборда, куда форма открывается модалкой. Ведём на
-  // корень с параметром — ResidentDashboard подхватит токен.
-  const url = `${base}/?telegramDraft=${token}`;
+  // Схему достраиваем здесь, а не полагаемся на аккуратность
+  // заполнения: у части тенантов в tenants.url лежит голый домен
+  // (qa-rentals, qa-limited). Для текстовой ссылки это было
+  // косметикой — Telegram просто не делал её ссылкой; для кнопки уже
+  // нет: на невалидный URL он отвечает ошибкой, и предложение не
+  // дойдёт вовсе.
+  const rawBase = String(tenant?.url || 'https://app.kamizo.uz').replace(/[/]+$/, '');
+  const base = /^https?:[/][/]/.test(rawBase) ? rawBase : `https://${rawBase}`;
+  // Ведём на /open, а не сразу в приложение. Telegram открывает ссылки
+  // во встроенном браузере, а он не отдаёт систему по App Links и
+  // Universal Links — обычная https-ссылка там навсегда останется
+  // веб-версией. Промежуточная страница пробует передать управление
+  // приложению способами, которые из встроенного браузера работают, и
+  // сама же откатывается на веб-версию.
+  //
+  // Маршрута /requests/new в приложении нет: житель создаёт заявку из
+  // своего дашборда, куда форма открывается модалкой. Поэтому /open
+  // ведёт в корень с параметром, а его подхватывает ResidentDashboard.
+  // Пока страницы /open нет на проде, ведём напрямую в приложение —
+  // иначе кнопка отправляла бы жителя на 404. Флаг снимается вместе
+  // с выкатом фронта.
+  const url = env.TELEGRAM_DRAFT_OPEN_PAGE === '1'
+    ? `${base}/open?telegramDraft=${token}`
+    : `${base}/?telegramDraft=${token}`;
 
   await answerCallbackQuery(env, callback.id, D.openingToast(lang));
   if (chatId) {
     await editTelegramMessage(env, chatId, callback.message.message_id,
-      D.draft(lang, escapeHtml(url)));
+      D.draft(lang), { buttons: [{ text: D.btnOpen(lang), url }] });
   }
 
   log.info('dispatcher_accepted', { category: sug.category, lang });
@@ -372,7 +439,7 @@ route('GET', '/api/telegram/draft/:token', async (request, env, params) => {
   }
 
   return json({
-    category: draft.category,
+    category: SPECIALIZATION_BY_CATEGORY[draft.category as ZhkhCategory] || 'other',
     description: draft.description,
     buildingId: draft.building_id,
     buildingAddress: building.address || building.name,
