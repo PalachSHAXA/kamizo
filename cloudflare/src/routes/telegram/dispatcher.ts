@@ -360,7 +360,12 @@ export async function handleSuggestionCallback(
   // Маршрута /requests/new в приложении нет: житель создаёт заявку из
   // своего дашборда, куда форма открывается модалкой. Поэтому /open
   // ведёт в корень с параметром, а его подхватывает ResidentDashboard.
-  const url = `${base}/open?telegramDraft=${token}`;
+  // Пока страницы /open нет на проде, ведём напрямую в приложение —
+  // иначе кнопка отправляла бы жителя на 404. Флаг снимается вместе
+  // с выкатом фронта.
+  const url = env.TELEGRAM_DRAFT_OPEN_PAGE === '1'
+    ? `${base}/open?telegramDraft=${token}`
+    : `${base}/?telegramDraft=${token}`;
 
   await answerCallbackQuery(env, callback.id, D.openingToast(lang));
   if (chatId) {
