@@ -20,5 +20,23 @@
 	-->
 	<key>aps-environment</key>
 	<string>development</string>
+
+	<!--
+	  Universal Links — ссылка https://<тенант>.kamizo.uz открывает
+	  приложение, а не Safari, если оно установлено. iOS сверяет это с
+	  файлом /.well-known/apple-app-site-association на самом домене;
+	  его отдаёт Worker одинаково для всех поддоменов.
+
+	  Маска покрывает тенантов (service.kamizo.uz, demo.kamizo.uz),
+	  голый kamizo.uz под неё не подпадает и указан отдельно.
+
+	  Как и aps-environment, коммитим явно, чтобы возможность не
+	  зависела от того, вспомнит ли разработчик включить её в Xcode.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:kamizo.uz</string>
+		<string>applinks:*.kamizo.uz</string>
+	</array>
 </dict>
 </plist>

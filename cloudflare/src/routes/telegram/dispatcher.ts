@@ -350,10 +350,17 @@ export async function handleSuggestionCallback(
   // дойдёт вовсе.
   const rawBase = String(tenant?.url || 'https://app.kamizo.uz').replace(/[/]+$/, '');
   const base = /^https?:[/][/]/.test(rawBase) ? rawBase : `https://${rawBase}`;
-  // Маршрута /requests/new в приложении нет: житель создаёт заявку
-  // из своего дашборда, куда форма открывается модалкой. Ведём на
-  // корень с параметром — ResidentDashboard подхватит токен.
-  const url = `${base}/?telegramDraft=${token}`;
+  // Ведём на /open, а не сразу в приложение. Telegram открывает ссылки
+  // во встроенном браузере, а он не отдаёт систему по App Links и
+  // Universal Links — обычная https-ссылка там навсегда останется
+  // веб-версией. Промежуточная страница пробует передать управление
+  // приложению способами, которые из встроенного браузера работают, и
+  // сама же откатывается на веб-версию.
+  //
+  // Маршрута /requests/new в приложении нет: житель создаёт заявку из
+  // своего дашборда, куда форма открывается модалкой. Поэтому /open
+  // ведёт в корень с параметром, а его подхватывает ResidentDashboard.
+  const url = `${base}/open?telegramDraft=${token}`;
 
   await answerCallbackQuery(env, callback.id, D.openingToast(lang));
   if (chatId) {
