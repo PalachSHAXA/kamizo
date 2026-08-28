@@ -25,7 +25,7 @@ import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { json, error, generateId } from '../../utils/helpers';
 import {
-  sendTelegramMessage, editTelegramMessage, answerCallbackQuery, escapeHtml,
+  sendTelegramMessage, editTelegramMessage, answerCallbackQuery,
 } from '../../utils/telegram';
 import {
   classifyZhkhMessage, SUGGESTION_THRESHOLD, categoryLabel,
@@ -96,9 +96,21 @@ const D = {
 
   openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю Kamizo',
 
-  draft: (lang: ZhkhLang, url: string) => lang === 'uz'
-    ? `📝 <b>Ariza rasmiylashtirish</b>\n\n<a href="${url}">Kamizoda shaklni ochish</a>\n\nHavola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
-    : `📝 <b>Оформление заявки</b>\n\n<a href="${url}">Открыть форму в Kamizo</a>\n\nСсылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+  // Ссылка отдаётся кнопкой, а не разметкой внутри текста. Текстовый
+  // якорь Telegram рисует по-разному в разных клиентах, а при
+  // невалидном href молча превращает в обычный текст — человек видит
+  // фразу «Открыть форму», по которой некуда нажать. С кнопкой так не
+  // выйдет: она либо появится, либо запрос упадёт с ошибкой в логах.
+  draft: (lang: ZhkhLang) => lang === 'uz'
+    ? `📝 <b>Ariza rasmiylashtirish</b>
+
+Havola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
+    : `📝 <b>Оформление заявки</b>
+
+Ссылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+
+  btnOpen: (lang: ZhkhLang) => lang === 'uz'
+    ? '📝 Kamizoda shaklni ochish' : '📝 Открыть форму в Kamizo',
 
   handled: (lang: ZhkhLang) => lang === 'uz' ? 'Allaqachon koʻrib chiqilgan' : 'Уже обработано',
 
@@ -330,7 +342,14 @@ export async function handleSuggestionCallback(
   const tenant = await env.DB.prepare(
     'SELECT url FROM tenants WHERE id = ?'
   ).bind(sug.tenant_id).first() as any;
-  const base = tenant?.url ? String(tenant.url).replace(/\/$/, '') : 'https://app.kamizo.uz';
+  // Схему достраиваем здесь, а не полагаемся на аккуратность
+  // заполнения: у части тенантов в tenants.url лежит голый домен
+  // (qa-rentals, qa-limited). Для текстовой ссылки это было
+  // косметикой — Telegram просто не делал её ссылкой; для кнопки уже
+  // нет: на невалидный URL он отвечает ошибкой, и предложение не
+  // дойдёт вовсе.
+  const rawBase = String(tenant?.url || 'https://app.kamizo.uz').replace(/[/]+$/, '');
+  const base = /^https?:[/][/]/.test(rawBase) ? rawBase : `https://${rawBase}`;
   // Маршрута /requests/new в приложении нет: житель создаёт заявку
   // из своего дашборда, куда форма открывается модалкой. Ведём на
   // корень с параметром — ResidentDashboard подхватит токен.
@@ -339,7 +358,7 @@ export async function handleSuggestionCallback(
   await answerCallbackQuery(env, callback.id, D.openingToast(lang));
   if (chatId) {
     await editTelegramMessage(env, chatId, callback.message.message_id,
-      D.draft(lang, escapeHtml(url)));
+      D.draft(lang), { buttons: [{ text: D.btnOpen(lang), url }] });
   }
 
   log.info('dispatcher_accepted', { category: sug.category, lang });

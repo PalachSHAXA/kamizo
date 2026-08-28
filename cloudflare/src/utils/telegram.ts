@@ -82,7 +82,11 @@ export async function callTelegram(
 
 // Кнопка под сообщением. callback_data ограничена Telegram'ом 64
 // байтами — держим её короткой: `<действие>:<id>`.
-export interface InlineButton { text: string; callback_data: string }
+// Кнопка либо шлёт callback боту, либо открывает ссылку — Telegram
+// требует ровно одно из полей, не оба.
+export type InlineButton =
+  | { text: string; callback_data: string }
+  | { text: string; url: string };
 
 export async function sendTelegramMessage(
   env: Env,
@@ -138,14 +142,19 @@ export async function editTelegramMessage(
   env: Env,
   chatId: string | number,
   messageId: string | number,
-  text: string
+  text: string,
+  opts: { buttons?: InlineButton[] } = {}
 ): Promise<TelegramResult> {
+  // Пустой inline_keyboard передаём осознанно, когда кнопок нет: без
+  // reply_markup Telegram оставляет старую клавиатуру, и под уже
+  // обработанным сообщением продолжают висеть живые кнопки.
   return callTelegram(env, 'editMessageText', {
     chat_id: String(chatId),
     message_id: Number(messageId),
     text,
     parse_mode: 'HTML',
     disable_web_page_preview: true,
+    reply_markup: { inline_keyboard: opts.buttons?.length ? [opts.buttons] : [] },
   });
 }
 
