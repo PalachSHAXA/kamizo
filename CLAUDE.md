@@ -23,18 +23,18 @@ Kamizo — мульти-тенантная SaaS для управляющих к
 - `app.kamizo.uz`, `*.kamizo.uz` → Cloudflare Worker `kamizo` (только статика).
 - `api.kamizo.uz` → DNS-only A-record → nginx на VPS → `127.0.0.1:3000`
   (systemd `kamizo-api.service`, tsx-runtime).
-- SSH: `~/.ssh/kamizo_vps`, user `kamizo` (sudo).
+- SSH: `~/.ssh/kamizo_vps2`, user `kamizo` (sudo).
 
 ## Деплой
 
 **Backend (`cloudflare/src/**`) → VPS:**
 ```bash
-rsync -avz -e "ssh -i ~/.ssh/kamizo_vps" \
+rsync -avz -e "ssh -i ~/.ssh/kamizo_vps2" \
   cloudflare/src/ \
   kamizo@95.46.96.209:/opt/kamizo/app/server-src/
 # НИКОГДА не добавляй --delete: на проде есть файлы вне репо (ручные таблицы,
 # snapshots, orphan artefacts), --delete их снесёт.
-ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 'sudo systemctl restart kamizo-api'
+ssh -i ~/.ssh/kamizo_vps2 kamizo@95.46.96.209 'sudo systemctl restart kamizo-api'
 ```
 
 **Frontend (`src/frontend/**`) → Cloudflare:**
@@ -52,9 +52,9 @@ cd ../../cloudflare && wrangler deploy
 
 **Миграции (`cloudflare/migrations/NNN.sql`) → VPS SQLite:**
 ```bash
-scp -i ~/.ssh/kamizo_vps cloudflare/migrations/NNN.sql \
+scp -i ~/.ssh/kamizo_vps2 cloudflare/migrations/NNN.sql \
   kamizo@95.46.96.209:/tmp/
-ssh -i ~/.ssh/kamizo_vps kamizo@95.46.96.209 \
+ssh -i ~/.ssh/kamizo_vps2 kamizo@95.46.96.209 \
   'sqlite3 /opt/kamizo/data/kamizo.db < /tmp/NNN.sql'
 ```
 ВНИМАНИЕ: `cloudflare/src/index.ts → runMigrations()` — ОТДЕЛЬНАЯ система

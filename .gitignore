@@ -55,3 +55,16 @@ src/frontend/android/app/keystore.properties
 # Sprint 86 — APNs .p8 signing key never gets committed. Lives on VPS
 # at /opt/kamizo/secrets/AuthKey_*.p8 (mode 700 dir, mode 600 file).
 *.p8
+
+# Приватные ключи. Не «на всякий случай»: 20 августа 2026 ключ доступа к
+# прод-серверу попал в коммит a1ddcde8 и уехал на GitHub вместе с веткой
+# fix/feature-gate-silent-redirect. Ключ отозван и заменён, но защиты от
+# повторения в репозитории не было — теперь есть.
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*_vps
+*_vps[0-9]
+*_vps_*
