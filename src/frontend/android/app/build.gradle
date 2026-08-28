@@ -21,8 +21,12 @@ android {
         // removing READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE per Play
         // Photo Picker policy. Play requires strictly increasing on
         // every upload.
-        versionCode 4
-        versionName "1.3.1"
+        // versionCode 5 — релиз с поддержкой App Links: ссылка бота из
+        // домовой группы открывает приложение, а не браузер. Требует
+        // новой сборки, потому что проверка привязки идёт по
+        // intent-filter, которого в установленных версиях нет.
+        versionCode 5
+        versionName "1.3.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
