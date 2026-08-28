@@ -29,7 +29,7 @@ import {
 } from '../../utils/telegram';
 import {
   classifyZhkhMessage, SUGGESTION_THRESHOLD, categoryLabel,
-  detectLanguage, type ZhkhLang,
+  detectLanguage, type ZhkhLang, type ZhkhCategory,
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 
@@ -46,6 +46,34 @@ import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 // начинались с согласной, вопрос не вставал; «уборке» — первая с
 // гласной, и «о уборке» читается как опечатка. Правило по звуку, а не
 // по букве: «об аварии», но «о ёлке» и «о юге» — там в начале [й].
+// Категория классификатора → специализация исполнителя.
+//
+// Это два разных словаря, и до сих пор они соприкасались напрямую:
+// эндпоинт черновика отдавал 'leak', а форма заявки ждёт значение из
+// ExecutorSpecialization ('plumber'). Совпадали случайно только
+// 'elevator' и 'cleaning'; во всех прочих случаях житель, пришедший из
+// группы, создавал заявку с категорией, которой нет ни в одной строке
+// categories, — и она повисала, потому что маршрутизация исполнителям
+// идёт по specialization.
+//
+// Соответствие огрублённое и это осознанно: классификатор различает
+// протечку и канализацию, а чинит и то и другое сантехник. Освещение
+// уходит к электрику по той же причине. 'common_property' сваливает в
+// 'other' — под ним и двери, и крыша, и домофон, и развести их без
+// повторной классификации нельзя, а угадывать хуже, чем честно
+// показать «Другое» и дать человеку поправить в форме.
+export const SPECIALIZATION_BY_CATEGORY: Record<ZhkhCategory, string> = {
+  leak: 'plumber',
+  sewage: 'plumber',
+  electricity: 'electrician',
+  lighting: 'electrician',
+  elevator: 'elevator',
+  heating: 'boiler',
+  garbage: 'trash',
+  cleaning: 'cleaning',
+  common_property: 'other',
+};
+
 function ruPrep(label: string): string {
   return /^[аоиуэ]/.test(label) ? 'об' : 'о';
 }
@@ -380,7 +408,7 @@ route('GET', '/api/telegram/draft/:token', async (request, env, params) => {
   }
 
   return json({
-    category: draft.category,
+    category: SPECIALIZATION_BY_CATEGORY[draft.category as ZhkhCategory] || 'other',
     description: draft.description,
     buildingId: draft.building_id,
     buildingAddress: building.address || building.name,
