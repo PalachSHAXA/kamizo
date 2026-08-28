@@ -34,7 +34,8 @@
 
 export type ZhkhCategory =
   | 'leak' | 'sewage' | 'electricity' | 'elevator'
-  | 'heating' | 'garbage' | 'lighting' | 'common_property';
+  | 'heating' | 'garbage' | 'lighting' | 'common_property'
+  | 'cleaning';
 
 export type ZhkhLang = 'ru' | 'uz';
 
@@ -73,6 +74,45 @@ function normalize(raw: string): string {
     .replace(/\s+/g, '');
 }
 
+// То же самое, но границы слов сохранены. Знак препинания тоже считается
+// границей: «подъезде,течет» — два слова, а не одно.
+function normalizeSpaced(raw: string): string {
+  const inner = raw
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[ʻʼ‘’'`´]/g, '')
+    .replace(/(.)\1+/g, '$1')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+  return ' ' + inner + ' ';
+}
+
+// Порог, ниже которого корень ищется только с начала слова.
+//
+// normalize() удаляет пробелы, и без этого не ловились бы ни «лифт
+// неработает», ни узбекская агглютинация. Но у склейки есть цена:
+// короткий корень начинает совпадать в СЕРЕДИНЕ чужого слова. Так
+// 'вода' находилась в «проВОДА», 'вон' — в «позВОНите», 'ток' — в
+// «молоТОК», 'бак' — в «таБАК», 'зали' — в «покаЗАЛИ». Раньше это
+// лечили поштучно, выкидывая корень за корнем ('том', 'бор', 'урна'),
+// но так лечится симптом, а не причина: следующий короткий корень
+// приносит ту же ошибку снова.
+//
+// Агглютинация не страдает: в узбекском корень стоит в начале слова
+// («suvni», «liftda»), а окончания вроде 'yapti' и 'moqda' длиннее
+// порога и ищутся по-прежнему по склейке.
+//
+// Цена решения: короткий корень перестаёт находиться, если пропущен
+// пробел прямо перед ним («нетгорячейводы»). Это заметно реже, чем
+// ложные срабатывания, которые правило убирает.
+const WORD_START_MAX = 4;
+
+function hasTerm(glued: string, spaced: string, term: string): boolean {
+  return term.length > WORD_START_MAX
+    ? glued.includes(term)
+    : spaced.includes(' ' + term);
+}
+
 const N = (list: string[]) => list.map(normalize);
 
 // ── Определение языка ────────────────────────────────────────────────
@@ -98,8 +138,9 @@ const UZ_MARKERS = N([
   'yoq', 'yok', 'bor', 'qoldi', 'koldi', 'ketdi', 'emas', 'uchun',
   'bilan', 'yana', 'juda', 'iltimos', 'xona', 'uyda', 'yordam', 'kerak',
   'boldi', 'qilib', 'qiling', 'nima', 'qachon', 'kachon', 'menda',
-  'bizda', 'edi', 'yapti', 'moqda',
-  // «бор» убрано по той же причине: «забор», «выбор», «сбор».
+  'bizda', 'edi', 'yapti', 'moqda', 'bor',
+  // «бор» вернулось вместе с 'том': «заБОР» и «выБОР» его больше не
+  // содержат, поиск идёт с начала слова.
   'йўқ', 'қолди', 'кетди', 'эмас', 'учун', 'билан', 'керак',
   'илтимос', 'ёрдам', 'қачон',
   // Узбекская кириллица не всегда содержит ў/қ/ғ/ҳ: «Лифт ишламайди,
@@ -112,13 +153,14 @@ const UZ_MARKERS = N([
 
 export function detectLanguage(raw: string): ZhkhLang {
   const text = normalize(raw);
+  const spaced = normalizeSpaced(raw);
   if (/[ўқғҳ]/.test(text)) return 'uz';
 
   const cyrillic = (text.match(/[а-я]/g) || []).length;
   const latin = (text.match(/[a-z]/g) || []).length;
   if (latin > cyrillic) return 'uz';
 
-  if (UZ_MARKERS.some(m => text.includes(m))) return 'uz';
+  if (UZ_MARKERS.some(m => hasTerm(text, spaced, m))) return 'uz';
   return 'ru';
 }
 
@@ -176,6 +218,24 @@ const BUILTIN_TOPICS: Record<ZhkhCategory, string[]> = {
     'kanteyner', 'musor', 'baklar',
     'ахлат', 'чиқинди', 'контейнер', 'мусор',
   ]),
+  // Уборка. Стоит после мусора намеренно: категория выбирается по
+  // числу совпадений, а при ничьей побеждает объявленная раньше. Эти
+  // две пересекаются («мусор в подъезде не убирают»), и если в тексте
+  // прямо назван мусор — это вывоз мусора, а не уборка.
+  //
+  // Снег, гололёд и сосульки тоже здесь: для жителя это одна и та же
+  // претензия «территорию не обслуживают», а исполнитель у неё общий —
+  // специализация cleaning.
+  cleaning: N([
+    'уборк', 'уборщиц', 'убира', 'подмет', 'дворник',
+    'снег', 'гололед', 'наледь', 'сосульк', 'листв', 'окурк',
+    // Узбекские корни только те, что не сидят внутри чужих слов:
+    // 'qor' (снег) отпадает — оно внутри 'qora' (чёрный), 'muz' (лёд)
+    // — внутри 'muzey'. Обе ловушки того же вида, что кириллическое
+    // 'том', и обе тем опаснее, что слова частые.
+    'tozala', 'tozalash', 'farrosh', 'supur',
+    'тозала', 'фаррош', 'супур',
+  ]),
   lighting: N([
     'лампоч', 'фонар', 'освещен', 'светильник', 'плафон',
     'lampochka', 'lampa', 'chiroq', 'chirok', 'yoruglik', 'yorugchilik',
@@ -192,10 +252,10 @@ const BUILTIN_TOPICS: Record<ZhkhCategory, string[]> = {
     'eshik', 'domofon', 'damofon', 'podezd', 'podyezd', 'deraza',
     'tom', 'shift', 'devor', 'zinapoya', 'panjara', 'qulf', 'kulf',
     'darvoza', 'shlagbaum', 'skameyka', 'maydoncha',
-    // Кириллическое «том» (крыша) убрано: оно сидит внутри русских
-    // «пятом», «потом», «этом» и давало ложные срабатывания. Латинское
-    // tom безопасно — в кириллическом тексте не встречается.
-    'эшик', 'домофон', 'девор', 'зинапоя', 'қулф', 'дарвоза',
+    // Кириллическое «том» (крыша) вернулось после перехода на поиск
+    // коротких корней с начала слова: «пятом» и «потом» его больше
+    // не содержат, а «том оқяпти» — содержит.
+    'том', 'эшик', 'домофон', 'девор', 'зинапоя', 'қулф', 'дарвоза',
   ]),
 };
 
@@ -221,6 +281,11 @@ const BUILTIN_SYMPTOMS = N([
   'застря', 'заклин', 'засор', 'засар', 'воня', 'смерд', 'гуд', 'треск',
   'упал', 'обвал', 'трещин', 'потек', 'отвалил', 'висит', 'не закрыва',
   'не открыва', 'не убира', 'переполн', 'завал', 'мига', 'капает',
+  // Симптомы уборки. 'не мет' сюда нельзя — normalize() склеивает
+  // пробелы, и «не метро» дало бы «немет»; поэтому форма целиком.
+  'грязь', 'грязн', 'не чист', 'не посып', 'скольз', 'не метут',
+  'не подмет', 'не вычист', 'нависа', 'свисают',
+  'iflos', 'ифлос', 'kelmadi', 'келмади', 'tozalanmagan',
   'отключил', 'отключен', 'пропал', 'холодн', 'ледян', 'темно',
   'перегорел', 'не вывоз',
   // «нету» — разговорная форма, в живых чатах встречается не реже
@@ -358,14 +423,15 @@ export function classifyZhkhMessage(raw: string): Classification | null {
   if (!raw || raw.length > MAX_LENGTH) return null;
   const text = normalize(raw);
   if (!text) return null;
+  const spaced = normalizeSpaced(raw);
 
   // Отрицательные маркеры проверяем первыми: если человек спрашивает,
   // где купить кран, дальше считать нечего.
-  if (NEGATIVE.some(n => text.includes(n))) return null;
+  if (NEGATIVE.some(n => hasTerm(text, spaced, n))) return null;
 
   // Вопрос без симптома — это вопрос. «Когда включат отопление?»
   // содержит тему, но не поломку; предлагать по нему заявку неуместно.
-  const symptoms = SYMPTOMS.filter(s => text.includes(s)).length;
+  const symptoms = SYMPTOMS.filter(s => hasTerm(text, spaced, s)).length;
   if (symptoms === 0) return null;
 
   // Выбираем тему с наибольшим числом совпадений. Сообщение «в подъезде
@@ -374,7 +440,7 @@ export function classifyZhkhMessage(raw: string): Classification | null {
   // объявления (leak приоритетнее, он же и опаснее).
   let best: { category: ZhkhCategory; hits: number } | null = null;
   for (const [category, words] of Object.entries(TOPICS) as [ZhkhCategory, string[]][]) {
-    const hits = words.filter(w => text.includes(w)).length;
+    const hits = words.filter(w => hasTerm(text, spaced, w)).length;
     if (hits > 0 && (!best || hits > best.hits)) best = { category, hits };
   }
   if (!best) return null;
@@ -405,6 +471,7 @@ const CATEGORY_LABELS_RU: Record<ZhkhCategory, string> = {
   garbage: 'проблеме с мусором',
   lighting: 'проблеме с освещением',
   common_property: 'повреждении общего имущества',
+  cleaning: 'уборке',
 };
 
 const CATEGORY_LABELS_UZ: Record<ZhkhCategory, string> = {
@@ -416,6 +483,7 @@ const CATEGORY_LABELS_UZ: Record<ZhkhCategory, string> = {
   garbage: 'chiqindi muammosi',
   lighting: 'yoritish muammosi',
   common_property: 'umumiy mulk shikastlanishi',
+  cleaning: 'tozalash muammosi',
 };
 
 export function categoryLabel(category: ZhkhCategory, lang: ZhkhLang): string {
