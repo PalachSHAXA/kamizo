@@ -35,3 +35,41 @@ export function useModalPresence(active: boolean = true) {
     return () => pop();
   }, [active, push, pop]);
 }
+
+// Body-scroll-lock counter — separate from useModalPresence because a few
+// consumers of useModalPresence are full pages that "act like a modal" for
+// the sake of hiding the BottomBar (ResidentContractPage, some Resident
+// tabs) and shouldn't lock body-scroll on themselves. Modal-shaped things
+// call BOTH hooks; page-shaped things call only useModalPresence.
+//
+// Counter (not boolean) so nested modals don't fight over the restore
+// value: only the first push captures the original body.overflow, only
+// the last pop restores it.
+let scrollLockCount = 0;
+let originalBodyOverflow = '';
+
+function pushScrollLock() {
+  if (scrollLockCount === 0) {
+    originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+  scrollLockCount += 1;
+}
+
+function popScrollLock() {
+  if (scrollLockCount === 0) return;
+  scrollLockCount -= 1;
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = originalBodyOverflow;
+  }
+}
+
+/** Hook: freeze document.body scroll while this component is mounted (or
+ *  while `active` is true). Ref-counted, safe for stacked modals. */
+export function useBodyScrollLock(active: boolean = true) {
+  useEffect(() => {
+    if (!active) return;
+    pushScrollLock();
+    return () => popScrollLock();
+  }, [active]);
+}
