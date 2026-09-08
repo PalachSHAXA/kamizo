@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
+import { useModalPresence } from '../stores/modalStore';
 import { buildingsApi, uploadApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import type { Announcement, AnnouncementType, AnnouncementPriority, AnnouncementTargetType, AnnouncementTarget, FileAttachment } from '../types';
@@ -43,6 +44,11 @@ export function AnnouncementsPage() {
   const [activeTab, setActiveTab] = useState<'residents' | 'employees'>('residents');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  // Hide BottomBar while either inline modal is open (bar z-index 1000
+  // would overlap the modal's sticky footer + capture touches on iPhone
+  // SE-class widths, breaking scroll in the bottom ~80px).
+  useModalPresence(showAddModal || showEditModal);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: '',
