@@ -163,28 +163,28 @@ export function WorkOrderFormModal({
             </select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
+          <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-3 gap-3">
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Дата' : 'Sana'}</label>
               <input
                 type="date"
                 value={formData.scheduledDate}
                 onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Время' : 'Vaqt'}</label>
               <input
                 type="time"
                 value={formData.scheduledTime}
                 onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
-            <div>
+            <div className="col-span-2 sm:col-span-1 min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">{language === 'ru' ? 'Длительность (мин)' : 'Davomiyligi (daq)'}</label>
               <input
                 type="number"
@@ -192,7 +192,7 @@ export function WorkOrderFormModal({
                 step="15"
                 value={formData.estimatedDuration}
                 onChange={(e) => setFormData({ ...formData, estimatedDuration: parseInt(e.target.value) || 60 })}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
