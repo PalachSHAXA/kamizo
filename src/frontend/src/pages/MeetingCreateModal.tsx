@@ -320,10 +320,10 @@ export function CreateMeetingWizard({
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   {language === 'ru' ? 'Организатор' : 'Tashkilotchi'}
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
                   <button
                     onClick={() => setFormData({ ...formData, organizerType: 'management' })}
-                    className={`p-4 rounded-xl border-2 transition-colors ${
+                    className={`min-w-0 p-4 rounded-xl border-2 transition-colors ${
                       formData.organizerType === 'management'
                         ? 'border-primary-400 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -336,7 +336,7 @@ export function CreateMeetingWizard({
                   </button>
                   <button
                     onClick={() => setFormData({ ...formData, organizerType: 'resident' })}
-                    className={`p-4 rounded-xl border-2 transition-colors ${
+                    className={`min-w-0 p-4 rounded-xl border-2 transition-colors ${
                       formData.organizerType === 'resident'
                         ? 'border-primary-400 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -355,18 +355,18 @@ export function CreateMeetingWizard({
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   {language === 'ru' ? 'Формат проведения' : 'O\'tkazish formati'}
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2 sm:gap-3">
                   {(['online', 'offline', 'hybrid'] as MeetingFormat[]).map((format) => (
                     <button
                       key={format}
                       onClick={() => setFormData({ ...formData, format })}
-                      className={`p-3 rounded-xl border-2 transition-colors ${
+                      className={`min-w-0 p-3 rounded-xl border-2 transition-colors ${
                         formData.format === format
                           ? 'border-primary-400 bg-primary-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <div className="text-sm font-medium">
+                      <div className="text-xs sm:text-sm font-medium truncate">
                         {format === 'online'
                           ? (language === 'ru' ? 'Онлайн' : 'Onlayn')
                           : format === 'offline'
