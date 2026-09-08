@@ -694,7 +694,7 @@ export function AnnouncementsPage() {
                   </div>
 
                   {/* Target Type Selection */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-4 gap-2">
                     {[
                       { type: 'all' as AnnouncementTargetType, label: language === 'ru' ? 'Все' : 'Hammasi', icon: Users },
                       { type: 'branch' as AnnouncementTargetType, label: language === 'ru' ? 'Филиал' : 'Filial', icon: Building2 },
@@ -712,14 +712,14 @@ export function AnnouncementsPage() {
                             setUploadedFileName('');
                           }
                         }}
-                        className={`flex flex-col items-center gap-1 py-2 px-2 rounded-xl text-xs font-medium transition-colors ${
+                        className={`min-w-0 flex flex-col items-center gap-1 py-2 px-2 rounded-xl text-xs font-medium transition-colors ${
                           targetType === type
                             ? 'bg-primary-100 text-primary-700 border-2 border-primary-400'
                             : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
-                        {label}
+                        <span className="truncate max-w-full">{label}</span>
                       </button>
                     ))}
                   </div>
