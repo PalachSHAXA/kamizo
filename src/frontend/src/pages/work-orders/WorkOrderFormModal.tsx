@@ -7,6 +7,7 @@ import { X } from 'lucide-react';
 import { useCRMStore } from '../../stores/crmStore';
 import { useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useModalPresence } from '../../stores/modalStore';
 import type { WorkOrder, WorkOrderType, WorkOrderPriority } from './types';
 
 export function WorkOrderFormModal({
@@ -16,6 +17,10 @@ export function WorkOrderFormModal({
   onClose: () => void;
   onSave: (order: Omit<WorkOrder, 'id' | 'number' | 'status' | 'createdAt' | 'updatedAt'>) => void;
 }) {
+  // Hide BottomBar while this modal is mounted (z-index 1000 bar would
+  // otherwise overlap the sticky action row + capture touches in the
+  // bottom ~80px, breaking scroll on iPhone SE-class widths).
+  useModalPresence();
   const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
   const executors = useExecutorStore(s => s.executors);
