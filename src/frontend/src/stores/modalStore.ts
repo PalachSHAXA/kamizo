@@ -43,15 +43,29 @@ export function useModalPresence(active: boolean = true) {
 // call BOTH hooks; page-shaped things call only useModalPresence.
 //
 // Counter (not boolean) so nested modals don't fight over the restore
-// value: only the first push captures the original body.overflow, only
+// value: only the first push captures the original inline overflow, only
 // the last pop restores it.
+//
+// Why not just document.body: on mobile the actual scroll surface is the
+// .main-content / .main-content-full wrapper (index.css:1008-1013 —
+// "Scrollable content area — only this scrolls on mobile"), and modals
+// like ManagementRequestModal render INSIDE that wrapper (not portaled to
+// document.body). Setting body.style.overflow='hidden' is a no-op there
+// because body itself never scrolls. We freeze both: body (desktop) and
+// every .main-content / .main-content-full element (mobile & multi-panel).
 let scrollLockCount = 0;
 let originalBodyOverflow = '';
+const originalMainOverflow = new Map<HTMLElement, string>();
 
 function pushScrollLock() {
   if (scrollLockCount === 0) {
     originalBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const surfaces = document.querySelectorAll<HTMLElement>('.main-content, .main-content-full');
+    surfaces.forEach((el) => {
+      originalMainOverflow.set(el, el.style.overflow);
+      el.style.overflow = 'hidden';
+    });
   }
   scrollLockCount += 1;
 }
@@ -61,6 +75,11 @@ function popScrollLock() {
   scrollLockCount -= 1;
   if (scrollLockCount === 0) {
     document.body.style.overflow = originalBodyOverflow;
+    originalMainOverflow.forEach((prev, el) => {
+      // Element may have been unmounted meanwhile; guard.
+      if (el.isConnected) el.style.overflow = prev;
+    });
+    originalMainOverflow.clear();
   }
 }
 
