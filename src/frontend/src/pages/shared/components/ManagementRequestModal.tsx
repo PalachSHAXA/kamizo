@@ -7,6 +7,7 @@ import {
 import { AlertTriangle } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useRequestStore } from '../../../stores/requestStore';
+import { useModalPresence } from '../../../stores/modalStore';
 import { getRequestSla, slaStageLabel, formatElapsed } from '../../../utils/requestSla';
 import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';
@@ -41,6 +42,13 @@ export function ManagementRequestModal({
   onAssignClick,
   onCancel,
 }: ManagementRequestModalProps) {
+  // Register modal presence so the global BottomBar (z-index 1000, portaled
+  // to document.body) unmounts while this modal is open. Otherwise the bar
+  // overlaps the bottom of the modal (visual + touch capture — the sticky
+  // Actions row and last ~80px of content are hidden and can't be scrolled
+  // into view because touches in that zone hit the bar, not the scroll
+  // container). Same pattern as CancelRequestModal / FeatureLockedModal.
+  useModalPresence();
   const { language } = useLanguageStore();
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
 
