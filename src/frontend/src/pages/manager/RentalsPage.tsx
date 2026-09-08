@@ -874,43 +874,43 @@ export function RentalsPage() {
                   className="glass-input"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
+                <div className="min-w-0">
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Дата заезда' : 'Kirish sanasi'}</label>
                   <input
                     type="date"
                     value={newRecord.checkInDate}
                     onChange={e => setNewRecord({ ...newRecord, checkInDate: e.target.value })}
-                    className="glass-input"
+                    className="glass-input w-full min-w-0"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Дата выезда' : 'Chiqish sanasi'}</label>
                   <input
                     type="date"
                     value={newRecord.checkOutDate}
                     onChange={e => setNewRecord({ ...newRecord, checkOutDate: e.target.value })}
-                    className="glass-input"
+                    className="glass-input w-full min-w-0"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
+                <div className="min-w-0">
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Сумма' : 'Summa'}</label>
                   <input
                     type="number"
                     value={newRecord.amount}
                     onChange={e => setNewRecord({ ...newRecord, amount: e.target.value })}
                     placeholder={newRecord.currency === 'USD' ? '100' : '1000000'}
-                    className="glass-input"
+                    className="glass-input w-full min-w-0"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-sm font-medium mb-1">{language === 'ru' ? 'Валюта' : 'Valyuta'}</label>
                   <select
                     value={newRecord.currency}
                     onChange={e => setNewRecord({ ...newRecord, currency: e.target.value })}
-                    className="glass-input"
+                    className="glass-input w-full min-w-0"
                   >
                     <option value="UZS">UZS ({language === 'ru' ? 'сум' : 'so\'m'})</option>
                     <option value="USD">USD ($)</option>
