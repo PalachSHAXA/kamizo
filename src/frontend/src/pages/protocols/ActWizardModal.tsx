@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { actsApi } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
-import { useModalPresence } from '../../stores/modalStore';
+import { useModalPresence, useBodyScrollLock } from '../../stores/modalStore';
 import type { BuildingAct, TechDocKey } from '../../types/acts';
 import { generateHandoverActPdf } from '../../utils/generateHandoverAct';
 
@@ -44,6 +44,8 @@ export function ActWizardModal({ building, tenantName, language, onClose, onCrea
   // Hide BottomBar while the wizard is mounted (bar z-index 1000 overlaps
   // sticky footer and captures touches in bottom ~80px otherwise).
   useModalPresence();
+  // Prevent modal drag from scrolling #main-content behind.
+  useBodyScrollLock();
   const isRu = language === 'ru';
   const t = (ru: string, uz: string) => (isRu ? ru : uz);
   const addToast = useToastStore((s) => s.addToast);

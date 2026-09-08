@@ -7,7 +7,7 @@ import {
 import { AlertTriangle } from 'lucide-react';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useRequestStore } from '../../../stores/requestStore';
-import { useModalPresence } from '../../../stores/modalStore';
+import { useModalPresence, useBodyScrollLock } from '../../../stores/modalStore';
 import { getRequestSla, slaStageLabel, formatElapsed } from '../../../utils/requestSla';
 import { formatAddress } from '../../../utils/formatAddress';
 import { formatName } from '../../../utils/formatName';
@@ -49,6 +49,11 @@ export function ManagementRequestModal({
   // into view because touches in that zone hit the bar, not the scroll
   // container). Same pattern as CancelRequestModal / FeatureLockedModal.
   useModalPresence();
+  // Lock body scroll so the touch drag inside the modal doesn't chain
+  // through to #main-content behind (which is fully scrollable). Without
+  // this, iOS WKWebView scrolls the page under the modal instead of the
+  // modal's own overflow container.
+  useBodyScrollLock();
   const { language } = useLanguageStore();
   const t = (ru: string, uz: string) => (language === 'ru' ? ru : uz);
 

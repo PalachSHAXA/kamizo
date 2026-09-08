@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
 import { useTenantStore } from '../stores/tenantStore';
-import { useModalPresence } from '../stores/modalStore';
+import { useModalPresence, useBodyScrollLock } from '../stores/modalStore';
 import { buildingsApi, uploadApi } from '../services/api';
 import { useToastStore } from '../stores/toastStore';
 import type { Announcement, AnnouncementType, AnnouncementPriority, AnnouncementTargetType, AnnouncementTarget, FileAttachment } from '../types';
@@ -49,6 +49,9 @@ export function AnnouncementsPage() {
   // would overlap the modal's sticky footer + capture touches on iPhone
   // SE-class widths, breaking scroll in the bottom ~80px).
   useModalPresence(showAddModal || showEditModal);
+  // Lock body scroll while the modal is open so the drag inside doesn't
+  // scroll the page behind (announcements list) instead of the modal.
+  useBodyScrollLock(showAddModal || showEditModal);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: '',

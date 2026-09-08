@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
 import { useCRMStore } from '../../stores/crmStore';
 import { useExecutorStore } from '../../stores/dataStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import { useModalPresence } from '../../stores/modalStore';
+import { useModalPresence, useBodyScrollLock } from '../../stores/modalStore';
 import type { WorkOrder, WorkOrderType, WorkOrderPriority } from './types';
 
 export function WorkOrderFormModal({
@@ -21,6 +21,8 @@ export function WorkOrderFormModal({
   // otherwise overlap the sticky action row + capture touches in the
   // bottom ~80px, breaking scroll on iPhone SE-class widths).
   useModalPresence();
+  // Prevent the drag inside the modal from scrolling #main-content behind.
+  useBodyScrollLock();
   const { language } = useLanguageStore();
   const { buildings, apartments } = useCRMStore();
   const executors = useExecutorStore(s => s.executors);
