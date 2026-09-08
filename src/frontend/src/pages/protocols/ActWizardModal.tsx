@@ -131,18 +131,18 @@ export function ActWizardModal({ building, tenantName, language, onClose, onCrea
         </div>
 
         <div className="p-5 space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={lbl}>{t('№ акта', 'Akt №')}</label><input className={inp} value={actNumber} onChange={(e) => setActNumber(e.target.value)} placeholder="1" /></div>
-            <div><label className={lbl}>{t('Дата акта', 'Akt sanasi')}</label><input type="date" className={inp} value={actDate} onChange={(e) => setActDate(e.target.value)} /></div>
+          <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
+            <div className="min-w-0"><label className={lbl}>{t('№ акта', 'Akt №')}</label><input className={inp} value={actNumber} onChange={(e) => setActNumber(e.target.value)} placeholder="1" /></div>
+            <div className="min-w-0"><label className={lbl}>{t('Дата акта', 'Akt sanasi')}</label><input type="date" className={inp} value={actDate} onChange={(e) => setActDate(e.target.value)} /></div>
           </div>
 
           <div>
             <div className="text-sm font-semibold mb-2">{t('Основание', 'Asos')}</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>{t('Решение собрания №', 'Yig\'ilish qarori №')}</label><input className={inp} value={meetingNo} onChange={(e) => setMeetingNo(e.target.value)} /></div>
-              <div><label className={lbl}>{t('Дата решения', 'Qaror sanasi')}</label><input type="date" className={inp} value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} /></div>
-              <div><label className={lbl}>{t('Договор управления №', 'Boshqaruv shartnomasi №')}</label><input className={inp} value={contractNo} onChange={(e) => setContractNo(e.target.value)} /></div>
-              <div><label className={lbl}>{t('Дата договора', 'Shartnoma sanasi')}</label><input type="date" className={inp} value={contractDate} onChange={(e) => setContractDate(e.target.value)} /></div>
+            <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
+              <div className="min-w-0"><label className={lbl}>{t('Решение собрания №', 'Yig\'ilish qarori №')}</label><input className={inp} value={meetingNo} onChange={(e) => setMeetingNo(e.target.value)} /></div>
+              <div className="min-w-0"><label className={lbl}>{t('Дата решения', 'Qaror sanasi')}</label><input type="date" className={inp} value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} /></div>
+              <div className="min-w-0"><label className={lbl}>{t('Договор управления №', 'Boshqaruv shartnomasi №')}</label><input className={inp} value={contractNo} onChange={(e) => setContractNo(e.target.value)} /></div>
+              <div className="min-w-0"><label className={lbl}>{t('Дата договора', 'Shartnoma sanasi')}</label><input type="date" className={inp} value={contractDate} onChange={(e) => setContractDate(e.target.value)} /></div>
             </div>
           </div>
 
