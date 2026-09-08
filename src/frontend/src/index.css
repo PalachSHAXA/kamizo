@@ -1460,6 +1460,13 @@ html.dark .sidebar-item.active {
   max-height: 90vh;
   max-height: 90dvh;
   overflow-y: auto;
+  /* Keep scroll boundary local — iOS WKWebView chains overflow-y:auto to
+     the ancestor scroller (#main-content) otherwise, and the drag inside
+     the modal ends up scrolling the page behind it. Pair with the JS-side
+     body-scroll-lock in useBodyScrollLock; CSS alone is not enough on iOS
+     because the "dead-edge" WKWebView bug still leaks touches at rare
+     boundaries. */
+  overscroll-behavior: contain;
   width: 100%;
 }
 
