@@ -18,6 +18,10 @@ import {
   sumRevenueSources,
   type RevenueSource,
 } from './estimateRevenueSources';
+import {
+  renderBuildingPassportHtml,
+  type BuildingPassportFields,
+} from './estimateBuildingPassport';
 
 interface EstimateItemLite {
   id?: string;
@@ -266,6 +270,8 @@ export function generateEstimatePdf(
   </div>
 
   ${v2Section}
+
+  ${renderBuildingPassportHtml(building as BuildingPassportFields | null | undefined, language, esc)}
 
   ${expensesTable}
   ${incomesTable}
