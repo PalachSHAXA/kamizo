@@ -6,6 +6,8 @@
 // полю estimate.model — если 'TARIFF_CALCULATED'/'MANUAL'/'FLAT', рендерим
 // v2-раскладку с ФОТ-блоком, доходами и разрывом.
 
+import { effectiveAmountYear, totalExpensesYear } from './estimateExpenseAmount';
+
 interface EstimateItemLite {
   id?: string;
   name: string;
@@ -38,7 +40,12 @@ export function generateEstimatePdf(
   const expenses = items.filter(i => (i.kind || 'expense') === 'expense');
   const incomes = items.filter(i => i.kind === 'income');
 
-  const totalExpenses = expenses.reduce((s, i) => s + Number(i.amount || 0), 0);
+  // P1 fix (fix/smeta-p1-annual-mismatch): считаем годовые расходы через
+  // effectiveAmountYear — для строк с linked_to_staff берём живой
+  // fot_total×12, иначе сохранённое amount. Это гарантирует, что сумма в
+  // детализации совпадает с себестоимостью (год) в KPI-блоке, а не
+  // расходится в 10× как было (baseline: 959M vs 8.82B).
+  const totalExpenses = totalExpensesYear(expenses, estimate);
   const totalIncomes = incomes.reduce((s, i) => s + Number(i.amount || 0), 0);
 
   const w = window.open('', '_blank', 'width=900,height=1200');
@@ -100,7 +107,8 @@ export function generateEstimatePdf(
       ${kpi(t('Себестоимость (жилые)', 'Tannarx'), fmt(Number(estimate.self_cost_resident || 0)))}
       ${kpi(t('Тариф жилых, сум/м²', 'Tarif, so\'m/m²'), fmt(Number(estimate.tariff_resident || 0)), true)}
       ${estimate.tariff_approved ? kpi(t('Утверждённый тариф', 'Tasdiqlangan'), fmt(Number(estimate.tariff_approved))) : ''}
-      ${kpi(t('Годовые расходы', 'Yillik xarajatlar'), fmt(Number(estimate.umumiy_year || 0)))}
+      ${kpi(t('Себестоимость (год)', 'Tannarx (yil)'), fmt(totalExpenses))}
+      ${kpi(t('Годовой оборот с наценкой', 'Yillik oborot (BT foydasi bilan)'), fmt(Number(estimate.umumiy_year || 0)))}
       ${kpi(t('Годовой доход', 'Yillik daromad'), fmt(Number(estimate.jami_tushum_year || 0)))}
       ${kpi(t('Разрыв (год)', 'Yillik farq'), fmt(Number(estimate.deficit_year || 0)),
         Number(estimate.deficit_year || 0) < 0)}
@@ -124,7 +132,7 @@ export function generateEstimatePdf(
           <td>${i + 1}</td>
           <td>${esc(e.name)}${e.legal_code ? ` <small style="color:#999">[${esc(e.legal_code)}]</small>` : ''}</td>
           <td>${esc(e.section || e.category || '—')}</td>
-          <td class="num">${fmt(e.amount)}</td>
+          <td class="num">${fmt(effectiveAmountYear(e, estimate))}</td>
         </tr>`).join('')}
       </tbody>
       <tfoot><tr>
