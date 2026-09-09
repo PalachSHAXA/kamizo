@@ -150,7 +150,26 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
       ORDER BY items.sort_order`
   ).bind(params.id).all();
 
-  return json({ estimate: { ...estimate, items } });
+  // PR-5 blockG: revenue_sources — детализированные источники дохода.
+  // Пусто для baseline (миграция 083 создаёт таблицу пустой) → фронт
+  // рендерит incomes как раньше. Не заменяет legacy commercial_income /
+  // items(kind='income'), просто добавляет третий источник.
+  //
+  // Defensive: если миграция 083 ещё не применена на прод-БД (deploy
+  // фронта опережает миграцию), SELECT падает с 'no such table'. Ловим
+  // → возвращаем []. Фронт рендерит incomes как раньше, без regression.
+  let revenue_sources: unknown[] = [];
+  try {
+    const r = await env.DB.prepare(
+      `SELECT * FROM revenue_sources WHERE estimate_id = ? ORDER BY sort_order, created_at`
+    ).bind(params.id).all();
+    revenue_sources = r.results || [];
+  } catch {
+    // Таблица не существует (миграция 083 не применена) — трактуем как пусто.
+    revenue_sources = [];
+  }
+
+  return json({ estimate: { ...estimate, items, revenue_sources } });
 });
 
 // 3. POST /api/finance/estimates — создать смету
