@@ -39,6 +39,7 @@ import {
 } from '../lib/estimate/compute';
 import { classifyApartmentForBilling } from '../lib/finance/property-classification';
 import { validate } from '../lib/estimate/validators';
+import { DEFAULT_PAYROLL_TAX_RATE, DEFAULT_UK_PROFIT_PERCENT } from '../lib/estimate/constants';
 import {
   affectedAllocationBindings,
   affectedAllocationSql,
@@ -137,7 +138,7 @@ export async function loadEstimateInput(
       residential_area: residentialArea,
       floors: building?.floors,
       profit_rate: (row.uk_profit_percent || 0) / 100,
-      payroll_tax_rate: row.payroll_tax_rate ?? 0.24,
+      payroll_tax_rate: row.payroll_tax_rate ?? DEFAULT_PAYROLL_TAX_RATE,
       periodic_enabled: row.periodic_enabled !== 0, // NULL/1 = вкл, 0 = выкл
       vat_enabled: row.vat_enabled === 1,
       vat_rate: row.vat_rate ?? 0.12,
@@ -243,8 +244,8 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   const {
     building_id, period, title,
     model = 'TARIFF_CALCULATED',
-    uk_profit_percent = 7,
-    payroll_tax_rate = 0.24,
+    uk_profit_percent = DEFAULT_UK_PROFIT_PERCENT,
+    payroll_tax_rate = DEFAULT_PAYROLL_TAX_RATE,
     residential_area,               // необязательно — можно взять с buildings
     commercial_income = 0,
     basement_income = 0,

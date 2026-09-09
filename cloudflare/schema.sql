@@ -1822,7 +1822,7 @@ CREATE TABLE IF NOT EXISTS finance_estimates (
   commercial_rate_per_sqm REAL DEFAULT 0,
   non_commercial_rate_per_sqm REAL DEFAULT 0,
   non_commercial_coefficient REAL DEFAULT 1.5,
-  uk_profit_percent REAL DEFAULT 10,
+  uk_profit_percent REAL DEFAULT 7,  -- P4: было 10 (устаревшее); фактический дефолт бэка/UI = 7, см. lib/estimate/constants.ts DEFAULT_UK_PROFIT_PERCENT. Актуально только для fresh-installs; на существующих БД миграция не требуется.
   show_profit_to_residents INTEGER DEFAULT 0,
   show_debtor_status_to_residents INTEGER DEFAULT 0,
   effective_date TEXT,
