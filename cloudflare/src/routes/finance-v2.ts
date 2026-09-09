@@ -488,7 +488,24 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
   const blocked = estimateEditBlockedReason(est);
   if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
-  const body = await request.json() as { items: ExpenseLine[] };
+  // PR-3 (feat/smeta-item-formulas): ExpenseLine расширен опциональными
+  // formula-полями (quantity, qty_unit, unit_price, frequency_per_month,
+  // source_price_ref, formula_notes). Все могут быть undefined; мы просто
+  // прокидываем их в БД. monthly и amount продолжают вычисляться по
+  // старой логике (monthly*12) — formula не заменяет расчёт.
+  //
+  // TODO (Часть 9 compliance-warning): если quantity/unit_price/
+  // frequency_per_month заполнены все три, и |q×p×f - monthly| / monthly > 0.01,
+  // это должно попадать в warning-выдачу /validate. Реализация — отдельный PR.
+  interface ExpenseLineWithFormula extends ExpenseLine {
+    quantity?: number | null;
+    qty_unit?: string | null;
+    unit_price?: number | null;
+    frequency_per_month?: number | null;
+    source_price_ref?: string | null;
+    formula_notes?: string | null;
+  }
+  const body = await request.json() as { items: ExpenseLineWithFormula[] };
   const items = body.items || [];
 
   // Удалить только expenses (не трогаем income-строки)
@@ -503,12 +520,15 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
     await env.DB.prepare(
       `INSERT INTO finance_estimate_items (
         id, estimate_id, name, category, amount, monthly_amount,
-        section, unit, linked_to_staff, legal_code, kind, building_id, sort_order, tenant_id
-      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?)`
+        section, unit, linked_to_staff, legal_code, kind, building_id, sort_order, tenant_id,
+        quantity, qty_unit, unit_price, frequency_per_month, source_price_ref, formula_notes
+      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       generateId(), params.id, it.name, monthly * 12, monthly,
       it.section || 'production', it.unit || 'flat',
-      it.linked_to_staff ? 1 : 0, it.legal_code || null, it.building_id || null, i, tenantId || ''
+      it.linked_to_staff ? 1 : 0, it.legal_code || null, it.building_id || null, i, tenantId || '',
+      it.quantity ?? null, it.qty_unit || null, it.unit_price ?? null,
+      it.frequency_per_month ?? null, it.source_price_ref || null, it.formula_notes || null
     ).run();
   }
 

@@ -26,6 +26,17 @@ export interface ExpenseLineV2 {
   linked_to_staff?: boolean;
   legal_code?: string;
   building_id?: string;            // scope: пусто = все дома ЖК, задано = адресная
+
+  // PR-3 (feat/smeta-item-formulas): опциональные formula-поля документируют
+  // происхождение суммы. НЕ меняют логику расчёта — monthly по-прежнему
+  // источник истины для движка. Заполнение необязательное; на legacy items
+  // все undefined. См. cloudflare/migrations/082_estimate_item_formulas.sql.
+  quantity?: number;               // напр. 144 (кв.м), 12 (шт), 1 (услуга)
+  qty_unit?: string;               // 'м²', 'шт', 'услуга' — display unit
+  unit_price?: number;             // цена за единицу
+  frequency_per_month?: number;    // 1=ежемес, 0.5=раз/2мес, 0.0833=раз/год
+  source_price_ref?: string;       // '№ договора', 'прайс поставщика', 'приказ'
+  formula_notes?: string;          // комментарий если нестандартно
 }
 
 export type IncomeType = 'commercial' | 'basement' | 'parking' | 'telecom' | 'advertising' | 'other';
