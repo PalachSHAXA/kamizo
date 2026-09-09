@@ -13,6 +13,11 @@ import {
   expenseTypeLabel,
 } from './estimateExpenseGrouping';
 import { renderFormulaBreakdownHtml } from './estimateFormulaBreakdown';
+import {
+  renderRevenueSourceRowsHtml,
+  sumRevenueSources,
+  type RevenueSource,
+} from './estimateRevenueSources';
 
 interface EstimateItemLite {
   id?: string;
@@ -203,7 +208,16 @@ export function generateEstimatePdf(
     ? (useGroupedRender ? groupedExpensesTable : flatExpensesTable)
     : '';
 
-  const incomesTable = (isV2 && incomes.length) ? `
+  // PR-5 (feat/smeta-revenue-sources) блок G: revenue_sources — детализированные
+  // источники дохода из отдельной таблицы. Пусто на baseline → рендер идентичен.
+  // Складываем с legacy incomes (finance_estimate_items kind='income') без dedup:
+  // миграция данных из commercial → revenue_sources — отдельное решение,
+  // сейчас просто суммируем оба источника.
+  const revenueSources = (estimate.revenue_sources as RevenueSource[] | undefined) || [];
+  const totalRevenueSources = sumRevenueSources(revenueSources);
+  const totalAllIncomes = totalIncomes + totalRevenueSources;
+
+  const incomesTable = (isV2 && (incomes.length || revenueSources.length)) ? `
     <h2>${t('Доходы (коммерция / подвал / парковка / телеком)', 'Daromadlar')}</h2>
     <table>
       <thead><tr>
@@ -217,10 +231,11 @@ export function generateEstimatePdf(
           <td>${esc(e.name)}</td>
           <td class="num">${fmt(e.amount)}</td>
         </tr>`).join('')}
+        ${renderRevenueSourceRowsHtml(revenueSources, incomes.length, language, esc, fmt)}
       </tbody>
       <tfoot><tr>
         <td colspan="2">${t('ИТОГО доходов', 'JAMI daromadlar')}</td>
-        <td class="num">${fmt(totalIncomes)}</td>
+        <td class="num">${fmt(totalAllIncomes)}</td>
       </tr></tfoot>
     </table>
   ` : '';
