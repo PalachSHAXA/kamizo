@@ -7,6 +7,11 @@
 // v2-раскладку с ФОТ-блоком, доходами и разрывом.
 
 import { effectiveAmountYear, totalExpensesYear } from './estimateExpenseAmount';
+import {
+  groupByExpenseType,
+  shouldRenderGroups,
+  expenseTypeLabel,
+} from './estimateExpenseGrouping';
 
 interface EstimateItemLite {
   id?: string;
@@ -18,6 +23,12 @@ interface EstimateItemLite {
   unit?: string;
   linked_to_staff?: number | boolean;
   legal_code?: string;
+  // PR-2 (feat/smeta-expense-categories): joined из expense_categories.
+  // Существующие items до применения миграции 081 приходят с undefined.
+  category_id?: string | null;
+  category_expense_type?: string | null;
+  category_name_ru?: string | null;
+  category_name_uz?: string | null;
 }
 
 export function generateEstimatePdf(
@@ -118,29 +129,70 @@ export function generateEstimatePdf(
       : ''}
   ` : '';
 
-  const expensesTable = expenses.length ? `
+  // PR-2 (feat/smeta-expense-categories) блок F: группировка расходов по
+  // expense_type если у сметы есть items с ≥2 разными типами. Иначе —
+  // плоский рендер как раньше (baseline-совместимость: до применения
+  // миграции 081 все items имеют category_expense_type=NULL → fallback
+  // на 'production' → одна группа → плоский рендер).
+  const expenseGroups = groupByExpenseType(expenses, estimate);
+  const useGroupedRender = shouldRenderGroups(expenseGroups);
+
+  const expenseRow = (e: EstimateItemLite, i: number): string => `<tr>
+    <td>${i + 1}</td>
+    <td>${esc(e.name)}${e.legal_code ? ` <small style="color:#999">[${esc(e.legal_code)}]</small>` : ''}</td>
+    <td>${esc(e.section || e.category || '—')}</td>
+    <td class="num">${fmt(effectiveAmountYear(e, estimate))}</td>
+  </tr>`;
+
+  const expenseTableHead = `<thead><tr>
+    <th style="width:8%">${t('№', '№')}</th>
+    <th>${t('Статья', 'Modda')}</th>
+    <th style="width:20%">${t('Раздел', 'Bo\'lim')}</th>
+    <th style="width:15%; text-align:right">${t('Сумма, сум', 'Summa, so\'m')}</th>
+  </tr></thead>`;
+
+  const flatExpensesTable = `
     <h2>${t('Расходы', 'Xarajatlar')}</h2>
     <table>
-      <thead><tr>
-        <th style="width:8%">${t('№', '№')}</th>
-        <th>${t('Статья', 'Modda')}</th>
-        <th style="width:20%">${t('Раздел', 'Bo\'lim')}</th>
-        <th style="width:15%; text-align:right">${t('Сумма, сум', 'Summa, so\'m')}</th>
-      </tr></thead>
+      ${expenseTableHead}
       <tbody>
-        ${expenses.map((e, i) => `<tr>
-          <td>${i + 1}</td>
-          <td>${esc(e.name)}${e.legal_code ? ` <small style="color:#999">[${esc(e.legal_code)}]</small>` : ''}</td>
-          <td>${esc(e.section || e.category || '—')}</td>
-          <td class="num">${fmt(effectiveAmountYear(e, estimate))}</td>
-        </tr>`).join('')}
+        ${expenses.map(expenseRow).join('')}
       </tbody>
       <tfoot><tr>
         <td colspan="3">${t('ИТОГО расходов', 'JAMI xarajatlar')}</td>
         <td class="num">${fmt(totalExpenses)}</td>
       </tr></tfoot>
     </table>
-  ` : '';
+  `;
+
+  const groupedExpensesTable = `
+    <h2>${t('Расходы', 'Xarajatlar')}</h2>
+    ${expenseGroups.map((g) => `
+      <h3 style="font-size:11pt; margin: 4mm 0 1mm; color:#444;">
+        ${esc(expenseTypeLabel(g.expense_type, language))}
+      </h3>
+      <table>
+        ${expenseTableHead}
+        <tbody>
+          ${g.items.map(expenseRow).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td colspan="3">${t('Подытог', 'Kichik jami')}</td>
+          <td class="num">${fmt(g.subtotal_year)}</td>
+        </tr></tfoot>
+      </table>
+    `).join('')}
+    <table style="margin-top:3mm;">
+      <tfoot><tr>
+        <td colspan="3">${t('ИТОГО расходов', 'JAMI xarajatlar')}</td>
+        <td class="num">${fmt(totalExpenses)}</td>
+      </tr></tfoot>
+    </table>
+  `;
+
+  const expensesTable = expenses.length
+    ? (useGroupedRender ? groupedExpensesTable : flatExpensesTable)
+    : '';
 
   const incomesTable = (isV2 && incomes.length) ? `
     <h2>${t('Доходы (коммерция / подвал / парковка / телеком)', 'Daromadlar')}</h2>

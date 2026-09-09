@@ -135,8 +135,19 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
   ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
   if (!estimate) return error('Estimate not found', 404);
 
+  // PR-2 blockF: LEFT JOIN expense_categories возвращает expense_type/name_ru/name_uz
+  // для группировки статей в PDF по типу. Items без category_id → NULL → PDF
+  // fallback'ит на 'production' (baseline-совместимость).
   const { results: items } = await env.DB.prepare(
-    'SELECT * FROM finance_estimate_items WHERE estimate_id = ? ORDER BY sort_order'
+    `SELECT items.*,
+            ec.expense_type    AS category_expense_type,
+            ec.name_ru         AS category_name_ru,
+            ec.name_uz         AS category_name_uz,
+            ec.is_mandatory    AS category_is_mandatory
+       FROM finance_estimate_items items
+       LEFT JOIN expense_categories ec ON items.category_id = ec.id
+      WHERE items.estimate_id = ?
+      ORDER BY items.sort_order`
   ).bind(params.id).all();
 
   return json({ estimate: { ...estimate, items } });
