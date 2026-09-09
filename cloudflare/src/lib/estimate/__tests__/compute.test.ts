@@ -396,6 +396,121 @@ describe('НДС (vat)', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────
+// P1 fix (fix/smeta-p1-annual-mismatch): инвариант «umumiy_year =
+// total_expenses × 12 × (1 + profit_rate)». Гарантия, что верхний KPI
+// «Годовой оборот» и сумма «Себестоимость год × (1 + %)» согласованы.
+// Baseline + 3 синтетических сценария — фикс должен работать
+// универсально, а не только на реальной смете myhelper.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('P1 invariant: umumiy_year = total_expenses × 12 × (1 + profit_rate)', () => {
+  it('BASELINE — myhelper 2026-08 (ФОТ 13.43M, 15 обычных категорий 61.27M/мес)', () => {
+    // Из docs/smeta-audit.md P1: реальная prod-запись, воспроизводим
+    // структуру: 7 позиций штата (Σ 10M/мес, отпускные 0 — legacy запись),
+    // ставка налога 24%; 15 категорий расходов 61 274 500/мес + 1 линкованная
+    // строка «Расходы по зарплате» (monthly игнорируется, движок ставит FOT_total).
+    const input: EstimateInput = {
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 7330, profit_rate: 0.07, payroll_tax_rate: 0.24 },
+      staff: [
+        // Аггрегированный штат — детализация не важна для инварианта.
+        { title: 'ФОТ по штату', units: 1, salary: 10_833_333 - 833_333, /* base 10M — как в baseline */ },
+      ],
+      expenses: [
+        { name: 'Не-штатные расходы (агрегат 15 категорий)', monthly: 61_274_500 },
+        { name: 'Расходы по зарплате', monthly: 0, linked_to_staff: true },
+      ],
+      incomes: [{ type: 'commercial', monthly: 28_800_000 / 12 }], // 28.8M/год → 2.4M/мес
+    };
+    const r = computeEstimate(input);
+    // FOT_gross = 10M (штат без отпускных); tax@24 = 2 400 000; FOT_total = 12 400 000
+    // total_expenses = 61 274 500 + 12 400 000 = 73 674 500
+    // umumiy_year = 73 674 500 × 12 × 1.07 = 945 780 570
+    // Baseline из БД дал 959 248 580 — разница ~1.4% (в БД чуть иные округления
+    // и отпускные могут быть; главное — инвариант ниже держится).
+    expect(r.umumiy_year).toBe(round0(r.total_expenses * 12 * 1.07));
+  });
+
+  it('SCENARIO A — zero commercial income', () => {
+    // Проверка: разрыв не рушится когда commercial=0. Инвариант держится.
+    const input: EstimateInput = {
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 5000, profit_rate: 0.10, payroll_tax_rate: 0.24 },
+      staff: [{ title: 'Единственная позиция', units: 1, salary: 5_000_000 }],
+      expenses: [
+        { name: 'Уборка', monthly: 3_000_000, section: 'production' },
+        { name: 'Ремонты', monthly: 2_000_000, section: 'production' },
+      ],
+      incomes: [], // никакого commercial дохода
+    };
+    const r = computeEstimate(input);
+    expect(r.umumiy_year).toBe(round0(r.total_expenses * 12 * 0.10 + r.total_expenses * 12));
+    expect(r.before_profit_offset).toBe(0);
+  });
+
+  it('SCENARIO B — частичный штат (3 позиции), custom tax 0.25', () => {
+    // Разные УК держат разное число штата. Смета не должна ломаться.
+    const input: EstimateInput = {
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 3500, profit_rate: 0.07, payroll_tax_rate: 0.25 },
+      staff: [
+        { title: 'Директор', units: 1, salary: 4_000_000 },
+        { title: 'Бухгалтер', units: 0.5, salary: 3_000_000 },
+        { title: 'Дворник', units: 2, salary: 1_500_000 },
+      ],
+      expenses: [
+        { name: 'Комм. услуги МОП', monthly: 800_000 },
+        { name: 'Расходы по зарплате', monthly: 0, linked_to_staff: true },
+      ],
+      incomes: [{ type: 'commercial', monthly: 500_000 }],
+    };
+    const r = computeEstimate(input);
+    // FOT_base = 4M + 1.5M + 3M = 8.5M; @25% = 2 125 000; FOT_total = 10 625 000
+    // total_expenses = 800 000 + 10 625 000 = 11 425 000
+    // umumiy_year = 11 425 000 × 12 × 1.07 = 146 697 000
+    expect(r.fot_base).toBe(8_500_000);
+    expect(r.fot_total).toBe(10_625_000);
+    expect(r.total_expenses).toBe(11_425_000);
+    expect(r.umumiy_year).toBe(round0(r.total_expenses * 12 * 1.07));
+  });
+
+  it('SCENARIO C — custom profit 5%, custom tax 0.24, крупная смета', () => {
+    // Разные УК устанавливают разный процент прибыли (в пределах регулятора).
+    const input: EstimateInput = {
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 15000, profit_rate: 0.05, payroll_tax_rate: 0.24 },
+      staff: [{ title: 'Штат ЖК', units: 1, salary: 25_000_000 }],
+      expenses: [{ name: 'Все статьи агрегат', monthly: 20_000_000 }],
+      incomes: [{ type: 'commercial', monthly: 3_000_000 }],
+    };
+    const r = computeEstimate(input);
+    // fot_total = 25M × 1.24 = 31M
+    // total_expenses = 20M + 0 (нет linked-строки, значит фот НЕ в total_expenses)
+    //   Внимание: если linked-строки нет, ФОТ не участвует в total_expenses.
+    //   Это авторская модель — движок не «докидывает» ФОТ автоматически,
+    //   пользователь должен добавить строку с linked_to_staff=true.
+    expect(r.total_expenses).toBe(20_000_000);
+    expect(r.umumiy_year).toBe(round0(20_000_000 * 12 * 1.05));
+  });
+
+  it('SCENARIO D — divide-by-zero guard: area=0 → tariff=0, без NaN', () => {
+    // Полностью пустая площадь — не должно быть NaN, тариф просто 0.
+    const input: EstimateInput = {
+      model: 'TARIFF_CALCULATED',
+      object: { residential_area: 0, profit_rate: 0.07, payroll_tax_rate: 0.24 },
+      staff: [{ title: 'X', units: 1, salary: 1_000_000 }],
+      expenses: [{ name: 'y', monthly: 500_000 }],
+      incomes: [],
+    };
+    const r = computeEstimate(input);
+    expect(r.tariff_resident).toBe(0);
+    expect(r.base_per_m2).toBe(0);
+    expect(Number.isNaN(r.jami_tushum_year)).toBe(false);
+    expect(Number.isNaN(r.umumiy_year)).toBe(false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
 // Смета на ЖК → разбивка на дома (computeComplexEstimate)
 // ────────────────────────────────────────────────────────────────────────
 import { computeComplexEstimate, type ComplexEstimateInput } from '../compute';
