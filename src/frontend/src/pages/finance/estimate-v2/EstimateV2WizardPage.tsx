@@ -25,6 +25,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { FinanceDemoReadOnlyBanner } from '../FinanceDemoReadOnlyBanner';
 import { generateEstimateV2Excel } from './generateEstimateV2Excel';
 import { NumericInput } from './NumericInput';
+import { DEFAULT_PAYROLL_TAX_RATE, DEFAULT_UK_PROFIT_PERCENT } from '../../../utils/estimateDefaults';
 import {
   estimateV2Api,
   branchesApi,
@@ -102,8 +103,8 @@ export function EstimateV2WizardPage() {
   });
   const [title, setTitle] = useState('');
   const [model, setModel] = useState<EstimateModelV2>('TARIFF_CALCULATED');
-  const [profitPercent, setProfitPercent] = useState(7);
-  const [payrollTaxRate, setPayrollTaxRate] = useState(0.24);
+  const [profitPercent, setProfitPercent] = useState(DEFAULT_UK_PROFIT_PERCENT);
+  const [payrollTaxRate, setPayrollTaxRate] = useState(DEFAULT_PAYROLL_TAX_RATE);
   const [tariffApproved, setTariffApproved] = useState<number | ''>('');
 
   // ── Step 2: штат ──────────────────────────────────────────────
@@ -173,7 +174,7 @@ export function EstimateV2WizardPage() {
         if (est.title) setTitle(String(est.title));
         setModel((inp?.model || est.model || 'TARIFF_CALCULATED') as EstimateModelV2);
         setProfitPercent(Number(est.uk_profit_percent ?? (inp?.object?.profit_rate ?? 0) * 100) || 0);
-        setPayrollTaxRate(Number(inp?.object?.payroll_tax_rate ?? est.payroll_tax_rate ?? 0.24));
+        setPayrollTaxRate(Number(inp?.object?.payroll_tax_rate ?? est.payroll_tax_rate ?? DEFAULT_PAYROLL_TAX_RATE));
         setTariffApproved(inp?.tariff_manual ?? (est.tariff_approved || ''));
         setStaff((inp?.staff || []) as StaffPositionV2[]);
         setExpenses((inp?.expenses || []) as ExpenseLineV2[]);
