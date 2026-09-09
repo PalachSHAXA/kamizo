@@ -39,7 +39,8 @@ import {
 } from '../lib/estimate/compute';
 import { classifyApartmentForBilling } from '../lib/finance/property-classification';
 import { validate } from '../lib/estimate/validators';
-import { DEFAULT_PAYROLL_TAX_RATE, DEFAULT_UK_PROFIT_PERCENT } from '../lib/estimate/constants';
+import { DEFAULT_UK_PROFIT_PERCENT } from '../lib/estimate/constants';
+import { getPayrollTaxRate } from '../lib/estimate/legal-rates';
 import {
   affectedAllocationBindings,
   affectedAllocationSql,
@@ -132,13 +133,19 @@ export async function loadEstimateInput(
   // иначе из building. Если и там 0 — падаем в 0 (валидатор выдаст warning).
   const residentialArea = row.residential_area || building?.residential_area || 0;
 
+  // PR-1 legal_rates: если у сметы нет сохранённой ставки ФОТ (крайне
+  // редкий legacy-случай), берём действующую на период сметы из
+  // legal_rates. Fallback на JS-константу — внутри getPayrollTaxRate.
+  const payrollTaxRate = row.payroll_tax_rate
+    ?? await getPayrollTaxRate(env, (row.period as string) || (row.effective_date as string) || undefined);
+
   const input: EstimateInput = {
     model: (row.model || 'TARIFF_CALCULATED') as EstimateModel,
     object: {
       residential_area: residentialArea,
       floors: building?.floors,
       profit_rate: (row.uk_profit_percent || 0) / 100,
-      payroll_tax_rate: row.payroll_tax_rate ?? DEFAULT_PAYROLL_TAX_RATE,
+      payroll_tax_rate: payrollTaxRate,
       periodic_enabled: row.periodic_enabled !== 0, // NULL/1 = вкл, 0 = выкл
       vat_enabled: row.vat_enabled === 1,
       vat_rate: row.vat_rate ?? 0.12,
@@ -245,7 +252,10 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
     building_id, period, title,
     model = 'TARIFF_CALCULATED',
     uk_profit_percent = DEFAULT_UK_PROFIT_PERCENT,
-    payroll_tax_rate = DEFAULT_PAYROLL_TAX_RATE,
+    // payroll_tax_rate: если пользователь передал явно — используем;
+    // иначе PR-1 legal_rates ищет действующую на период сметы ставку,
+    // fallback на JS-константу внутри getPayrollTaxRate.
+    payroll_tax_rate: payrollTaxRateFromBody,
     residential_area,               // необязательно — можно взять с buildings
     commercial_income = 0,
     basement_income = 0,
@@ -273,6 +283,13 @@ route('POST', '/api/finance/estimates/v2', async (request, env) => {
   }
 
   const tenantId = getTenantId(request);
+
+  // PR-1 legal_rates: resolve ставку налога на ФОТ. Если body передал —
+  // используем как есть (пользовательский override). Иначе смотрим в
+  // legal_rates на дату периода сметы; при пустой таблице fallback
+  // на JS-константу внутри getPayrollTaxRate.
+  const payroll_tax_rate: number = payrollTaxRateFromBody
+    ?? await getPayrollTaxRate(env, period);
 
   // Первичный дом: для одиночной — building_id; для ЖК — первый из списка
   // (нужен для NOT NULL building_id и совместимости). Для черновика без
