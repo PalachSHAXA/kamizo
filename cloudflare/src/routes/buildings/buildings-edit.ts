@@ -46,6 +46,10 @@ route('PATCH', '/api/buildings/:id', async (request, env, params) => {
     has_parking_lot: 'has_parking_lot', hasParkingLot: 'has_parking_lot',
     parking_spaces: 'parking_spaces', parkingSpaces: 'parking_spaces',
     has_playground: 'has_playground', hasPlayground: 'has_playground',
+    // PR-6 blockA: паспорт МКД — дополнительные площади (миграция 084).
+    parking_area: 'parking_area', parkingArea: 'parking_area',
+    basement_area: 'basement_area', basementArea: 'basement_area',
+    technical_rooms_area: 'technical_rooms_area', technicalRoomsArea: 'technical_rooms_area',
     manager_id: 'manager_id', managerId: 'manager_id',
     manager_name: 'manager_name', managerName: 'manager_name',
     management_start_date: 'management_start_date', managementStartDate: 'management_start_date',
