@@ -12,6 +12,7 @@ import {
   shouldRenderGroups,
   expenseTypeLabel,
 } from './estimateExpenseGrouping';
+import { renderFormulaBreakdownHtml } from './estimateFormulaBreakdown';
 
 interface EstimateItemLite {
   id?: string;
@@ -29,6 +30,14 @@ interface EstimateItemLite {
   category_expense_type?: string | null;
   category_name_ru?: string | null;
   category_name_uz?: string | null;
+  // PR-3 (feat/smeta-item-formulas): formula-поля, документирующие
+  // происхождение monthly. Опциональны; на legacy items — undefined.
+  quantity?: number | null;
+  qty_unit?: string | null;
+  unit_price?: number | null;
+  frequency_per_month?: number | null;
+  source_price_ref?: string | null;
+  formula_notes?: string | null;
 }
 
 export function generateEstimatePdf(
@@ -139,7 +148,7 @@ export function generateEstimatePdf(
 
   const expenseRow = (e: EstimateItemLite, i: number): string => `<tr>
     <td>${i + 1}</td>
-    <td>${esc(e.name)}${e.legal_code ? ` <small style="color:#999">[${esc(e.legal_code)}]</small>` : ''}</td>
+    <td>${esc(e.name)}${e.legal_code ? ` <small style="color:#999">[${esc(e.legal_code)}]</small>` : ''}${renderFormulaBreakdownHtml(e, language, esc)}</td>
     <td>${esc(e.section || e.category || '—')}</td>
     <td class="num">${fmt(effectiveAmountYear(e, estimate))}</td>
   </tr>`;

@@ -1160,6 +1160,49 @@ function Step3Expenses(props: {
                           {e.legal_code}
                         </div>
                       )}
+                      {/* PR-3 formula inputs — свёрнутая секция, только опционально */}
+                      <details className="mt-1 text-[10px] text-gray-500">
+                        <summary className="cursor-pointer select-none">
+                          {isRu ? 'Формула (необязательно)' : 'Formula (ixtiyoriy)'}
+                        </summary>
+                        <div className="mt-1 grid grid-cols-4 gap-1">
+                          <NumericInput
+                            value={e.quantity ?? 0}
+                            blankZero
+                            onChange={(n) => update(i, { quantity: n || undefined })}
+                            placeholder={isRu ? 'Кол-во' : 'Miqdor'}
+                            className="px-1.5 py-0.5 rounded border border-gray-200 text-[11px] text-right outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                          <input
+                            type="text"
+                            value={e.qty_unit || ''}
+                            onChange={(ev) => update(i, { qty_unit: ev.target.value || undefined })}
+                            placeholder={isRu ? 'ед. (м², шт)' : 'birlik'}
+                            className="px-1.5 py-0.5 rounded border border-gray-200 text-[11px] outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                          <NumericInput
+                            value={e.unit_price ?? 0}
+                            blankZero
+                            onChange={(n) => update(i, { unit_price: n || undefined })}
+                            placeholder={isRu ? 'Цена/ед' : 'Narxi'}
+                            className="px-1.5 py-0.5 rounded border border-gray-200 text-[11px] text-right outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                          <NumericInput
+                            value={e.frequency_per_month ?? 0}
+                            blankZero
+                            onChange={(n) => update(i, { frequency_per_month: n || undefined })}
+                            placeholder={isRu ? 'Частота/мес' : 'Chastota'}
+                            className="px-1.5 py-0.5 rounded border border-gray-200 text-[11px] text-right outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={e.source_price_ref || ''}
+                          onChange={(ev) => update(i, { source_price_ref: ev.target.value || undefined })}
+                          placeholder={isRu ? 'Источник цены (договор, прайс)' : 'Manba'}
+                          className="mt-1 w-full px-1.5 py-0.5 rounded border border-gray-200 text-[11px] outline-none focus:ring-1 focus:ring-primary-500"
+                        />
+                      </details>
                     </td>
                     <td className="py-1.5 px-2">
                       <select
