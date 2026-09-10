@@ -5,6 +5,8 @@ import { useBuildingStore } from '../../stores/buildingStore';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useToastStore } from '../../stores/toastStore';
+import { estimateV2Api } from '../../services/api/finance-v2';
 import { Modal, EmptyState } from '../../components/common';
 import { PageSkeleton } from '../../components/PageSkeleton';
 import {
@@ -27,6 +29,7 @@ import {
   Clock,
   Sparkles,
   Link2,
+  ClipboardList,
 } from 'lucide-react';
 import { formatAmount } from '../../utils/formatCurrency';
 import { generateEstimateExcel } from '../../utils/generateEstimateExcel';
@@ -136,6 +139,18 @@ export default function EstimatesPage() {
   const [activating, setActivating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // PR-10 (feat/smeta-approval-ui): approval-details form state.
+  // Открывается кнопкой рядом с "Утвердить" для активных смет. Позволяет
+  // заполнить/отредактировать протокол ОС, итоги голосования, дату
+  // подписания, примечания. Все поля опциональные — helper справляется
+  // с частичным набором (см. estimateApprovalFooter.ts).
+  const [showApprovalDetails, setShowApprovalDetails] = useState(false);
+  const [savingApprovalDetails, setSavingApprovalDetails] = useState(false);
+  const [formApprovalProtocolNumber, setFormApprovalProtocolNumber] = useState('');
+  const [formApprovalSignedAt, setFormApprovalSignedAt] = useState('');
+  const [formApprovalVoteResult, setFormApprovalVoteResult] = useState('');
+  const [formApprovalNotes, setFormApprovalNotes] = useState('');
 
   // Create form state
   const [formBuilding, setFormBuilding] = useState('');
@@ -424,6 +439,44 @@ export default function EstimatesPage() {
         await generateCharges(currentEstimate.id as string);
         setGenerating(false);
       }
+    }
+  };
+
+  // PR-10 (feat/smeta-approval-ui): открыть модалку. Если поля уже
+  // заполнены (при повторном открытии — редактирование, не создание),
+  // предзаполняем текущими значениями. Даты обрезаем до YYYY-MM-DD для
+  // корректной работы <input type="date">.
+  const openApprovalDetails = () => {
+    if (!mayApprove || !currentEstimate) return;
+    const est = currentEstimate as unknown as Record<string, unknown>;
+    setFormApprovalProtocolNumber((est.approval_protocol_number as string) || '');
+    const signed = (est.approval_signed_at as string) || '';
+    setFormApprovalSignedAt(signed ? signed.slice(0, 10) : '');
+    setFormApprovalVoteResult((est.approval_vote_result as string) || '');
+    setFormApprovalNotes((est.approval_notes as string) || '');
+    setShowApprovalDetails(true);
+  };
+
+  const handleSaveApprovalDetails = async () => {
+    if (!mayApprove || !currentEstimate) return;
+    setSavingApprovalDetails(true);
+    try {
+      await estimateV2Api.postApprovalDetails(currentEstimate.id as string, {
+        approval_protocol_number: formApprovalProtocolNumber.trim() || null,
+        approval_signed_at: formApprovalSignedAt || null,
+        approval_vote_result: formApprovalVoteResult.trim() || null,
+        approval_notes: formApprovalNotes.trim() || null,
+      });
+      await fetchEstimate(currentEstimate.id as string);
+      useToastStore.getState().addToast('success',
+        t('Реквизиты утверждения сохранены', 'Tasdiqlash rekvizitlari saqlandi'));
+      setShowApprovalDetails(false);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      useToastStore.getState().addToast('error',
+        raw || t('Не удалось сохранить реквизиты', 'Rekvizitlarni saqlash muvaffaqiyatsiz'));
+    } finally {
+      setSavingApprovalDetails(false);
     }
   };
 
@@ -1466,6 +1519,18 @@ export default function EstimatesPage() {
                   {t('Сформировать начисления', 'Hisob-kitoblarni yaratish')}
                 </button>
               )}
+              {/* PR-10: реквизиты утверждения (протокол ОС, итоги голосования,
+                  дата подписания, примечания). Только для активных смет и
+                  только для admin/director — manager кнопку не видит вовсе. */}
+              {detailStage === 'approved' && mayApprove && (
+                <button
+                  onClick={openApprovalDetails}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  {t('Реквизиты утверждения', 'Tasdiqlash rekvizitlari')}
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (currentEstimate) {
@@ -1550,6 +1615,98 @@ export default function EstimatesPage() {
         ) : (
           <PageSkeleton variant="detail" />
         )}
+      </Modal>
+
+      {/* ─── PR-10: Approval Details Modal ─── */}
+      <Modal
+        isOpen={showApprovalDetails}
+        onClose={() => setShowApprovalDetails(false)}
+        title={t('Реквизиты утверждения', 'Tasdiqlash rekvizitlari')}
+        size="xl"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            {t(
+              'Заполните реквизиты протокола общего собрания собственников, утвердившего смету. Все поля опциональны — можно заполнить частично. Секция «Утверждение» появится в PDF, только если хотя бы одно из полей задано.',
+              'Smetani tasdiqlagan mulkdorlar umumiy yig\'ilishi bayonnomasi rekvizitlarini to\'ldiring. Barcha maydonlar ixtiyoriy — qisman to\'ldirish mumkin. PDF-dagi «Tasdiqlash» bo\'limi kamida bitta maydon to\'ldirilsagina paydo bo\'ladi.'
+            )}
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Номер протокола', 'Bayonnoma raqami')}
+            </label>
+            <input
+              type="text"
+              value={formApprovalProtocolNumber}
+              onChange={(e) => setFormApprovalProtocolNumber(e.target.value)}
+              placeholder={t('Например: №12', 'Masalan: №12')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Дата подписания протокола', 'Bayonnoma imzolangan sana')}
+            </label>
+            <input
+              type="date"
+              value={formApprovalSignedAt}
+              onChange={(e) => setFormApprovalSignedAt(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Итоги голосования', 'Ovoz berish natijalari')}
+            </label>
+            <input
+              type="text"
+              value={formApprovalVoteResult}
+              onChange={(e) => setFormApprovalVoteResult(e.target.value)}
+              placeholder={t('Например: 85% за, 10% против, 5% воздержались', 'Masalan: 85% rozi, 10% qarshi, 5% betaraf')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('Примечания', 'Izohlar')}
+            </label>
+            <textarea
+              value={formApprovalNotes}
+              onChange={(e) => setFormApprovalNotes(e.target.value)}
+              placeholder={t('Условия утверждения, оговорки, и т.п.', 'Tasdiqlash shartlari, izohlar va boshqalar')}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowApprovalDetails(false)}
+              disabled={savingApprovalDetails}
+              className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm"
+            >
+              {t('Отмена', 'Bekor qilish')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveApprovalDetails}
+              disabled={savingApprovalDetails}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {savingApprovalDetails ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+              {t('Сохранить', 'Saqlash')}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

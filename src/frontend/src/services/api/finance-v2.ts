@@ -211,6 +211,26 @@ export const estimateV2Api = {
     invalidateEstimates();
     return apiRequest<{ ok: boolean }>(`/api/finance/estimates/${estimateId}`, { method: 'DELETE' });
   },
+
+  // PR-10 (feat/smeta-approval-ui): реквизиты утверждения (протокол ОС,
+  // итоги голосования, дата подписания, примечания). Отдельно от activate:
+  // activate только меняет статус, а approval-details — юр.-значимая
+  // мета-информация. Может вызываться повторно для редактирования.
+  // Backend: POST /api/finance/estimates/:id/approval-details (PR-8).
+  postApprovalDetails: (estimateId: string, details: {
+    approval_meeting_id?: string | null;
+    approval_protocol_number?: string | null;
+    approval_agenda_item_id?: string | null;
+    approval_vote_result?: string | null;
+    approval_signed_at?: string | null;
+    approval_notes?: string | null;
+  }) => {
+    invalidateEstimates();
+    return apiRequest<{ success: boolean }>(
+      `/api/finance/estimates/${estimateId}/approval-details`,
+      { method: 'POST', body: JSON.stringify(details) }
+    );
+  },
 };
 
 // ── Resident-facing endpoints ────────────────────────────────────────
