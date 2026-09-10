@@ -123,8 +123,27 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
   if (!fc.allowed) return error(fc.error!, 403);
 
   const tenantId = getTenantId(request);
+  // Fix PR-6 pipeline: раньше JOIN возвращал только name. Из-за этого
+  // renderBuildingPassportHtml (PR-6 blockA) никогда не рендерил секцию
+  // в PDF — frontend строил объект building только из name/address/totalArea
+  // и передавал огрызок в PDF-генератор. Расширяем SELECT нужными
+  // паспорт-полями с prefix `building_` (все nullable — старые здания
+  // без этих полей продолжают рендериться идентично baseline).
   const estimate = await env.DB.prepare(
-    `SELECT e.*, b.name as building_name,
+    `SELECT e.*,
+            b.name                 as building_name,
+            b.address              as building_address,
+            b.floors               as building_floors,
+            b.apartments_count     as building_apartments_count,
+            b.entrances_count      as building_entrances_count,
+            b.year_built           as building_year_built,
+            b.total_area           as building_total_area,
+            b.living_area          as building_living_area,
+            b.heating_type         as building_heating_type,
+            b.has_elevator         as building_has_elevator,
+            b.parking_area         as building_parking_area,
+            b.basement_area        as building_basement_area,
+            b.technical_rooms_area as building_technical_rooms_area,
             su.name as submitted_by_name, au.name as approved_by_name, ru.name as rejected_by_name
        FROM finance_estimates e
        LEFT JOIN buildings b ON e.building_id = b.id
