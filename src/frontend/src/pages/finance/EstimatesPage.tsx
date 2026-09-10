@@ -1493,15 +1493,42 @@ export default function EstimatesPage() {
               <button
                 onClick={() => {
                   if (currentEstimate) {
+                    // Fix PR-6 pipeline: раньше сюда шли ТОЛЬКО {id,name,address,totalArea}
+                    // из stores.buildings, и helper renderBuildingPassportHtml никогда
+                    // не получал parking_area / basement_area / technical_rooms_area
+                    // → секция «Паспорт МКД» никогда не рендерилась в prod. Теперь
+                    // GET /:id возвращает building_* поля (миграция 084 + расширенный
+                    // SELECT), собираем полный объект building из этих полей и
+                    // делаем его FIRST в массиве (внутри generateEstimatePdf
+                    // используется find(b => b.id === estimate.building_id)).
+                    const est = currentEstimate as unknown as Record<string, unknown>;
+                    const passportBuilding = est.building_id ? {
+                      id: est.building_id as string,
+                      name: (est.building_name as string) || '',
+                      address: (est.building_address as string) || undefined,
+                      totalArea: (est.building_total_area as number) || undefined,
+                      // PR-6 паспорт-поля (nullable — helper вернёт '' если все пусты)
+                      floors: est.building_floors ?? null,
+                      apartments_count: est.building_apartments_count ?? null,
+                      entrances_count: est.building_entrances_count ?? null,
+                      year_built: est.building_year_built ?? null,
+                      living_area: est.building_living_area ?? null,
+                      heating_type: est.building_heating_type ?? null,
+                      has_elevator: est.building_has_elevator ?? null,
+                      parking_area: est.building_parking_area ?? null,
+                      basement_area: est.building_basement_area ?? null,
+                      technical_rooms_area: est.building_technical_rooms_area ?? null,
+                    } : null;
+                    const fallbackBuildings = buildings.map((building) => ({
+                      id: building.id,
+                      name: building.name,
+                      address: building.address,
+                      totalArea: building.totalArea,
+                    }));
                     generateEstimatePdf(
-                      currentEstimate as unknown as Record<string, unknown>,
+                      est,
                       detailItems as unknown as Parameters<typeof generateEstimatePdf>[1],
-                      buildings.map((building) => ({
-                        id: building.id,
-                        name: building.name,
-                        address: building.address,
-                        totalArea: building.totalArea,
-                      })),
+                      passportBuilding ? [passportBuilding, ...fallbackBuildings] : fallbackBuildings,
                       language as 'ru' | 'uz',
                       tenantName,
                     );
