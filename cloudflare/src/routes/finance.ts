@@ -169,7 +169,24 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
     revenue_sources = [];
   }
 
-  return json({ estimate: { ...estimate, items, revenue_sources } });
+  // PR-7b (feat/smeta-pdf-staff-table): staff-массив для рендера таблицы
+  // «Штат» в PDF. Только базовые 4 поля (title/units/salary/monthly);
+  // расширенные из миграции 085 не рендерятся в PDF (см. отчёт PR-7b).
+  // Defensive: если таблица не существует — пусто, PDF не рендерит секцию.
+  let staff: unknown[] = [];
+  try {
+    const r = await env.DB.prepare(
+      `SELECT title, units, salary, monthly, sort_order
+         FROM finance_estimate_staff
+        WHERE estimate_id = ?
+        ORDER BY sort_order, title`
+    ).bind(params.id).all();
+    staff = r.results || [];
+  } catch {
+    staff = [];
+  }
+
+  return json({ estimate: { ...estimate, items, revenue_sources, staff } });
 });
 
 // 3. POST /api/finance/estimates — создать смету
