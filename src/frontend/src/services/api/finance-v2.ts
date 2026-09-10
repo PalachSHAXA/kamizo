@@ -13,6 +13,19 @@ export interface StaffPositionV2 {
   units: number;   // может быть дробным (0.5)
   salary: number;  // ежемес. оклад
   vacation_days?: number; // дней отпуска (ТК РУз минимум 21)
+
+  // PR-7 (feat/smeta-staff-extension) миграция 085: опциональные поля
+  // документируют состав штата. НЕ влияют на расчёт monthly/ФОТ (см.
+  // compute.ts — там задействованы только title/units/salary/vacation_days).
+  // Backend прокидывает round-trip: SELECT возвращает, INSERT сохраняет.
+  employment_type?: 'full_time' | 'part_time' | 'contract' | string;
+  employment_share?: number;     // 0.5 = полставки на человека (semantically ≠ units)
+  employer_contributions?: number; // доп. взносы работодателя сверх payroll_tax_rate
+  additional_payments?: number;  // премии/доплаты
+  period_start?: string;         // ISO 'YYYY-MM-DD'
+  period_end?: string;
+  building_id?: string;          // NULL = общий на весь scope сметы
+  staff_category?: 'admin' | 'production' | string;
 }
 
 export type ExpenseSection = 'production' | 'periodic';

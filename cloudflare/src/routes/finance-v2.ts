@@ -79,16 +79,32 @@ export async function loadEstimateInput(
     'SELECT floors, has_elevator, has_pumps, residential_area FROM buildings WHERE id = ? AND tenant_id = ? LIMIT 1'
   ).bind(row.building_id, tenantId).first() as any;
 
-  // Штат (позиции units × salary)
+  // Штат (позиции units × salary).
+  // PR-7: SELECT-ит также расширенные поля (миграция 085). Compute-движку
+  // они не нужны — прокидываем как дополнительные property для UI-round-trip
+  // при редактировании (wizard читает их обратно через GET /:id/full).
   const { results: staffRows } = await env.DB.prepare(
-    'SELECT title, units, salary, vacation_days FROM finance_estimate_staff WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order, title'
+    `SELECT title, units, salary, vacation_days,
+            employment_type, employment_share, employer_contributions,
+            additional_payments, period_start, period_end, building_id, staff_category
+       FROM finance_estimate_staff
+      WHERE estimate_id = ? AND tenant_id = ? ORDER BY sort_order, title`
   ).bind(estimateId, tenantId).all();
   const staff: StaffPosition[] = (staffRows || []).map((s: any) => ({
     title: s.title,
     units: s.units,
     salary: s.salary,
     vacation_days: s.vacation_days ?? undefined, // NULL → движок берёт 0
-  }));
+    // PR-7 extended fields — прокидываются как есть, compute их игнорирует.
+    employment_type: s.employment_type ?? undefined,
+    employment_share: s.employment_share ?? undefined,
+    employer_contributions: s.employer_contributions ?? undefined,
+    additional_payments: s.additional_payments ?? undefined,
+    period_start: s.period_start ?? undefined,
+    period_end: s.period_end ?? undefined,
+    building_id: s.building_id ?? undefined,
+    staff_category: s.staff_category ?? undefined,
+  } as StaffPosition));
 
   // Статьи: разделяем на expenses и incomes по kind. building_id = scope
   // (NULL = общая, задано = адресная на конкретный дом ЖК).
@@ -452,7 +468,21 @@ route('PUT', '/api/finance/estimates/:id/staff', async (request, env, params) =>
   const blocked = estimateEditBlockedReason(est);
   if (blocked) return bilingualError(blocked[0], blocked[1], 409);
 
-  const body = await request.json() as { staff: StaffPosition[] };
+  // PR-7 (feat/smeta-staff-extension): StaffPosition расширен опциональными
+  // полями (employment_type, employment_share, employer_contributions,
+  // additional_payments, period_start/end, building_id, staff_category).
+  // Все прокидываются в БД как есть. Расчёт monthly/units*salary НЕ меняется.
+  interface StaffPositionWithExtension extends StaffPosition {
+    employment_type?: string | null;
+    employment_share?: number | null;
+    employer_contributions?: number | null;
+    additional_payments?: number | null;
+    period_start?: string | null;
+    period_end?: string | null;
+    building_id?: string | null;
+    staff_category?: string | null;
+  }
+  const body = await request.json() as { staff: StaffPositionWithExtension[] };
   const staff = body.staff || [];
 
   // Атомарно: удалить старые + вставить новые
@@ -461,11 +491,18 @@ route('PUT', '/api/finance/estimates/:id/staff', async (request, env, params) =>
     const s = staff[i];
     if (!s.title || s.units <= 0) continue;
     await env.DB.prepare(
-      `INSERT INTO finance_estimate_staff (id, estimate_id, title, units, salary, monthly, vacation_days, sort_order, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO finance_estimate_staff (
+        id, estimate_id, title, units, salary, monthly, vacation_days, sort_order, tenant_id,
+        employment_type, employment_share, employer_contributions, additional_payments,
+        period_start, period_end, building_id, staff_category
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       generateId(), params.id, s.title, s.units, s.salary,
-      s.units * s.salary, s.vacation_days ?? 21, i, tenantId || ''
+      s.units * s.salary, s.vacation_days ?? 21, i, tenantId || '',
+      s.employment_type || null, s.employment_share ?? null,
+      s.employer_contributions ?? null, s.additional_payments ?? null,
+      s.period_start || null, s.period_end || null,
+      s.building_id || null, s.staff_category || null
     ).run();
   }
 
