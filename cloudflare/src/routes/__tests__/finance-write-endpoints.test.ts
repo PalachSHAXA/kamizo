@@ -6,6 +6,7 @@
 // 4. DELETE /:id/revenue-sources/:sourceId: happy path + 404.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assertInsertParity } from '../../utils/__tests__/sql-parity';
 
 type Handler = (request: Request, env: any, params: Record<string, string>) => Promise<Response>;
 type Method = 'first' | 'all' | 'run';
@@ -103,6 +104,10 @@ describe('PUT /:id/expenses — category_id round-trip', () => {
     // Legacy текстовое поле category продолжает жить (hard-coded 'maintenance' в SQL — не в params)
     expect(insert.sql).toContain("category,");
     expect(insert.sql).toContain('category_id,');
+    // РЕГРЕСС hotfix 5165ca25: SQL-parity — columns == placeholders + literals,
+    // и placeholders == bind params. До hotfix'а SQL имел 22 values для 21
+    // колонки; unit-тест этого не ловил, SQLite ронял в проде.
+    assertInsertParity(insert.sql, insert.params);
   });
 
   it('items без category_id → NULL в БД (не падает)', async () => {
@@ -122,6 +127,8 @@ describe('PUT /:id/expenses — category_id round-trip', () => {
     const insert = calls.find((c) => c.sql.startsWith('INSERT INTO finance_estimate_items'))!;
     // category_id должен передаться как null
     expect(insert.params).toContain(null);
+    // Regression на hotfix 5165ca25 — parity должна держаться
+    assertInsertParity(insert.sql, insert.params);
   });
 });
 
@@ -157,6 +164,7 @@ describe('POST /:id/revenue-sources — создание', () => {
     expect(insert.params).toContain('parking');
     expect(insert.params).toContain(2_000_000);
     expect(insert.params).toContain(1); // legal_classification=true → 1
+    assertInsertParity(insert.sql, insert.params);
   });
 
   it('невалидный source_type → 400', async () => {
