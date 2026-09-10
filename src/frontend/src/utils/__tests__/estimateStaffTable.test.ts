@@ -135,3 +135,86 @@ describe('Edge cases', () => {
     expect(html).toMatch(/Итого ФОТ[\s\S]*?600[\s\S]*?7 200/);
   });
 });
+
+// fix/smeta-staff-vacation-reserve
+describe('vacation-reserve (2 extra rows)', () => {
+  it('vacation_days=0 у всех → доп. строк НЕТ (инвариант baseline)', () => {
+    const staff: StaffRow[] = [
+      { title: 'A', units: 1, salary: 1_000_000, monthly: 1_000_000, vacation_days: 0 },
+      { title: 'B', units: 1, salary: 2_000_000, monthly: 2_000_000 }, // undefined
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    expect(html).toContain('Итого ФОТ');
+    expect(html).not.toContain('Резерв отпускных');
+    expect(html).not.toContain('ФОТ БРУТТО');
+  });
+
+  it('vacation_days=21 у всех: строки Резерв + ФОТ БРУТТО с правильными числами', () => {
+    // Демо-смета: 6 позиций суммарно 10 500 000/мес окладов.
+    const staff: StaffRow[] = [
+      { title: 'DIREKTOR',   units: 1, salary: 2_500_000, monthly: 2_500_000, vacation_days: 21 },
+      { title: 'BUX',        units: 1, salary: 1_800_000, monthly: 1_800_000, vacation_days: 21 },
+      { title: 'ELEKTRIK',   units: 1, salary: 1_500_000, monthly: 1_500_000, vacation_days: 21 },
+      { title: 'SANTEXNIK',  units: 1, salary: 1_500_000, monthly: 1_500_000, vacation_days: 21 },
+      { title: 'UBORSHIK',   units: 2, salary: 1_000_000, monthly: 2_000_000, vacation_days: 21 },
+      { title: 'DVORNIK',    units: 1, salary: 1_200_000, monthly: 1_200_000, vacation_days: 21 },
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    // Резерв = 10 500 000 / 12 = 875 000/мес, 10 500 000/год.
+    expect(html).toMatch(/\+ Резерв отпускных[\s\S]*?875 000[\s\S]*?10 500 000/);
+    // ФОТ БРУТТО = 11 375 000/мес, 136 500 000/год.
+    expect(html).toMatch(/= ФОТ БРУТТО[\s\S]*?11 375 000[\s\S]*?136 500 000/);
+    // Итого ФОТ (оклады) остался прежним.
+    expect(html).toMatch(/Итого ФОТ[\s\S]*?10 500 000[\s\S]*?126 000 000/);
+  });
+
+  it('KPI-инвариант: fot_gross из таблицы штата = fot_gross из compute (formula parity)', () => {
+    // Резерв на одну позицию: units*salary*days/(21*12).
+    // При days=21 и units=1 salary=1200000 → 1200000/12 = 100 000.
+    const staff: StaffRow[] = [
+      { title: 'X', units: 1, salary: 1_200_000, monthly: 1_200_000, vacation_days: 21 },
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    // fot_base = 1 200 000; fot_vacation = 100 000; fot_gross = 1 300 000
+    expect(html).toMatch(/\+ Резерв отпускных[\s\S]*?100 000/);
+    expect(html).toMatch(/= ФОТ БРУТТО[\s\S]*?1 300 000/);
+  });
+
+  it('смешанные vacation_days (0 и 21) — считается только у ненулевых', () => {
+    const staff: StaffRow[] = [
+      { title: 'A', units: 1, salary: 1_200_000, monthly: 1_200_000, vacation_days: 21 }, // резерв 100k
+      { title: 'B', units: 1, salary: 1_000_000, monthly: 1_000_000, vacation_days: 0 },  // без резерва
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    // Total base 2 200 000, vacation 100 000, gross 2 300 000.
+    expect(html).toMatch(/Итого ФОТ[\s\S]*?2 200 000/);
+    expect(html).toMatch(/\+ Резерв отпускных[\s\S]*?100 000/);
+    expect(html).toMatch(/= ФОТ БРУТТО[\s\S]*?2 300 000/);
+  });
+
+  it('vacation_days=null — не считается (NULL из БД)', () => {
+    const staff: StaffRow[] = [
+      { title: 'A', units: 1, salary: 1_000_000, monthly: 1_000_000, vacation_days: null },
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    expect(html).not.toContain('Резерв отпускных');
+  });
+
+  it('нестандартные vacation_days (например 14): формула units*salary*days/(21*12)', () => {
+    // 1 × 2 100 000 × 14 / (21*12) = 116 666.67 → округление → 116 667
+    const staff: StaffRow[] = [
+      { title: 'A', units: 1, salary: 2_100_000, monthly: 2_100_000, vacation_days: 14 },
+    ];
+    const html = renderStaffTableHtml(staff, 'ru', esc);
+    expect(html).toMatch(/\+ Резерв отпускных[\s\S]*?116 667/);
+  });
+
+  it('uz-локализация доп. строк', () => {
+    const staff: StaffRow[] = [
+      { title: 'X', units: 1, salary: 100, monthly: 100, vacation_days: 21 },
+    ];
+    const html = renderStaffTableHtml(staff, 'uz', esc);
+    expect(html).toContain('Ta\'til zaxirasi');
+    expect(html).toContain('FOT BRUTTO');
+  });
+});
