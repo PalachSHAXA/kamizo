@@ -569,7 +569,7 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
         id, estimate_id, name, category, category_id, amount, monthly_amount,
         section, unit, linked_to_staff, legal_code, kind, building_id, sort_order, tenant_id,
         quantity, qty_unit, unit_price, frequency_per_month, source_price_ref, formula_notes
-      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       generateId(), params.id, it.name, it.category_id || null, monthly * 12, monthly,
       it.section || 'production', it.unit || 'flat',
