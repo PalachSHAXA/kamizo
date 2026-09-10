@@ -75,7 +75,7 @@ const formatJoinDate = (iso: string | undefined, lang: 'ru' | 'uz'): string => {
   return lang === 'ru' ? `с ${month} ${year}` : `${month} ${year} dan`;
 };
 
-const maskPhone = (raw: string | undefined): string => {
+const maskPhone = (raw: string | null | undefined): string => {
   const pretty = formatPhone(raw || '');
   if (!pretty) return '';
   // formatPhone → "+998 90 100 00 11" → "+998 (90) ··· 00 11"
