@@ -13,6 +13,7 @@ import { registerNotificationRoutes } from './notifications';
 import { registerMiscRoutes } from './misc';
 import { registerFinanceRoutes } from './finance';
 import { registerFinanceV2Routes } from './finance-v2';
+import { registerFinanceRevenueSourcesRoutes } from './finance-revenue-sources';
 import { registerTenantContractRoutes } from './tenants/contracts';
 import { registerDeviceRoutes } from './devices';
 import { registerTelegramRoutes } from './telegram';
@@ -28,6 +29,10 @@ export function registerAllRoutes() {
   registerNotificationRoutes();
   registerFinanceRoutes();
   registerFinanceV2Routes();
+  // PR-9 (feat/smeta-write-endpoints): CRUD для revenue_sources (миграция 083).
+  // Регистрируется после finance-v2, чтобы более специфичный роут
+  // /estimates/:id/revenue-sources/:sourceId не перекрывался старыми.
+  registerFinanceRevenueSourcesRoutes();
   registerMiscRoutes();
   registerSuperAdminRoutes();
   // Sprint 85 commit 1 — tenant contract PDF upload/download/delete.
