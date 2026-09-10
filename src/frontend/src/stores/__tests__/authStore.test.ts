@@ -110,6 +110,39 @@ describe('authStore', () => {
     expect(authInstallOrder).toEqual(['reset', 'auth_token', 'markLoggedIn'])
   })
 
+  it('regression fix/auth-nullable-phone: логин проходит с phone=null (test-* и часть admin/director)', async () => {
+    const { authApi } = await import('../../services/api/auth')
+    // Backend возвращает phone=null для test-director-myhelper и других
+    // аккаунтов без телефона в БД. До этого фикса isUser() возвращал
+    // false и форма показывала «Invalid user response».
+    const mockUser = {
+      id: 'a36d95e3-6187-4f53-8a09-2269d9d265e7',
+      name: 'Test My Helper Director',
+      login: 'test-director-myhelper',
+      role: 'director',
+      phone: null,
+    } as unknown as User
+    vi.mocked(authApi.login).mockResolvedValueOnce({ kind: 'success', user: mockUser, token: 'jwt-null-phone-ok' })
+    authInstallOrder.length = 0
+
+    const result = await useAuthStore.getState().login('test-director-myhelper', 'ya1dlSexw60pGfsM')
+    expect(result).toBe('success')
+    const state = useAuthStore.getState()
+    expect(state.user).toEqual(mockUser)
+    expect(state.token).toBe('jwt-null-phone-ok')
+    expect(state.error).toBeNull()
+  })
+
+  it('regression: phone неправильного типа (число) — всё ещё "Invalid user response"', async () => {
+    const { authApi } = await import('../../services/api/auth')
+    const badUser = { id: 'x', name: 'X', login: 'x', role: 'resident', phone: 42 } as unknown as User
+    vi.mocked(authApi.login).mockResolvedValueOnce({ kind: 'success', user: badUser, token: 't' })
+
+    const result = await useAuthStore.getState().login('x', 'x')
+    expect(result).toBe('error')
+    expect(useAuthStore.getState().error).toBe('Invalid user response')
+  })
+
   it('demo login installs the session in the same atomic order as manual login', async () => {
     const { authApi } = await import('../../services/api/auth')
     const mockUser: User = {

@@ -88,7 +88,7 @@ const formatRuDate = (iso: string | undefined): string => {
 };
 
 // Mask phone to "···{last 4}" — handoff privacy idiom.
-const maskPhone = (phone: string | undefined): string => {
+const maskPhone = (phone: string | null | undefined): string => {
   if (!phone) return 'тел. —';
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 4) return `тел. ${phone}`;
