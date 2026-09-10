@@ -534,6 +534,15 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
   // TODO (Часть 9 compliance-warning): если quantity/unit_price/
   // frequency_per_month заполнены все три, и |q×p×f - monthly| / monthly > 0.01,
   // это должно попадать в warning-выдачу /validate. Реализация — отдельный PR.
+  // PR-9 (feat/smeta-write-endpoints): расширяем ExpenseLine ещё одним
+  // опциональным полем — category_id (FK на expense_categories, миграция 081).
+  // Раньше SQL хардкодил только текстовое поле category='maintenance', и
+  // группировка PDF по expense_type (PR-2) не работала — теперь можно.
+  //
+  // Поле `category` (legacy текст) остаётся: оно всё ещё используется в
+  // finance-v2.ts:121-122 (маппинг income-строк по типу) и в fallback'ах
+  // (accounting.ts:211). Мы просто заполняем ОБА поля: category остаётся
+  // 'maintenance' по умолчанию, category_id — из тела запроса при наличии.
   interface ExpenseLineWithFormula extends ExpenseLine {
     quantity?: number | null;
     qty_unit?: string | null;
@@ -541,6 +550,7 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
     frequency_per_month?: number | null;
     source_price_ref?: string | null;
     formula_notes?: string | null;
+    category_id?: string | null;
   }
   const body = await request.json() as { items: ExpenseLineWithFormula[] };
   const items = body.items || [];
@@ -556,12 +566,12 @@ route('PUT', '/api/finance/estimates/:id/expenses', async (request, env, params)
     const monthly = it.monthly || 0;
     await env.DB.prepare(
       `INSERT INTO finance_estimate_items (
-        id, estimate_id, name, category, amount, monthly_amount,
+        id, estimate_id, name, category, category_id, amount, monthly_amount,
         section, unit, linked_to_staff, legal_code, kind, building_id, sort_order, tenant_id,
         quantity, qty_unit, unit_price, frequency_per_month, source_price_ref, formula_notes
-      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, 'maintenance', ?, ?, ?, ?, ?, ?, ?, 'expense', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      generateId(), params.id, it.name, monthly * 12, monthly,
+      generateId(), params.id, it.name, it.category_id || null, monthly * 12, monthly,
       it.section || 'production', it.unit || 'flat',
       it.linked_to_staff ? 1 : 0, it.legal_code || null, it.building_id || null, i, tenantId || '',
       it.quantity ?? null, it.qty_unit || null, it.unit_price ?? null,
