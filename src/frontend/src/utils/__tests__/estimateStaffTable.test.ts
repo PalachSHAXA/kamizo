@@ -52,12 +52,12 @@ describe('renderStaffTableHtml — базовые сценарии', () => {
 });
 
 describe('BASELINE myhelper 2026-08 — 7 позиций (проверка референсных цифр)', () => {
-  // Данные из смета-референс (smeta2.pdf) — единственная активная позиция
-  // FARROSH с units=2 (2 000 000/мес), остальные units=1.
+  // Данные из prod-БД (SELECT ... FROM finance_estimate_staff, 2026-09-10):
+  // все 7 позиций units=1. FARROSH с salary=2 000 000 (не 2 позиции по 1M).
   const baselineStaff: StaffRow[] = [
     { title: 'DIREKTOR',      units: 1, salary: 1_500_000, monthly: 1_500_000 },
     { title: 'BUHGALTER',     units: 1, salary: 1_000_000, monthly: 1_000_000 },
-    { title: 'FARROSH',       units: 2, salary: 1_000_000, monthly: 2_000_000 },
+    { title: 'FARROSH',       units: 1, salary: 2_000_000, monthly: 2_000_000 },
     { title: 'SANTEXNIK',     units: 1, salary: 1_500_000, monthly: 1_500_000 },
     { title: 'ELEKTRIK',      units: 1, salary: 1_500_000, monthly: 1_500_000 },
     { title: 'RAZNARABOCHIY', units: 1, salary: 1_000_000, monthly: 1_000_000 },
@@ -92,12 +92,14 @@ describe('BASELINE myhelper 2026-08 — 7 позиций (проверка ре�
     }
   });
 
-  it('units=2 для FARROSH рендерится', () => {
+  it('FARROSH: salary=2 000 000, units=1 (данные из prod-БД)', () => {
     const html = renderStaffTableHtml(baselineStaff, 'ru', esc);
-    // Ищем FARROSH и рядом 2 (единиц)
     const idx = html.indexOf('FARROSH');
-    const context = html.slice(idx, idx + 300);
-    expect(context).toMatch(/>2</);
+    const context = html.slice(idx, idx + 400);
+    // units=1
+    expect(context).toMatch(/>1</);
+    // salary=2 000 000
+    expect(context).toContain('2 000 000');
   });
 });
 
