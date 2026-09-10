@@ -212,7 +212,11 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
   let staff: unknown[] = [];
   try {
     const r = await env.DB.prepare(
-      `SELECT title, units, salary, monthly, sort_order
+      // fix/smeta-staff-vacation-reserve: vacation_days нужен фронту для
+      // расчёта резерва отпускных в таблице «Штат» PDF (доп. строки после
+      // «Итого ФОТ»). Формула compute.ts:49 — vacationMonthly = units *
+      // salary * days / (21 * 12). NULL из БД трактуем как 0 на фронте.
+      `SELECT title, units, salary, monthly, vacation_days, sort_order
          FROM finance_estimate_staff
         WHERE estimate_id = ?
         ORDER BY sort_order, title`
