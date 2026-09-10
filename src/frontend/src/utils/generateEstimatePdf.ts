@@ -23,6 +23,7 @@ import {
   type BuildingPassportFields,
 } from './estimateBuildingPassport';
 import { renderStaffTableHtml, type StaffRow } from './estimateStaffTable';
+import { renderApprovalFooterHtml, type ApprovalFields } from './estimateApprovalFooter';
 
 interface EstimateItemLite {
   id?: string;
@@ -290,6 +291,8 @@ export function generateEstimatePdf(
       'Smeta O\'zbekiston Respublikasining "Ko\'p kvartirali uylarni boshqarish to\'g\'risida"gi qonuni (ORQ-581), Adliya vazirligi buyrug\'i №3501 (minimal tariflar) va Vazirlar Mahkamasi qarorlari №930 va №5152 asosida tuzilgan. Hujjat egalarning umumiy yig\'ilishida tasdiqlanishi kerak. Kamizo tomonidan yaratilgan.'
     )}
   </div>
+
+  ${renderApprovalFooterHtml(estimate as ApprovalFields, language, esc)}
 
   <script>window.onload = () => setTimeout(() => window.print(), 400);</script>
 </body></html>`;

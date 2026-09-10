@@ -132,8 +132,25 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
        LEFT JOIN users au ON au.id = e.approved_by
        LEFT JOIN users ru ON ru.id = e.rejected_by
       WHERE e.id = ? ${tenantId ? 'AND e.tenant_id = ?' : ''}`
-  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first();
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<Record<string, unknown>>();
   if (!estimate) return error('Estimate not found', 404);
+
+  // PR-8: если approval_meeting_id заполнен — подтягиваем номер собрания и
+  // подтверждённую дату отдельным запросом. Defensive: до применения
+  // миграции 086 колонки approval_meeting_id не существует → SELECT e.*
+  // просто её не вернёт, ниже мы это увидим как undefined → пропускаем.
+  const approvalMeetingId = estimate.approval_meeting_id as string | null | undefined;
+  if (approvalMeetingId) {
+    try {
+      const m = await env.DB.prepare(
+        `SELECT number, confirmed_date_time FROM meetings WHERE id = ?`
+      ).bind(approvalMeetingId).first<{ number: number | null; confirmed_date_time: string | null }>();
+      if (m) {
+        estimate.approval_meeting_number = m.number;
+        estimate.approval_meeting_confirmed_at = m.confirmed_date_time;
+      }
+    } catch { /* meetings недоступны — не критично */ }
+  }
 
   // PR-2 blockF: LEFT JOIN expense_categories возвращает expense_type/name_ru/name_uz
   // для группировки статей в PDF по типу. Items без category_id → NULL → PDF
@@ -557,6 +574,65 @@ route('POST', '/api/finance/estimates/:id/activate', async (request, env, params
     charges_count: cnt,
     message: cnt > 0 ? `Начисления уже сформированы (${cnt})` : 'Начисления ещё не сформированы',
   });
+});
+
+// 8b. POST /api/finance/estimates/:id/approval-details — PR-8 блок H.
+// Проставляет юридические реквизиты утверждения (собрание, протокол,
+// итоги голосования, дата подписания). Отдельно от /activate — активация
+// меняет status/approval_status и НЕ ТРОГАЕТСЯ. Этот endpoint только
+// дописывает опциональные approval_* поля (миграция 086), не меняя
+// approval_status и не влияя на activate/submit/reject.
+route('POST', '/api/finance/estimates/:id/approval-details', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!user) return error('Unauthorized', 401);
+  const fc = await requireFeature('communal', env, request);
+  if (!fc.allowed) return error(fc.error!, 403);
+  if (!canApproveEstimate(user)) return error('Admin or director access required', 403);
+
+  const tenantId = getTenantId(request);
+  const existing = await env.DB.prepare(
+    `SELECT id FROM finance_estimates WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(params.id, ...(tenantId ? [tenantId] : [])).first<{ id: string }>();
+  if (!existing) return error('Estimate not found', 404);
+
+  const body = await request.json() as {
+    approval_meeting_id?: string | null;
+    approval_protocol_number?: string | null;
+    approval_agenda_item_id?: string | null;
+    approval_vote_result?: string | null;
+    approval_signed_at?: string | null;
+    approval_notes?: string | null;
+  };
+
+  // Если передан approval_meeting_id — валидируем принадлежность tenant'у.
+  if (body.approval_meeting_id) {
+    const meeting = await env.DB.prepare(
+      `SELECT id FROM meetings WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+    ).bind(body.approval_meeting_id, ...(tenantId ? [tenantId] : [])).first();
+    if (!meeting) return error('Approval meeting not found in current tenant', 404);
+  }
+
+  await env.DB.prepare(
+    `UPDATE finance_estimates
+        SET approval_meeting_id      = ?,
+            approval_protocol_number = ?,
+            approval_agenda_item_id  = ?,
+            approval_vote_result     = ?,
+            approval_signed_at       = ?,
+            approval_notes           = ?
+      WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`
+  ).bind(
+    body.approval_meeting_id ?? null,
+    body.approval_protocol_number ?? null,
+    body.approval_agenda_item_id ?? null,
+    body.approval_vote_result ?? null,
+    body.approval_signed_at ?? null,
+    body.approval_notes ?? null,
+    params.id,
+    ...(tenantId ? [tenantId] : [])
+  ).run();
+
+  return json({ success: true });
 });
 
 // ── НАЧИСЛЕНИЯ ───────────────────────────────────────────────────
