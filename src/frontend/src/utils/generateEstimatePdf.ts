@@ -22,6 +22,7 @@ import {
   renderBuildingPassportHtml,
   type BuildingPassportFields,
 } from './estimateBuildingPassport';
+import { renderStaffTableHtml, type StaffRow } from './estimateStaffTable';
 
 interface EstimateItemLite {
   id?: string;
@@ -270,6 +271,8 @@ export function generateEstimatePdf(
   </div>
 
   ${v2Section}
+
+  ${renderStaffTableHtml((estimate.staff as StaffRow[] | undefined) || [], language, esc)}
 
   ${renderBuildingPassportHtml(building as BuildingPassportFields | null | undefined, language, esc)}
 
