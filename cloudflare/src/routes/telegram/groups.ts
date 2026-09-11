@@ -46,7 +46,8 @@ route('GET', '/api/telegram/groups', async (request, env) => {
 
   const { results } = await env.DB.prepare(`
     SELECT g.id, g.building_id, g.entrance, g.telegram_chat_id,
-           g.telegram_chat_title, g.listener_enabled, g.announcements_enabled,
+           g.telegram_chat_title, g.message_thread_id, g.topic_name,
+           g.listener_enabled, g.announcements_enabled,
            g.bot_status, g.connected_at, g.disabled_at,
            b.name AS building_name, b.address AS building_address
     FROM telegram_groups g
@@ -127,6 +128,8 @@ route('POST', '/api/telegram/groups/connect-token', async (request, env) => {
 
   return json({
     url: `https://t.me/${botUsername}?startgroup=${token}`,
+    addBotUrl: `https://t.me/${botUsername}?startgroup=setup`,
+    command: `/connect ${token}`,
     expiresAt: expiresAt.toISOString(),
   });
 });
@@ -226,7 +229,8 @@ route('GET', '/api/telegram/announcements/:id/deliveries', async (request, env, 
   if (!ann) return error('Announcement not found', 404);
 
   const { results } = await env.DB.prepare(`
-    SELECT d.id, d.telegram_group_id, d.telegram_chat_id, d.status,
+    SELECT d.id, d.telegram_group_id, d.telegram_chat_id,
+           d.message_thread_id, d.status,
            d.error_message, d.attempts, d.sent_at,
            g.telegram_chat_title, g.building_id
     FROM telegram_deliveries d

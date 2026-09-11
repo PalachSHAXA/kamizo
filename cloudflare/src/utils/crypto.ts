@@ -7,6 +7,7 @@ export interface JwtPayload {
   userId: string;
   role: string;
   tenantId?: string;
+  iat?: number;
   demo_session?: true;
   imp?: true;
   imp_by?: string;
@@ -45,7 +46,7 @@ async function hmacVerify(data: string, signature: Uint8Array, secret: string): 
 export async function createJWT(payload: JwtPayload, secret: string | undefined, expiresInSec: number): Promise<string> {
   if (!secret) throw new Error('JWT_SECRET is not configured — run: wrangler secret put JWT_SECRET');
   const header = { alg: 'HS256', typ: 'JWT' };
-  const now = Math.floor(Date.now() / 1000);
+  const now = Date.now() / 1000;
   const fullPayload = { ...payload, iat: now, exp: now + expiresInSec };
 
   const headerB64 = base64urlEncode(JSON.stringify(header));
@@ -81,6 +82,12 @@ export async function verifyJWT(token: string, secret: string | undefined): Prom
       role: payload.role,
       tenantId: payload.tenantId,
     };
+    if (typeof payload.iat === 'number') {
+      Object.defineProperty(verifiedPayload, 'iat', {
+        value: payload.iat,
+        enumerable: false,
+      });
+    }
     if (payload.demo_session === true) verifiedPayload.demo_session = true;
     if (payload.imp === true && typeof payload.imp_by === 'string') {
       verifiedPayload.imp = true;

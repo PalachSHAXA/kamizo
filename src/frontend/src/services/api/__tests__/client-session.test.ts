@@ -4,6 +4,7 @@ import {
   SessionChangedError,
   apiRequest,
   cachedGet,
+  getToken,
   resetApiSession,
 } from '../client';
 import { authApi } from '../auth';
@@ -60,6 +61,16 @@ describe('API session isolation', () => {
 
     await expect(cachedGet('/api/shared')).resolves.toEqual({ tenant: 'B' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers the mirrored token from Zustand during cold-start rehydration', () => {
+    localStorage.setItem('uk-auth-storage', JSON.stringify({
+      state: { user: { id: 'user-1' }, token: 'persisted-jwt-token-long-enough' },
+      version: 4,
+    }));
+
+    expect(getToken()).toBe('persisted-jwt-token-long-enough');
+    expect(localStorage.getItem('auth_token')).toBe('persisted-jwt-token-long-enough');
   });
 
   it('aborts active requests and reports a non-user-facing session change', async () => {

@@ -31,6 +31,12 @@ import { Preferences } from '@capacitor/preferences';
 import type { StateStorage } from 'zustand/middleware';
 
 const TOKEN_LOCAL_KEY = 'auth_token';
+let nativeWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueNativeWrite(write: () => Promise<void>): Promise<void> {
+  nativeWriteQueue = nativeWriteQueue.then(write, write);
+  return nativeWriteQueue;
+}
 
 /** True если приложение работает как Capacitor-нативное (iOS/Android). */
 export function isNativePlatform(): boolean {
@@ -71,6 +77,7 @@ function safeLocalRemove(key: string): void {
 export const preferencesStorage: StateStorage = {
   getItem: async (key: string): Promise<string | null> => {
     if (isNativePlatform()) {
+      await nativeWriteQueue;
       try {
         const { value } = await Preferences.get({ key });
         return value ?? null;
@@ -82,18 +89,22 @@ export const preferencesStorage: StateStorage = {
   },
   setItem: async (key: string, value: string): Promise<void> => {
     if (isNativePlatform()) {
-      try {
-        await Preferences.set({ key, value });
-      } catch { /* ignore */ }
+      await enqueueNativeWrite(async () => {
+        try {
+          await Preferences.set({ key, value });
+        } catch { /* ignore */ }
+      });
     }
     // Дублируем в localStorage всегда — sync-читатели ждут его там.
     safeLocalSet(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
     if (isNativePlatform()) {
-      try {
-        await Preferences.remove({ key });
-      } catch { /* ignore */ }
+      await enqueueNativeWrite(async () => {
+        try {
+          await Preferences.remove({ key });
+        } catch { /* ignore */ }
+      });
     }
     safeLocalRemove(key);
   },
@@ -112,6 +123,7 @@ export const preferencesStorage: StateStorage = {
  */
 export async function hydrateTokenCache(): Promise<void> {
   if (!isNativePlatform()) return;
+  await nativeWriteQueue;
   try {
     const { value: nativeToken } = await Preferences.get({ key: TOKEN_LOCAL_KEY });
     if (nativeToken) {
@@ -139,11 +151,12 @@ export async function hydrateTokenCache(): Promise<void> {
  *
  * Не await'ить — UI не должен блокироваться на native-IO.
  */
-export function writeTokenToNativeStorage(token: string | null): void {
-  if (!isNativePlatform()) return;
-  if (token) {
-    Preferences.set({ key: TOKEN_LOCAL_KEY, value: token }).catch(() => {});
-  } else {
-    Preferences.remove({ key: TOKEN_LOCAL_KEY }).catch(() => {});
-  }
+export function writeTokenToNativeStorage(token: string | null): Promise<void> {
+  if (!isNativePlatform()) return Promise.resolve();
+  return enqueueNativeWrite(async () => {
+    try {
+      if (token) await Preferences.set({ key: TOKEN_LOCAL_KEY, value: token });
+      else await Preferences.remove({ key: TOKEN_LOCAL_KEY });
+    } catch { /* localStorage remains the synchronous fallback */ }
+  });
 }

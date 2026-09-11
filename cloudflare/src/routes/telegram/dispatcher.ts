@@ -32,6 +32,8 @@ import {
   detectLanguage, type ZhkhLang, type ZhkhCategory,
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
+import { classifyNavigationIntent, type NavigationMatch, type NavigationIntent } from '../../utils/navigation-intent';
+import { normalizeFeatures } from '../../lib/features';
 
 // Тексты диспетчера на обоих языках.
 //
@@ -153,6 +155,194 @@ function dedupeMinutes(env: Env): number {
 // видна всем участникам группового чата.
 const DRAFT_TTL_MINUTES = 30;
 
+const NAV_COPY: Record<NavigationIntent, {
+  ru: string; uz: string; buttonRu: string; buttonUz: string;
+}> = {
+  rental_publish: {
+    ru: 'Похоже, вы хотите сдать квартиру. Разместить объявление в Kamizo?',
+    uz: 'Kvartirani ijaraga bermoqchimisiz? Kamizoda eʼlon joylashtiramizmi?',
+    buttonRu: 'Разместить квартиру', buttonUz: 'Kvartirani joylashtirish',
+  },
+  rental_browse: {
+    ru: 'Ищете квартиру в аренду? Открою актуальные предложения Kamizo.',
+    uz: 'Ijaraga kvartira qidiryapsizmi? Kamizodagi takliflarni ochaman.',
+    buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
+  },
+  useful_contacts: {
+    ru: 'Эту услугу можно поискать в полезных контактах Kamizo.',
+    uz: 'Bu xizmatni Kamizodagi foydali kontaktlardan topish mumkin.',
+    buttonRu: 'Найти услугу', buttonUz: 'Xizmat topish',
+  },
+  marketplace: {
+    ru: 'Открыть Маркет УК в Kamizo?',
+    uz: 'Kamizodagi BK marketini ochamizmi?',
+    buttonRu: 'Открыть Маркет', buttonUz: 'Marketni ochish',
+  },
+  vehicle_owner: {
+    ru: 'Владельца автомобиля можно найти по номеру в служебном поиске Kamizo.',
+    uz: 'Avtomobil egasini Kamizodagi xizmat qidiruvi orqali topish mumkin.',
+    buttonRu: 'Найти владельца', buttonUz: 'Egasini topish',
+  },
+  guest_pass: {
+    ru: 'Гостевой или курьерский пропуск можно оформить в Kamizo.',
+    uz: 'Mehmon yoki kuryer ruxsatnomasini Kamizoda yaratish mumkin.',
+    buttonRu: 'Оформить пропуск', buttonUz: 'Ruxsatnoma yaratish',
+  },
+  qr_scan: {
+    ru: 'Открою служебный QR-сканер охраны.',
+    uz: 'Qoʻriqlash xizmati uchun QR skanerni ochaman.',
+    buttonRu: 'Открыть сканер', buttonUz: 'Skanerni ochish',
+  },
+  vehicle_menu: {
+    ru: 'Что хотите сделать с автомобилем в Kamizo?',
+    uz: 'Kamizoda avtomobil bilan nima qilmoqchisiz?',
+    buttonRu: 'Мои авто', buttonUz: 'Mening avtomobillarim',
+  },
+  pass_menu: {
+    ru: 'Нужно оформить гостя или проверить QR-пропуск?',
+    uz: 'Mehmon ruxsatnomasini yaratish yoki QR-ni tekshirish kerakmi?',
+    buttonRu: 'Оформить гостя', buttonUz: 'Mehmonni rasmiylashtirish',
+  },
+  rental_menu: {
+    ru: 'Хотите найти квартиру или разместить свою?',
+    uz: 'Kvartira topish yoki o‘zingiznikini joylashtirishni xohlaysizmi?',
+    buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
+  },
+  parking_issue: {
+    ru: 'Похоже, это жалоба на парковку или посторонний автомобиль. Сообщить УК или найти владельца?',
+    uz: 'Bu noto‘g‘ri to‘xtash yoki begona avtomobil haqidagi murojaatga o‘xshaydi. BKga yozamizmi?',
+    buttonRu: 'Сообщить УК', buttonUz: 'BKga yozish',
+  },
+  barrier_issue: {
+    ru: 'Похоже, вопрос связан с охраной или въездом через шлагбаум.',
+    uz: 'Bu qo‘riqlash yoki shlagbaum orqali kirish masalasiga o‘xshaydi.',
+    buttonRu: 'Открыть гостевой доступ', buttonUz: 'Mehmon kirishini ochish',
+  },
+  resident_proposal: {
+    ru: 'Это предложение по улучшению дома. Отправить его управляющей компании в Kamizo?',
+    uz: 'Bu uyni yaxshilash bo‘yicha taklif. Uni Kamizo orqali BKga yuboramizmi?',
+    buttonRu: 'Написать УК', buttonUz: 'BKga yozish',
+  },
+  assistant_help: {
+    ru: 'Я могу помочь открыть нужный раздел Kamizo: заявки, аренду квартир, услуги, Маркет УК, гостевые пропуска и поиск автомобиля.',
+    uz: 'Kamizodagi kerakli bo‘limni ochishga yordam beraman: arizalar, ijara, xizmatlar, BK marketi, mehmon ruxsatnomalari va avtomobil qidiruvi.',
+    buttonRu: 'Открыть Kamizo', buttonUz: 'Kamizoni ochish',
+  },
+};
+
+const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
+  path: string; ru: string; uz: string;
+}>>> = {
+  vehicle_menu: [
+    { path: '/vehicle-search', ru: 'Чья машина?', uz: 'Mashina kimniki?' },
+    { path: '/vehicles', ru: 'Мои авто', uz: 'Mening avtomobillarim' },
+  ],
+  pass_menu: [
+    { path: '/guest-access', ru: 'Оформить гостя', uz: 'Mehmon ruxsati' },
+    { path: '/qr-scanner', ru: 'Проверить QR', uz: 'QR tekshirish' },
+  ],
+  rental_menu: [
+    { path: '/apartment-rentals', ru: 'Найти квартиру', uz: 'Kvartira topish' },
+    { path: '/apartment-rentals/create', ru: 'Сдать квартиру', uz: 'Ijaraga berish' },
+  ],
+  parking_issue: [
+    { path: '/chat', ru: 'Сообщить УК', uz: 'BKga yozish' },
+  ],
+  barrier_issue: [
+    { path: '/chat', ru: 'Написать охране', uz: 'Qo‘riqlashga yozish' },
+  ],
+};
+
+async function handleNavigationIntent(
+  env: Env,
+  group: { id: string; tenant_id: string },
+  message: any,
+  match: NavigationMatch,
+  log: any
+): Promise<void> {
+  const chatId = String(message.chat.id);
+  const threadId = Number(message.message_thread_id || 0);
+  const telegramUserId = String(message.from.id);
+
+  const tenant = await env.DB.prepare(
+    'SELECT url, features FROM tenants WHERE id = ? AND is_active = 1'
+  ).bind(group.tenant_id).first() as any;
+  if (!tenant) return;
+
+  if (match.requiredFeature) {
+    const features = normalizeFeatures(tenant.features);
+    const enabled = features.includes(match.requiredFeature as never);
+    if (!enabled) {
+      log.info('dispatcher_navigation_skipped', { tenantId: group.tenant_id, intent: match.intent, reason: 'feature_disabled' });
+      return;
+    }
+  }
+
+  // PII-bearing staff tools are never advertised to an unlinked or
+  // unauthorized Telegram account. Public catalog routes can safely lead to
+  // login and let their own backend gates make the final decision.
+  if (match.restrictedRoles?.length) {
+    const { results } = await env.DB.prepare(`
+      SELECT u.role
+      FROM telegram_users link
+      JOIN users u ON u.id = link.user_id AND u.tenant_id = link.tenant_id
+      WHERE link.tenant_id = ? AND link.telegram_user_id = ?
+        AND link.revoked_at IS NULL AND u.is_active = 1
+    `).bind(group.tenant_id, telegramUserId).all();
+    if (!(results || []).some((row: any) => match.restrictedRoles!.includes(row.role))) {
+      log.info('dispatcher_navigation_skipped', { tenantId: group.tenant_id, intent: match.intent, reason: 'role_not_linked' });
+      return;
+    }
+  }
+
+  const recent = await env.DB.prepare(`
+    SELECT 1 FROM telegram_suggestions
+    WHERE tenant_id = ? AND telegram_chat_id = ? AND message_thread_id = ?
+      AND telegram_user_id = ? AND category = ?
+      AND created_at > datetime('now', '-60 seconds')
+    LIMIT 1
+  `).bind(group.tenant_id, chatId, threadId, telegramUserId, `nav:${match.intent}`).first();
+  if (recent) {
+    log.info('dispatcher_navigation_skipped', { tenantId: group.tenant_id, intent: match.intent, reason: 'cooldown' });
+    return;
+  }
+
+  const rawBase = String(tenant.url || 'https://app.kamizo.uz').replace(/[/]+$/, '');
+  const base = /^https?:[/][/]/.test(rawBase) ? rawBase : `https://${rawBase}`;
+  const openUrl = (path: string) => `${base}/open?target=${encodeURIComponent(path)}`;
+  const lang = detectLanguage(String(message.text || message.caption || ''));
+  const copy = NAV_COPY[match.intent];
+  const menuActions = NAV_MENU_ACTIONS[match.intent];
+  const buttons = menuActions
+    ? menuActions.map(action => ({
+        text: lang === 'uz' ? action.uz : action.ru,
+        url: openUrl(action.path),
+      }))
+    : [{ text: lang === 'uz' ? copy.buttonUz : copy.buttonRu, url: openUrl(match.path) }];
+  const sent = await sendTelegramMessage(
+    env,
+    chatId,
+    lang === 'uz' ? copy.uz : copy.ru,
+    {
+      messageThreadId: threadId,
+      replyToMessageId: Number(message.message_id),
+      buttons,
+    }
+  );
+  if (!sent.ok) return;
+
+  await env.DB.prepare(`
+    INSERT INTO telegram_suggestions
+      (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
+       telegram_user_id, telegram_message_id, category, confidence, outcome)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'routed')
+  `).bind(
+    generateId(), group.tenant_id, group.id, chatId, threadId,
+    telegramUserId, String(message.message_id), `nav:${match.intent}`
+  ).run();
+  log.info('dispatcher_navigation_routed', { tenantId: group.tenant_id, intent: match.intent });
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Обработка обычного сообщения в группе.
 //
@@ -163,9 +353,10 @@ const DRAFT_TTL_MINUTES = 30;
 export async function handleGroupMessage(
   env: Env, message: any, log: any
 ): Promise<void> {
-  const text: string = message?.text || '';
+  const text: string = message?.text || message?.caption || '';
   const chatId = String(message?.chat?.id ?? '');
   const fromId = String(message?.from?.id ?? '');
+  const messageThreadId = Number(message?.message_thread_id || 0);
 
   if (!text || !chatId || !fromId) return;
   // §14: не реагируем на сообщения ботов, включая собственные.
@@ -178,14 +369,26 @@ export async function handleGroupMessage(
   // нельзя.
   await ensureDictionaryLoaded(env);
 
-  const hit = classifyZhkhMessage(text);
-  if (!hit || hit.confidence < SUGGESTION_THRESHOLD) return;
+  const classified = classifyZhkhMessage(text);
+  const hit = classified && classified.confidence >= SUGGESTION_THRESHOLD ? classified : null;
+  const navigation = hit ? null : classifyNavigationIntent(text);
+  if (!hit && !navigation) return;
 
   const group = await env.DB.prepare(
-    `SELECT id, tenant_id, building_id, entrance FROM telegram_groups
-     WHERE telegram_chat_id = ? AND disabled_at IS NULL AND listener_enabled = 1`
-  ).bind(chatId).first() as any;
+    `SELECT id, tenant_id, building_id, entrance, message_thread_id
+     FROM telegram_groups
+     WHERE telegram_chat_id = ? AND disabled_at IS NULL AND listener_enabled = 1
+       AND message_thread_id IN (?, 0)
+     ORDER BY CASE WHEN message_thread_id = ? THEN 0 ELSE 1 END
+     LIMIT 1`
+  ).bind(chatId, messageThreadId, messageThreadId).first() as any;
   if (!group) return;
+
+  if (navigation) {
+    await handleNavigationIntent(env, group, message, navigation, log);
+    return;
+  }
+  if (!hit) return;
 
   // Кулдаун по человеку. Сравнение времени в SQL здесь корректно: обе
   // стороны — datetime('now'), одинаковый формат. (В отличие от мест,
@@ -194,10 +397,12 @@ export async function handleGroupMessage(
   if (hours > 0) {
     const recent = await env.DB.prepare(
       `SELECT 1 FROM telegram_suggestions
-       WHERE telegram_chat_id = ? AND telegram_user_id = ?
-         AND created_at > datetime('now', ?)
+       WHERE telegram_chat_id = ? AND message_thread_id = ? AND telegram_user_id = ?
+         AND tenant_id = ?
+         AND category NOT LIKE 'nav:%'
+          AND created_at > datetime('now', ?)
        LIMIT 1`
-    ).bind(chatId, fromId, `-${hours} hours`).first();
+    ).bind(chatId, messageThreadId, fromId, group.tenant_id, `-${hours} hours`).first();
     if (recent) return;
   }
 
@@ -206,21 +411,22 @@ export async function handleGroupMessage(
   if (minutes > 0) {
     const sameIssue = await env.DB.prepare(
       `SELECT 1 FROM telegram_suggestions
-       WHERE telegram_chat_id = ? AND category = ?
-         AND created_at > datetime('now', ?)
+       WHERE telegram_chat_id = ? AND message_thread_id = ? AND category = ?
+         AND tenant_id = ?
+          AND created_at > datetime('now', ?)
        LIMIT 1`
-    ).bind(chatId, hit.category, `-${minutes} minutes`).first();
+    ).bind(chatId, messageThreadId, hit.category, group.tenant_id, `-${minutes} minutes`).first();
     if (sameIssue) return;
   }
 
   const suggestionId = generateId();
   await env.DB.prepare(`
     INSERT INTO telegram_suggestions
-      (id, tenant_id, telegram_group_id, telegram_chat_id, telegram_user_id,
-       telegram_message_id, category, confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
+       telegram_user_id, telegram_message_id, category, confidence)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    suggestionId, group.tenant_id, group.id, chatId, fromId,
+    suggestionId, group.tenant_id, group.id, chatId, messageThreadId, fromId,
     String(message.message_id), hit.category, hit.confidence
   ).run();
 
@@ -233,6 +439,8 @@ export async function handleGroupMessage(
   const sent = await sendTelegramMessage(
     env, chatId, D.suggest(hit.lang, label),
     {
+      messageThreadId,
+      replyToMessageId: Number(message.message_id),
       buttons: [
         { text: D.btnCreate(hit.lang), callback_data: `sg:y:${suggestionId}` },
         {
@@ -267,6 +475,7 @@ export async function handleSuggestionCallback(
   if (!suggestionId || (action !== 'y' && action !== 'n')) return;
 
   const chatId = callback?.message?.chat?.id;
+  const messageThreadId = Number(callback?.message?.message_thread_id || 0);
   const fromId = String(callback?.from?.id ?? '');
 
   // Язык определяем по СОБСТВЕННОМУ сообщению бота, под которым нажали
@@ -276,9 +485,18 @@ export async function handleSuggestionCallback(
   // как раз его не хранить.
   const lang = detectLanguage(String(callback?.message?.text ?? ''));
 
-  const sug = await env.DB.prepare(
-    'SELECT * FROM telegram_suggestions WHERE id = ?'
-  ).bind(suggestionId).first() as any;
+  const binding = await env.DB.prepare(
+    `SELECT id, tenant_id FROM telegram_groups
+     WHERE telegram_chat_id = ? AND disabled_at IS NULL
+       AND message_thread_id IN (?, 0)
+     ORDER BY CASE WHEN message_thread_id = ? THEN 0 ELSE 1 END
+     LIMIT 1`
+  ).bind(String(chatId ?? ''), messageThreadId, messageThreadId).first() as any;
+
+  const sug = binding ? await env.DB.prepare(
+    `SELECT * FROM telegram_suggestions
+     WHERE id = ? AND tenant_id = ? AND telegram_chat_id = ? AND message_thread_id = ?`
+  ).bind(suggestionId, binding.tenant_id, String(chatId ?? ''), messageThreadId).first() as any : null;
 
   if (!sug || sug.outcome !== 'offered') {
     await answerCallbackQuery(env, callback.id, D.handled(lang));
@@ -296,8 +514,9 @@ export async function handleSuggestionCallback(
   if (action === 'n') {
     await env.DB.prepare(
       `UPDATE telegram_suggestions SET outcome = 'dismissed',
-       resolved_at = datetime('now') WHERE id = ? AND outcome = 'offered'`
-    ).bind(suggestionId).run();
+       resolved_at = datetime('now')
+       WHERE id = ? AND tenant_id = ? AND outcome = 'offered'`
+    ).bind(suggestionId, sug.tenant_id).run();
     await answerCallbackQuery(env, callback.id, D.dismissedToast(lang));
     if (chatId) {
       await editTelegramMessage(env, chatId, callback.message.message_id,
@@ -308,8 +527,9 @@ export async function handleSuggestionCallback(
   }
 
   const group = await env.DB.prepare(
-    'SELECT building_id, entrance FROM telegram_groups WHERE id = ?'
-  ).bind(sug.telegram_group_id).first() as any;
+    `SELECT building_id, entrance FROM telegram_groups
+     WHERE id = ? AND tenant_id = ?`
+  ).bind(sug.telegram_group_id, sug.tenant_id).first() as any;
   if (!group) {
     await answerCallbackQuery(env, callback.id, D.groupGone(lang));
     return;
@@ -325,19 +545,21 @@ export async function handleSuggestionCallback(
   await env.DB.prepare(`
     INSERT INTO telegram_draft_tokens
       (id, tenant_id, token, building_id, entrance, category, description,
-       telegram_chat_id, telegram_message_id, suggestion_id, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       telegram_chat_id, message_thread_id, telegram_message_id, suggestion_id, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     generateId(), sug.tenant_id, token, group.building_id, group.entrance,
     sug.category, sourceText.slice(0, 1000),
-    String(chatId ?? ''), String(sug.telegram_message_id ?? ''),
+    String(chatId ?? ''), Number(sug.message_thread_id || 0),
+    String(sug.telegram_message_id ?? ''),
     suggestionId, expiresAt.toISOString()
   ).run();
 
   await env.DB.prepare(
     `UPDATE telegram_suggestions SET outcome = 'accepted',
-     resolved_at = datetime('now') WHERE id = ? AND outcome = 'offered'`
-  ).bind(suggestionId).run();
+     resolved_at = datetime('now')
+     WHERE id = ? AND tenant_id = ? AND outcome = 'offered'`
+  ).bind(suggestionId, sug.tenant_id).run();
 
   const tenant = await env.DB.prepare(
     'SELECT url FROM tenants WHERE id = ?'

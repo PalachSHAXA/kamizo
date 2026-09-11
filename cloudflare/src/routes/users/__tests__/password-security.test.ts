@@ -330,7 +330,8 @@ describe('self password change', () => {
     expect(response.status).toBe(200);
     expect(select.sql).toMatch(/WHERE id = \? AND tenant_id = \?/);
     expect(select.params).toEqual(['resident-1', 'tenant-1']);
-    expect(update.sql).toContain('password_changed_at = datetime(\'now\')');
+    expect(update.sql).toContain('password_changed_at = strftime');
+    expect(update.sql).toContain('auth_revoked_at = strftime');
     expect(update.sql).toMatch(/WHERE id = \? AND tenant_id = \?/);
     expect(update.sql).not.toMatch(/password_plain|password\s*=/);
     expect(update.params).toEqual(['hash:new-password', 'resident-1', 'tenant-1']);
@@ -417,6 +418,7 @@ describe('privileged custom password change', () => {
 
     expect(response.status).toBe(200);
     expect(update.sql).toContain('password_changed_at = NULL');
+    expect(update.sql).toContain('auth_revoked_at = strftime');
     expect(update.sql).toMatch(/WHERE id = \? AND tenant_id = \? AND role = \?/);
     expect(update.sql).not.toMatch(/password_plain|password\s*=/);
     expect(update.params).toEqual(['hash:new-password', 'target', 'tenant-1', 'resident']);
@@ -491,6 +493,7 @@ describe('generated temporary password reset', () => {
     expect(body2.temporaryPassword).toMatch(/^resident_[A-Za-z0-9_-]{16}$/);
     expect(body1.temporaryPassword).not.toBe(body2.temporaryPassword);
     expect(update.sql).toContain('password_changed_at = NULL');
+    expect(update.sql).toContain('auth_revoked_at = strftime');
     expect(update.sql).toMatch(/WHERE id = \? AND tenant_id = \? AND role = \?/);
     expect(update.sql).not.toMatch(/password_plain|password\s*=/);
     expect(update.params).toEqual([`hash:${body1.temporaryPassword}`, 'target', 'tenant-1', 'resident']);

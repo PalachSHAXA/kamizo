@@ -94,6 +94,8 @@ export async function sendTelegramMessage(
   text: string,
   opts: {
     buttons?: InlineButton[];
+    messageThreadId?: number;
+    replyToMessageId?: number;
     // Сырой reply_markup для клавиатур, которых не выразить кнопками:
     // запрос контакта (request_contact) и снятие клавиатуры. Взаимно
     // исключается с buttons — Telegram принимает только одну разметку.
@@ -110,6 +112,10 @@ export async function sendTelegramMessage(
     // Уведомления Kamizo — служебные, ссылки в них на собственный
     // домен. Превью только зашумляет ленту.
     disable_web_page_preview: true,
+    ...(opts.messageThreadId ? { message_thread_id: opts.messageThreadId } : {}),
+    ...(opts.replyToMessageId ? {
+      reply_parameters: { message_id: opts.replyToMessageId, allow_sending_without_reply: true },
+    } : {}),
     ...(markup ? { reply_markup: markup } : {}),
   });
 }

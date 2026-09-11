@@ -19,6 +19,7 @@ import { getUser } from '../../middleware/auth';
 import { json, bilingualError, error } from '../../utils/helpers';
 import { isSuperAdmin } from '../../index';
 import { TENANT_FEATURES, normalizeFeatures } from '../../lib/features';
+import { clearFeatureCache } from '../../middleware/tenant';
 import { sendTelegramMessage, callTelegram } from '../../utils/telegram';
 
 export function registerTelegramSuperAdminRoutes() {
@@ -119,6 +120,7 @@ route('GET', '/api/super-admin/telegram/groups', async (request, env) => {
 
   const { results } = await env.DB.prepare(`
     SELECT g.id, g.tenant_id, g.telegram_chat_id, g.telegram_chat_title,
+           g.message_thread_id, g.topic_name,
            g.entrance, g.bot_status, g.announcements_enabled,
            g.listener_enabled, g.connected_at, g.disabled_at,
            t.name AS tenant_name, b.address AS building_address
@@ -173,24 +175,27 @@ route('POST', '/api/super-admin/telegram/deliveries/:id/retry', async (request, 
   if (d.status === 'sent') return error('Already delivered', 400);
 
   const ann = await e.DB.prepare(
-    'SELECT title, content, priority FROM announcements WHERE id = ?'
-  ).bind(d.announcement_id).first() as any;
+    `SELECT title, content, priority FROM announcements
+     WHERE id = ? AND tenant_id = ?`
+  ).bind(d.announcement_id, d.tenant_id).first() as any;
   if (!ann) return error('Announcement not found', 404);
 
   const text = `📢 <b>${ann.title}</b>\n\n${ann.content}`;
-  const send = await sendTelegramMessage(e, d.telegram_chat_id, text);
+  const send = await sendTelegramMessage(e, d.telegram_chat_id, text, {
+    messageThreadId: Number(d.message_thread_id || 0),
+  });
 
   await e.DB.prepare(`
     UPDATE telegram_deliveries
     SET status = ?, telegram_message_id = ?, error_message = ?,
         attempts = attempts + 1, sent_at = ?
-    WHERE id = ?
+    WHERE id = ? AND tenant_id = ?
   `).bind(
     send.ok ? 'sent' : 'failed',
     send.ok ? String(send.result?.message_id ?? '') : d.telegram_message_id,
     send.ok ? null : (send.reason || 'unknown').slice(0, 500),
     send.ok ? new Date().toISOString() : d.sent_at,
-    params.id
+    params.id, d.tenant_id
   ).run();
 
   return json({ ok: send.ok, reason: send.reason || null });
@@ -231,6 +236,7 @@ route('POST', '/api/super-admin/telegram/tenants/:id/feature', async (request, e
   await env.DB.prepare(
     "UPDATE tenants SET features = ?, updated_at = datetime('now') WHERE id = ?"
   ).bind(JSON.stringify(clean), params.id).run();
+  clearFeatureCache(params.id);
 
   return json({ ok: true, features: clean });
 });

@@ -22,6 +22,7 @@ export interface TelegramGroupRow {
   entrance: string | null;
   telegram_chat_id: string;
   telegram_chat_title: string | null;
+  message_thread_id: number;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -59,7 +60,8 @@ export async function resolveTelegramGroups(
   if (audience.targetType === 'custom') return [];
 
   const base = `SELECT g.id, g.tenant_id, g.building_id, g.entrance,
-                       g.telegram_chat_id, g.telegram_chat_title
+                       g.telegram_chat_id, g.telegram_chat_title,
+                       g.message_thread_id
                 FROM telegram_groups g`;
   const active = `g.tenant_id = ? AND g.disabled_at IS NULL
                   AND g.announcements_enabled = 1
@@ -198,7 +200,9 @@ export async function deliverAnnouncementToTelegram(
     const building = await loadBuilding(group.building_id);
     const text = formatAnnouncement(announcement, building, group.entrance, appUrl);
 
-    const send = await sendTelegramMessage(env, group.telegram_chat_id, text);
+    const send = await sendTelegramMessage(env, group.telegram_chat_id, text, {
+      messageThreadId: Number(group.message_thread_id || 0),
+    });
 
     // Бота выгнали или заблокировали — повторять нечего, помечаем и
     // гасим bot_status, чтобы следующий фанаут эту группу не трогал.
@@ -219,9 +223,10 @@ export async function deliverAnnouncementToTelegram(
     await env.DB.prepare(`
       INSERT INTO telegram_deliveries
         (id, tenant_id, announcement_id, telegram_group_id, telegram_chat_id,
-         telegram_message_id, delivery_type, status, error_message, attempts, sent_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'group', ?, ?, 1, ?)
-      ON CONFLICT(announcement_id, telegram_chat_id) DO UPDATE SET
+         message_thread_id, telegram_message_id, delivery_type, status,
+         error_message, attempts, sent_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'group', ?, ?, 1, ?)
+      ON CONFLICT(announcement_id, telegram_chat_id, message_thread_id) DO UPDATE SET
         telegram_message_id = excluded.telegram_message_id,
         status = excluded.status,
         error_message = excluded.error_message,
@@ -229,6 +234,7 @@ export async function deliverAnnouncementToTelegram(
         sent_at = excluded.sent_at
     `).bind(
       generateId(), tenantId, announcement.id, group.id, group.telegram_chat_id,
+      Number(group.message_thread_id || 0),
       send.ok ? String(send.result?.message_id ?? '') : null,
       status,
       send.ok ? null : (send.reason || 'unknown').slice(0, 500),
