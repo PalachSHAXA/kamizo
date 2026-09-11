@@ -5,7 +5,6 @@ compatibility_date = "2024-01-01"
 workers_dev = true
 
 routes = [
-  { pattern = "kamizo.uz/*", zone_name = "kamizo.uz" },
   { pattern = "*.kamizo.uz/*", zone_name = "kamizo.uz" },
   { pattern = "control.kamizo.uz/*", zone_name = "kamizo.uz" },
   { pattern = "booking.kamizo.uz/*", zone_name = "kamizo.uz" },
