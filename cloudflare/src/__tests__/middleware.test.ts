@@ -166,6 +166,27 @@ describe('getUser impersonation context', () => {
     expect(user?.impersonatedBy).toBeUndefined()
   })
 
+  it('rejects a token issued before the latest auth revocation', async () => {
+    const { createJWT } = await import('../utils/crypto')
+    const { getUser } = await import('../middleware/auth')
+    const token = await createJWT(
+      { userId: 'admin-revoked', role: 'admin', tenantId: 'tenant-1' },
+      'middleware-test-secret',
+      3600,
+    )
+    const revokedAt = new Date(Date.now() + 1_000).toISOString().replace('T', ' ').replace('Z', '')
+    const request = new Request('https://api.kamizo.uz/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const user = await getUser(request, createAuthEnv({
+      id: 'admin-revoked', login: 'admin', phone: '+998', name: 'Admin', role: 'admin',
+      tenant_id: 'tenant-1', is_active: 1, auth_revoked_at: revokedAt,
+    }))
+
+    expect(user).toBeNull()
+  })
+
   it('maps a signed demo capability only for the exact active demo tenant', async () => {
     const { createJWT } = await import('../utils/crypto')
     const { getUser } = await import('../middleware/auth')

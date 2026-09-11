@@ -57,7 +57,10 @@ route('GET', '/api/super-admin/telegram/dictionary', async (request, env) => {
   if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const { results } = await env.DB.prepare(
-    'SELECT id, kind, category, term, lang, action, created_at FROM telegram_dictionary ORDER BY created_at DESC'
+    `SELECT id, kind, category, term, lang, action, created_at
+     FROM telegram_dictionary
+     WHERE tenant_id = '__global__'
+     ORDER BY created_at DESC`
   ).all();
   const rows = (results || []) as any[];
 
@@ -142,8 +145,9 @@ route('POST', '/api/super-admin/telegram/dictionary', async (request, env) => {
 
   try {
     await env.DB.prepare(`
-      INSERT INTO telegram_dictionary (id, kind, category, term, lang, action, created_by)
-      VALUES (?, ?, ?, ?, ?, 'add', ?)
+      INSERT INTO telegram_dictionary
+        (id, tenant_id, kind, category, term, lang, action, created_by)
+      VALUES (?, '__global__', ?, ?, ?, ?, 'add', ?)
     `).bind(generateId(), kind, category, term, lang, user!.id).run();
   } catch (e: any) {
     if (/UNIQUE|constraint/i.test(String(e?.message || e))) {
@@ -174,8 +178,9 @@ route('POST', '/api/super-admin/telegram/dictionary/disable', async (request, en
 
   try {
     await env.DB.prepare(`
-      INSERT INTO telegram_dictionary (id, kind, category, term, lang, action, created_by)
-      VALUES (?, ?, NULL, ?, 'ru', 'disable', ?)
+      INSERT INTO telegram_dictionary
+        (id, tenant_id, kind, category, term, lang, action, created_by)
+      VALUES (?, '__global__', ?, NULL, ?, 'ru', 'disable', ?)
     `).bind(generateId(), kind, term, user!.id).run();
   } catch (e: any) {
     if (/UNIQUE|constraint/i.test(String(e?.message || e))) return json({ ok: true });
@@ -197,7 +202,8 @@ route('DELETE', '/api/super-admin/telegram/dictionary/:id', async (request, env,
   if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
 
   const res = await env.DB.prepare(
-    'DELETE FROM telegram_dictionary WHERE id = ?'
+    `DELETE FROM telegram_dictionary
+     WHERE id = ? AND tenant_id = '__global__'`
   ).bind(params.id).run();
   if (!res.meta?.changes) return error('Not found', 404);
 

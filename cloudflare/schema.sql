@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   contract_type TEXT DEFAULT 'standard' CHECK (contract_type IN ('standard', 'commercial', 'temporary')),
 
   password_changed_at TEXT,            -- Date when password was last changed by user
+  auth_revoked_at TEXT,                -- Invalidates JWTs issued before a password reset
   last_login_at TEXT,                  -- Date when user last logged in
 
   created_at TEXT DEFAULT (datetime('now')),

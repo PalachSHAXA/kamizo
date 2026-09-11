@@ -33,6 +33,8 @@ interface SaGroup {
   tenant_name: string | null;
   telegram_chat_title: string | null;
   telegram_chat_id: string;
+  message_thread_id: number;
+  topic_name: string | null;
   building_address: string | null;
   entrance: string | null;
   bot_status: string;
@@ -251,6 +253,7 @@ export function TelegramSuperAdminTab() {
                     <div className="text-xs text-gray-500 truncate">
                       {g.tenant_name || '—'} · {g.building_address || '—'}
                       {g.entrance ? `, подъезд ${g.entrance}` : ''}
+                      {g.message_thread_id ? ` · ${g.topic_name || `тема #${g.message_thread_id}`}` : ''}
                     </div>
                     <div className="text-[11px] text-gray-400 mt-0.5">
                       {g.disabled_at

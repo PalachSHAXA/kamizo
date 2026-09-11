@@ -4,14 +4,22 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 workers_dev = true
 
+routes = [
+  { pattern = "*.kamizo.uz/*", zone_name = "kamizo.uz" },
+  { pattern = "control.kamizo.uz/*", zone_name = "kamizo.uz" },
+  { pattern = "booking.kamizo.uz/*", zone_name = "kamizo.uz" },
+  { pattern = "market.kamizo.uz/*", zone_name = "kamizo.uz" },
+  { pattern = "check.kamizo.uz/*", zone_name = "kamizo.uz" },
+  { pattern = "partners.kamizo.uz/*", zone_name = "kamizo.uz" }
+]
+
 # Secrets (set via: wrangler secret put <NAME>):
 # wrangler secret put JWT_SECRET
 # wrangler secret put VAPID_PRIVATE_KEY
 # wrangler secret put SENTRY_DSN
 
-# Custom domains must be added via Cloudflare Dashboard:
-# Workers & Pages → kamizo → Settings → Triggers → Custom Domains
-# Add: kamizo.uz and *.kamizo.uz (wildcards only supported via Dashboard)
+# Tenant subdomains are covered by the wildcard Worker route above. Keep
+# api.kamizo.uz DNS-only so API traffic continues directly to the VPS.
 
 [assets]
 directory = "public"

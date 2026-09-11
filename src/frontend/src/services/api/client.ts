@@ -60,8 +60,20 @@ export function markLoggedIn() {
   first401Timestamp = 0;
 }
 
-// Get auth token from localStorage
-export const getToken = () => localStorage.getItem('auth_token');
+export const getToken = () => {
+  const direct = localStorage.getItem('auth_token');
+  if (direct) return direct;
+  try {
+    const persisted = localStorage.getItem('uk-auth-storage');
+    if (!persisted) return null;
+    const token = JSON.parse(persisted)?.state?.token;
+    if (typeof token !== 'string' || token.length < 20) return null;
+    localStorage.setItem('auth_token', token);
+    return token;
+  } catch {
+    return null;
+  }
+};
 
 // Response wrapper type for consistent API handling
 export interface ApiResponse<T> {
@@ -81,7 +93,7 @@ const requestCache = new Map<string, CacheEntry<unknown>>();
 const pendingRequests = new Map<string, Promise<unknown>>();
 const activeControllers = new Set<AbortController>();
 let apiSessionGeneration = 0;
-let sessionExpiredHandler: (() => void) | null = null;
+let sessionExpiredHandler: (() => void | Promise<void>) | null = null;
 
 export class SessionChangedError extends Error {
   constructor() {
@@ -98,7 +110,7 @@ export function resetApiSession(): void {
   activeControllers.clear();
 }
 
-export function registerSessionExpiredHandler(handler: () => void): void {
+export function registerSessionExpiredHandler(handler: () => void | Promise<void>): void {
   sessionExpiredHandler = handler;
 }
 
@@ -252,7 +264,7 @@ async function apiRequestParsed<T>(
           // Reset flag after 10s so future 401s aren't permanently ignored
           setTimeout(() => { isHandling401 = false; }, 10_000);
           if (sessionExpiredHandler) {
-            sessionExpiredHandler();
+            await sessionExpiredHandler();
           } else {
             resetApiSession();
             clearSessionStorage();

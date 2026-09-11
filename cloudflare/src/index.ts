@@ -118,7 +118,7 @@ async function runMigrations(env: Env) {
           'specialization', 'email', 'avatar_url', 'address', 'apartment', 'building_id',
           'entrance', 'floor', 'branch', 'building', 'language', 'is_active', 'qr_code',
           'contract_signed_at', 'agreed_to_terms_at', 'contract_number', 'contract_start_date',
-          'contract_end_date', 'contract_type', 'total_area', 'password_changed_at',
+          'contract_end_date', 'contract_type', 'total_area', 'password_changed_at', 'auth_revoked_at',
           'account_type', 'status', 'tenant_id', 'created_at', 'updated_at'
         ];
 
@@ -158,6 +158,7 @@ async function runMigrations(env: Env) {
             contract_type TEXT DEFAULT 'standard',
             total_area REAL,
             password_changed_at TEXT,
+            auth_revoked_at TEXT,
             account_type TEXT DEFAULT 'standard',
             status TEXT DEFAULT 'available',
             tenant_id TEXT,

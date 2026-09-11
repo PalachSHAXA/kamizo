@@ -46,14 +46,14 @@ export interface TelegramLinkState {
   error: string | null;
   // Ссылка t.me, если её уже запросили. Нужна, чтобы показать её
   // текстом там, где всплывающее окно заблокировано браузером.
-  link: string | null;
+  connectUrl: string | null;
 }
 
 export function useTelegramLink() {
   const [state, setState] = useState<TelegramLinkState>({
     loading: true, linked: false, username: null,
     notificationsEnabled: true, securityEnabled: false,
-    awaiting: false, error: null, link: null,
+    awaiting: false, error: null, connectUrl: null,
   });
 
   // Таймер опроса живёт вне рендера: его надо гасить при размонтировании,
@@ -98,19 +98,19 @@ export function useTelegramLink() {
     pollRef.current = setTimeout(async () => {
       const linked = await refresh();
       if (linked) {
-        setState(s => ({ ...s, awaiting: false, link: null }));
+        setState(s => ({ ...s, awaiting: false, connectUrl: null }));
       } else {
         poll(attempt + 1);
       }
     }, POLL_INTERVAL_MS);
   }, [refresh]);
 
-  const link = useCallback(async () => {
+  const connect = useCallback(async () => {
     setState(s => ({ ...s, error: null }));
     try {
       const res = await telegramApi.createLinkToken();
       if (!mountedRef.current) return;
-      setState(s => ({ ...s, link: res.url, awaiting: true }));
+      setState(s => ({ ...s, connectUrl: res.url, awaiting: true }));
       // Открываем в новой вкладке. Если браузер заблокирует всплывающее
       // окно, ссылка всё равно лежит в state.link и её показывают
       // текстом — молча ничего не произойти не должно.
@@ -131,7 +131,7 @@ export function useTelegramLink() {
       await telegramApi.unlink();
       if (!mountedRef.current) return;
       if (pollRef.current) clearTimeout(pollRef.current);
-      setState(s => ({ ...s, linked: false, username: null, awaiting: false, link: null }));
+      setState(s => ({ ...s, linked: false, username: null, awaiting: false, connectUrl: null }));
     } catch (e: unknown) {
       if (!mountedRef.current) return;
       setState(s => ({ ...s, error: e instanceof Error ? e.message : 'Error' }));
@@ -163,5 +163,5 @@ export function useTelegramLink() {
     }
   }, []);
 
-  return { ...state, link, unlink, refresh, setPreference };
+  return { ...state, connect, link: connect, unlink, refresh, setPreference };
 }

@@ -72,8 +72,8 @@ const T = {
     : 'Bu chat hech qanday Kamizo hisobiga ulanmagan.',
 
   help: (ru: boolean) => ru
-    ? 'Команды:\n/start — привязать аккаунт по ссылке из Kamizo\n/phone — записать номер телефона в профиль\n/unlink — отвязать\n/help — эта справка'
-    : "Buyruqlar:\n/start — Kamizo\"dagi havola orqali hisobni ulash\n/phone — telefon raqamini profilga yozish\n/unlink — uzish\n/help — shu yordam",
+    ? 'Я помогаю открыть функции Kamizo прямо из Telegram:\n\n• оформить заявку ЖКХ\n• сдать или найти квартиру\n• найти услугу или товар\n• оформить гостевой пропуск\n• охране проверить QR\n• сотруднику найти владельца авто\n\nКоманды:\n/start — привязать аккаунт\n/phone — записать номер телефона\n/unlink — отвязать\n/help — эта справка'
+    : 'Kamizo funksiyalarini Telegram orqali ochishga yordam beraman:\n\n• kommunal ariza\n• kvartirani ijaraga berish yoki topish\n• xizmat yoki mahsulot topish\n• mehmon ruxsatnomasi\n• qo‘riqlash uchun QR tekshirish\n• avtomobil egasini topish\n\nBuyruqlar:\n/start — hisobni ulash\n/phone — telefon raqamini yozish\n/unlink — uzish\n/help — yordam',
 
   // §6 шаг 7 + §15: при подключении бот публикует понятное уведомление
   // участникам группы. Люди в чате не нажимали никаких кнопок и должны
@@ -98,6 +98,7 @@ const T = {
 
   groupBadToken: '⚠️ Ссылка подключения недействительна или устарела. Попросите администратора УК сформировать новую в разделе «Настройки → Интеграции → Telegram».',
   groupTaken: '⚠️ Эта группа уже подключена к Kamizo. Сначала отключите её в кабинете управляющей компании.',
+  groupSetup: 'Бот добавлен. Если в группе включены темы, откройте нужную тему и отправьте команду подключения из Kamizo.',
 };
 
 // ──────────────────────────────────────────────────────────────────
@@ -110,7 +111,8 @@ const T = {
 async function claimUpdate(env: Env, updateId: unknown): Promise<boolean> {
   if (updateId === undefined || updateId === null) return true;
   const res = await env.DB.prepare(
-    'INSERT OR IGNORE INTO telegram_updates (update_id) VALUES (?)'
+    `INSERT OR IGNORE INTO telegram_updates (update_id, tenant_id)
+     VALUES (?, '__global__')`
   ).bind(String(updateId)).run();
   return !!res.meta?.changes;
 }
@@ -122,7 +124,8 @@ async function claimUpdate(env: Env, updateId: unknown): Promise<boolean> {
 async function sweepUpdates(env: Env): Promise<void> {
   if (Math.random() > 0.005) return;
   await env.DB.prepare(
-    `DELETE FROM telegram_updates WHERE received_at < datetime('now', '-7 days')`
+    `DELETE FROM telegram_updates
+     WHERE tenant_id = '__global__' AND received_at < datetime('now', '-7 days')`
   ).run();
 }
 
@@ -237,8 +240,17 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       // Команды в группе: только подключение по токену. Остальные
       // игнорируем молча — бот не должен отвечать на каждую команду в
       // домовом чате.
-      if (command === '/start' && payload) {
-        await handleGroupConnect(e, message, payload, log);
+      if (command === '/start' && payload === 'setup') {
+        await sendTelegramMessage(e, chatId, T.groupSetup, {
+          messageThreadId: Number(message.message_thread_id || 0),
+        });
+      } else if ((command === '/start' || command === '/connect') && payload) {
+        await handleGroupConnect(e, message, payload, log, command === '/start');
+      } else if (command === '/help') {
+        const ru = !String(message.from?.language_code || '').startsWith('uz');
+        await sendTelegramMessage(e, chatId, T.help(ru), {
+          messageThreadId: Number(message.message_thread_id || 0),
+        });
       }
       return json({ ok: true });
     }
@@ -395,9 +407,14 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
 // источником tenant_id/building_id не является — это прямое требование
 // §3. Из апдейта берётся только chat_id и название чата.
 async function handleGroupConnect(
-  env: Env, message: any, token: string, log: any
+  env: Env, message: any, token: string, log: any, wholeGroup = false
 ): Promise<void> {
   const chatId = String(message.chat.id);
+  // A startgroup deep-link binds the whole chat. In a forum, Telegram may
+  // deliver that command inside General with a non-zero thread id; storing it
+  // would accidentally restrict the listener to General. `/connect TOKEN`
+  // is the explicit topic-scoped flow and preserves the originating thread.
+  const messageThreadId = wholeGroup ? 0 : Number(message.message_thread_id || 0);
 
   const tok = await env.DB.prepare(
     `SELECT id, tenant_id, building_id, entrance, announcements_enabled,
@@ -435,39 +452,51 @@ async function handleGroupConnect(
     return;
   }
 
-  // Частичный UNIQUE по telegram_chat_id среди активных строк не даст
-  // подключить один чат дважды — в том числе к двум разным тенантам
-  // (§7). Ловим конфликт, а не проверяем заранее: предварительный
-  // SELECT оставлял бы гонку между двумя одновременными подключениями.
+  // Atomically claim the one-time token before creating the binding.
+  const claimed = await env.DB.prepare(
+    `UPDATE telegram_group_tokens SET used_at = datetime('now')
+     WHERE id = ? AND used_at IS NULL`
+  ).bind(tok.id).run();
+  if ((claimed.meta?.changes ?? 0) !== 1) {
+    await sendTelegramMessage(env, chatId, T.groupBadToken);
+    return;
+  }
+
+  // Уникальна пара chat + topic. Это позволяет одной forum-группе УК
+  // обслуживать несколько домов, не смешивая их сообщения.
   try {
     await env.DB.prepare(`
       INSERT INTO telegram_groups
         (id, tenant_id, building_id, entrance, telegram_chat_id,
-         telegram_chat_title, listener_enabled, announcements_enabled,
+         telegram_chat_title, message_thread_id, topic_name,
+         listener_enabled, announcements_enabled,
          bot_status, connected_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'member', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'member', ?)
     `).bind(
       generateId(), tok.tenant_id, tok.building_id, tok.entrance, chatId,
-      message.chat.title || null, tok.listener_enabled,
+      message.chat.title || null, messageThreadId,
+      messageThreadId ? `Тема #${messageThreadId}` : null,
+      tok.listener_enabled,
       tok.announcements_enabled, tok.created_by
     ).run();
   } catch (err: any) {
-    if (/UNIQUE|constraint/i.test(String(err?.message || err))) {
+    if (/UNIQUE|constraint|telegram_chat_scope_conflict/i.test(String(err?.message || err))) {
       await sendTelegramMessage(env, chatId, T.groupTaken);
       return;
     }
     throw err;
   }
 
-  await env.DB.prepare(
-    `UPDATE telegram_group_tokens SET used_at = datetime('now') WHERE id = ?`
-  ).bind(tok.id).run();
-
-  await sendTelegramMessage(env, chatId, T.groupConnected(
-    building.address || building.name || '',
-    tok.entrance,
-    tok.listener_enabled === 1
-  ));
+  await sendTelegramMessage(
+    env,
+    chatId,
+    T.groupConnected(
+      building.address || building.name || '',
+      tok.entrance,
+      tok.listener_enabled === 1
+    ),
+    { messageThreadId }
+  );
 
   log.info('telegram_group_connected', {
     tenantId: tok.tenant_id, buildingId: tok.building_id,

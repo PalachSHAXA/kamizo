@@ -33,9 +33,6 @@ export interface TenantPickEntry {
 export type LoginResult =
   | { kind: 'success'; user: unknown; token: string }
   | { kind: 'picker'; tenants: TenantPickEntry[] }
-  // Пароль верен, но у аккаунта включён второй фактор через Telegram
-  // (ТЗ §17). Токена ещё нет: он появится, когда человек нажмёт «Это я»
-  // в боте, а клиент это увидит опросом loginApprovalStatus.
   | { kind: 'approval'; requestId: string; expiresAt: string };
 
 interface LoginSuccessResponse {
@@ -55,10 +52,7 @@ interface LoginApprovalResponse {
   expiresAt: string;
 }
 
-type LoginResponse =
-  | LoginSuccessResponse
-  | LoginPickerResponse
-  | LoginApprovalResponse;
+type LoginResponse = LoginSuccessResponse | LoginPickerResponse | LoginApprovalResponse;
 
 interface DemoRolesResponse {
   roles: DemoRole[];
@@ -83,24 +77,25 @@ function isApprovalResponse(r: LoginResponse): r is LoginApprovalResponse {
 }
 
 export const authApi = {
-  // Опрос подтверждения входа через Telegram (ТЗ §17).
-  //
-  // PUBLIC-роут: JWT ещё не выдан, авторизоваться нечем. Защита — в
-  // непредсказуемости requestId и его двухминутном сроке жизни.
-  //
-  // 'approved' приходит РОВНО ОДИН РАЗ: сервер помечает запрос
-  // использованным до выдачи токена, поэтому повторный опрос вернёт
-  // 'consumed'. Клиент обязан сохранить токен с первого ответа.
-  loginApprovalStatus: async (requestId: string) => {
-    return apiRequest<{
+  verifyLoginApprovalCode: (requestId: string, code: string) =>
+    apiRequest<{
+      verified: boolean;
+      status: 'pending' | 'approved' | 'denied' | 'expired' | 'consumed';
+      remainingAttempts: number;
+    }>('/api/auth/login-approval/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, code }),
+    }),
+
+  loginApprovalStatus: (requestId: string) =>
+    apiRequest<{
       status: 'pending' | 'approved' | 'denied' | 'expired' | 'consumed';
       user?: UserApiResponse;
       token?: string;
     }>('/api/auth/login-approval/status', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId }),
-    });
-  },
+    }),
 
   getDemoRoles: async (): Promise<DemoRole[]> => {
     const data = await apiRequest<DemoRolesResponse>('/api/auth/demo-roles', {
@@ -148,8 +143,6 @@ export const authApi = {
       return { kind: 'picker', tenants: data.tenants ?? [] };
     }
 
-    // Проверка на approval идёт ДО transformUser: в этом ответе поля
-    // user нет вовсе — токен ещё не выдан, ждём нажатия в Telegram.
     if (isApprovalResponse(data)) {
       return { kind: 'approval', requestId: data.requestId, expiresAt: data.expiresAt };
     }

@@ -4,8 +4,8 @@ import { Capacitor } from '@capacitor/core'
 import { Keyboard } from '@capacitor/keyboard'
 import './index.css'
 import { prepareSessionBoundary } from './stores/sessionReset'
-import { API_URL, transformUser, type UserApiResponse } from './services/api/client'
-import { hydrateTokenCache } from './services/capacitorStorage'
+import { API_URL, getToken, markLoggedIn, transformUser, type UserApiResponse } from './services/api/client'
+import { hydrateTokenCache, preferencesStorage } from './services/capacitorStorage'
 
 interface ImpersonationExchangeResponse {
   user: UserApiResponse & {
@@ -43,17 +43,17 @@ export async function installImpersonationExchange(
     if (!exchanged?.user || typeof exchanged.token !== 'string' || !exchanged.token) return false
 
     const user = transformUser(exchanged.user)
-    localStorage.setItem('uk-auth-storage', JSON.stringify({
+    const persistedSession = JSON.stringify({
       state: { user, token: exchanged.token },
       version: 4,
-    }))
-    localStorage.setItem('auth_token', exchanged.token)
-    // fix/mobile-token-persistence: зеркалим impersonation-token в
-    // Preferences тоже — иначе после reload в native shell первый
-    // hydrate прочтёт пустой Keychain и имперсонация слетит.
-    void import('./services/capacitorStorage').then(
-      ({ writeTokenToNativeStorage }) => writeTokenToNativeStorage(exchanged.token),
-    ).catch(() => {})
+    })
+    if (Capacitor.isNativePlatform()) {
+      await preferencesStorage.setItem('uk-auth-storage', persistedSession)
+      await preferencesStorage.setItem('auth_token', exchanged.token)
+    } else {
+      localStorage.setItem('uk-auth-storage', persistedSession)
+      localStorage.setItem('auth_token', exchanged.token)
+    }
     localStorage.setItem('kamizo_impersonation', JSON.stringify({
       origin_url: exchanged.originUrl || '',
       tenant_name: exchanged.tenantName || '',
@@ -76,15 +76,11 @@ function setIOSPwaGap() {
   )
 }
 
-// Ссылка, по которой открыли приложение (App Links, Universal Links или
-// схема kamizo://), сама по себе никуда не ведёт: Capacitor грузит
-// локальный бандл, а не адрес перехода. Без этого обработчика
-// приложение просто откроется на главной, а токен черновика из
-// telegram-группы потеряется — то есть весь смысл ссылки исчезнет.
-//
-// Переносим только параметры: путь из внешней ссылки нам не нужен,
-// маршрутизация внутри приложения своя. Токен непрозрачный, проверяет
-// его сервер, здесь он просто доезжает до ResidentDashboard.
+function safeDeepLinkPath(value: string | null): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
+  return value
+}
+
 function applyDeepLink(url: string) {
   let incoming: URL
   try {
@@ -92,30 +88,28 @@ function applyDeepLink(url: string) {
   } catch {
     return
   }
-  const token = incoming.searchParams.get('telegramDraft')
-  if (!token) return
 
-  const next = new URL(window.location.href)
-  next.searchParams.set('telegramDraft', token)
-  // replaceState, а не переход: приложение уже загружено, а
-  // ResidentDashboard читает параметр из адресной строки.
-  window.history.replaceState({}, '', next.toString())
+  const token = incoming.searchParams.get('telegramDraft')
+  const explicitTarget = incoming.searchParams.get('target')
+  const target = safeDeepLinkPath(
+    explicitTarget || (incoming.protocol.startsWith('http') && incoming.pathname !== '/open'
+      ? incoming.pathname
+      : '/')
+  )
+  const params = new URLSearchParams()
+  if (token) params.set('telegramDraft', token)
+  const next = `${target}${params.size ? `?${params.toString()}` : ''}`
+  window.history.replaceState({}, '', next)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
 function installDeepLinkHandler() {
   void import('@capacitor/app').then(({ App: CapApp }) => {
-    // Приложение уже запущено, ссылку открыли поверх него.
-    CapApp.addListener('appUrlOpen', (event) => applyDeepLink(event.url))
-    // Холодный старт: событие успевает пройти до того, как повесили
-    // слушатель, поэтому спрашиваем начальный адрес отдельно.
-    void CapApp.getLaunchUrl().then((launch) => {
+    void CapApp.addListener('appUrlOpen', event => applyDeepLink(event.url))
+    void CapApp.getLaunchUrl().then(launch => {
       if (launch?.url) applyDeepLink(launch.url)
     })
-  }).catch(() => {
-    // Плагин не установлен в этой сборке — приложение работает как
-    // прежде, просто без переходов по ссылке.
-  })
+  }).catch(() => { /* web and older native builds keep browser navigation */ })
 }
 
 export async function bootstrap(reload?: () => void) {
@@ -129,7 +123,7 @@ export async function bootstrap(reload?: () => void) {
   // приемлемо, ибо иначе первый rehydrate прочтёт пустой localStorage
   // и пользователя выкинет на LoginPage.
   await hydrateTokenCache()
-
+  if (getToken()) markLoggedIn()
   if (await installImpersonationExchange(reload)) return
 
   if (Capacitor.isNativePlatform()) {

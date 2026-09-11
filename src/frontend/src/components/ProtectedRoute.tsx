@@ -23,7 +23,8 @@ export function ProtectedRoute({ children, allowedRoles, requiredFeature }: Prot
   const featureBlocked = useFeatureBlocked(requiredFeature);
 
   if (!token || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const returnTo = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {

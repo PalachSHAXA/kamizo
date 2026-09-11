@@ -49,6 +49,7 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // минут покрывают две попытки подряд и при этом ограничивают перебор
   // request_id.
   'POST:/api/auth/login-approval/status': { maxRequests: 120, windowSeconds: 300 },
+  'POST:/api/auth/login-approval/verify-code': { maxRequests: 10, windowSeconds: 120 },
 
   // Sprint 74 P1/F3: password reset / change — brute resistance.
   'POST:/api/users/me/password': { maxRequests: 5, windowSeconds: 60 },

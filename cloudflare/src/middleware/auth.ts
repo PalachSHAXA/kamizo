@@ -103,7 +103,7 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
   // Keep getUser's payload field-for-field consistent with /api/auth/login
   // so a client that calls /api/users/me to refresh its user data sees
   // identical fields, including apartment_id.
-  const meUserFields = `id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, is_active, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
+  const meUserFields = `id, login, phone, name, role, specialization, address, apartment, building_id, entrance, floor, total_area, password_changed_at, auth_revoked_at, contract_signed_at, account_type, personal_account, tenant_id, is_active, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
 
   let result = await env.DB.prepare(
     `SELECT ${meUserFields} FROM users WHERE id = ? ${lookupTenantId ? 'AND tenant_id = ?' : ''} AND is_active = 1 LIMIT 1`
@@ -125,6 +125,15 @@ export async function getUser(request: Request, env: Env): Promise<User | null> 
 
   if (result) {
     const user = result as any;
+
+    if (payload.iat && user.auth_revoked_at) {
+      const utcTimestamp = String(user.auth_revoked_at).replace(' ', 'T').replace(/Z?$/, 'Z');
+      const revokedAt = Date.parse(utcTimestamp);
+      if (Number.isFinite(revokedAt) && payload.iat * 1000 <= revokedAt) {
+        requestUserCache.set(request, null);
+        return null;
+      }
+    }
 
     if (payload.imp === true && typeof payload.imp_by === 'string') {
       user.isImpersonated = true;

@@ -33,6 +33,8 @@ export function TelegramIntegration() {
   const [entrance, setEntrance] = useState('');
   const [withListener, setWithListener] = useState(false);
   const [link, setLink] = useState<string | null>(null);
+  const [connectCommand, setConnectCommand] = useState<string | null>(null);
+  const [addBotUrl, setAddBotUrl] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -57,6 +59,8 @@ export function TelegramIntegration() {
   const openConnect = async () => {
     setConnectOpen(true);
     setLink(null);
+    setConnectCommand(null);
+    setAddBotUrl(null);
     setCopied(false);
     if (buildings.length) return;
     try {
@@ -79,6 +83,8 @@ export function TelegramIntegration() {
         listener_enabled: withListener,
       });
       setLink(res.url);
+      setConnectCommand(res.command);
+      setAddBotUrl(res.addBotUrl);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -195,6 +201,7 @@ export function TelegramIntegration() {
                   <div className="text-xs md:text-sm text-gray-500 mt-0.5 truncate">
                     {g.building_address || g.building_name || g.building_id}
                     {g.entrance ? `, ${t('подъезд', 'kirish')} ${g.entrance}` : ''}
+                    {g.message_thread_id ? ` · ${g.topic_name || `${t('тема', 'mavzu')} #${g.message_thread_id}`}` : ''}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -284,6 +291,15 @@ export function TelegramIntegration() {
               />
             </div>
 
+            {withListener && (
+              <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                {t(
+                  'Чтобы бот видел обычные сообщения во всех темах, назначьте его администратором группы.',
+                  'Bot barcha mavzulardagi oddiy xabarlarni ko‘rishi uchun uni guruh administratori qiling.'
+                )}
+              </div>
+            )}
+
             <button
               onClick={createLink}
               disabled={!buildingId || creating}
@@ -295,11 +311,9 @@ export function TelegramIntegration() {
           </div>
         ) : (
           <div className="space-y-4">
-            <ol className="text-sm space-y-1.5 list-decimal list-inside text-gray-700">
-              <li>{t('Откройте ссылку ниже', 'Quyidagi havolani oching')}</li>
-              <li>{t('Выберите группу дома', 'Uy guruhini tanlang')}</li>
-              <li>{t('Бот подтвердит подключение сообщением в группе', 'Bot guruhda ulanishni tasdiqlaydi')}</li>
-            </ol>
+            <p className="text-sm text-gray-700">
+              {t('Выберите тип группы:', 'Guruh turini tanlang:')}
+            </p>
 
             <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg">
               <span className="flex-1 min-w-0 text-xs font-mono truncate">{link}</span>
@@ -315,13 +329,48 @@ export function TelegramIntegration() {
               className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
             >
               <ExternalLink className="w-4 h-4" />
-              {t('Открыть в Telegram', 'Telegramda ochish')}
+              {t('Подключить всю группу и все темы', 'Butun guruh va barcha mavzularni ulash')}
             </a>
+
+            {connectCommand && addBotUrl && (
+              <div className="rounded-lg border border-primary-200 bg-primary-50 p-3">
+                <div className="mb-2 text-sm font-medium text-gray-800">
+                  {t('Группа с темами', 'Mavzuli guruh')}
+                </div>
+                <ol className="mb-3 list-inside list-decimal space-y-1 text-xs text-gray-600">
+                  <li>{t('Добавьте бота', 'Botni qo‘shing')}</li>
+                  <li>{t('Откройте нужную тему', 'Kerakli mavzuni oching')}</li>
+                  <li>{t('Скопируйте и отправьте команду', 'Buyruqni nusxalab yuboring')}</li>
+                </ol>
+                <a
+                  href={addBotUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-medium text-primary-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t('Добавить бота в группу', 'Botni guruhga qo‘shish')}
+                </a>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(connectCommand);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch { /* clipboard can be unavailable in WebView */ }
+                  }}
+                  className="w-full rounded-md bg-white px-3 py-2 text-left font-mono text-xs text-primary-800"
+                >
+                  {copied ? t('Команда скопирована', 'Buyruq nusxalandi') : connectCommand}
+                </button>
+              </div>
+            )}
 
             <p className="text-xs text-gray-500">
               {t(
-                'Ссылка действует 30 минут и срабатывает один раз. После подключения обновите страницу.',
-                'Havola 30 daqiqa amal qiladi va bir marta ishlaydi. Ulangach sahifani yangilang.'
+                'Код действует 30 минут и срабатывает один раз. Для обычной группы достаточно ссылки; для группы с темами отправьте команду в нужной теме.',
+                'Kod 30 daqiqa amal qiladi va bir marta ishlaydi. Oddiy guruh uchun havola yetarli; mavzuli guruhda buyruqni kerakli mavzuga yuboring.'
               )}
             </p>
 

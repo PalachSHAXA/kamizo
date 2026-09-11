@@ -14,6 +14,8 @@ export interface TelegramGroup {
   entrance: string | null;
   telegram_chat_id: string;
   telegram_chat_title: string | null;
+  message_thread_id: number;
+  topic_name: string | null;
   listener_enabled: number;
   announcements_enabled: number;
   // 'member' | 'administrator' | 'left' | 'kicked' | 'restricted'.
@@ -29,6 +31,7 @@ export interface TelegramDelivery {
   id: string;
   telegram_group_id: string | null;
   telegram_chat_id: string;
+  message_thread_id: number;
   status: 'pending' | 'sent' | 'failed' | 'disabled' | 'blocked';
   error_message: string | null;
   attempts: number;
@@ -66,7 +69,7 @@ export const telegramApi = {
     announcements_enabled?: boolean;
     listener_enabled?: boolean;
   }) =>
-    apiRequest<{ url: string; expiresAt: string }>(
+    apiRequest<{ url: string; addBotUrl: string; command: string; expiresAt: string }>(
       '/api/telegram/groups/connect-token',
       { method: 'POST', body: JSON.stringify(payload) }
     ),

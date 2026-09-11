@@ -86,7 +86,7 @@ route('POST', '/api/users/me/password', async (request, env) => {
 
   const newHash = await hashPassword(newPassword);
   const result = await env.DB.prepare(
-    "UPDATE users SET password_hash = ?, password_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
+    "UPDATE users SET password_hash = ?, password_changed_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
   ).bind(newHash, user.id, tenantId).run();
   if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
@@ -120,7 +120,7 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
 
   const newHash = await hashPassword(newPassword);
   const result = await env.DB.prepare(
-    "UPDATE users SET password_hash = ?, password_changed_at = NULL, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
+    "UPDATE users SET password_hash = ?, password_changed_at = NULL, auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
   ).bind(newHash, params.id, tenantIdPwd, target.role).run();
   if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
@@ -151,7 +151,7 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
 
   const passwordHash = await hashPassword(tempPassword);
   const result = await env.DB.prepare(
-    "UPDATE users SET password_hash = ?, password_changed_at = NULL, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
+    "UPDATE users SET password_hash = ?, password_changed_at = NULL, auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
   ).bind(passwordHash, targetUser.id, tenantId, targetUser.role).run();
   if ((result.meta?.changes ?? 0) !== 1) return error('Password reset conflict', 409);
 

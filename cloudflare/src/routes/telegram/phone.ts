@@ -60,7 +60,7 @@ export async function offerPhoneShare(
   env: Env, chatId: string | number, telegramUserId: string
 ): Promise<void> {
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.phone FROM telegram_users t
+    SELECT u.id, u.phone, u.language FROM telegram_users t
     JOIN users u ON u.id = t.user_id
     WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
   `).bind(String(telegramUserId)).all();
@@ -71,9 +71,14 @@ export async function offerPhoneShare(
   const missing = linked.filter(u => !u.phone || !String(u.phone).trim());
   if (!missing.length) return;
 
+  const ru = (linked[0]?.language || 'ru') === 'ru';
+
   await sendTelegramMessage(env, chatId,
-    'Чтобы управляющая компания могла связаться с вами по заявкам, поделитесь номером телефона.\n\n'
-    + 'Номер попадёт в ваш профиль Kamizo только после отдельного подтверждения — на следующем шаге вы увидите его и решите сами.',
+    ru
+      ? 'Поделитесь номером телефона, чтобы управляющая компания могла связаться с вами по заявкам, гостевому доступу и зарегистрированному автомобилю.\n\n'
+        + 'Номер не публикуется в Telegram-группе. Он попадёт в профиль Kamizo только после отдельного подтверждения — на следующем шаге вы увидите номер и решите сами.'
+      : 'Arizalar, mehmon kirishi va ro‘yxatdan o‘tgan avtomobil bo‘yicha boshqaruv kompaniyasi siz bilan bog‘lanishi uchun telefon raqamingizni ulashing.\n\n'
+        + 'Raqam Telegram guruhida eʼlon qilinmaydi. U faqat keyingi bosqichdagi alohida tasdiqdan so‘ng Kamizo profilingizga yoziladi.',
     { replyMarkup: REQUEST_CONTACT_KEYBOARD }
   );
 }
@@ -133,7 +138,9 @@ export async function handleContactShared(
   const id = generateId();
   const expiresAt = new Date(Date.now() + PENDING_TTL_MINUTES * 60 * 1000);
   await env.DB.prepare(
-    'INSERT INTO telegram_pending_phones (id, telegram_user_id, phone, expires_at) VALUES (?, ?, ?, ?)'
+    `INSERT INTO telegram_pending_phones
+       (id, tenant_id, telegram_user_id, phone, expires_at)
+     VALUES (?, '__global__', ?, ?, ?)`
   ).bind(id, fromId, phone, expiresAt.toISOString()).run();
 
   // Аккаунты делятся на три группы, и обращаться с ними одинаково
@@ -156,7 +163,8 @@ export async function handleContactShared(
   // Нечего делать: этот номер уже стоит везде, где мог бы.
   if (!empty.length && !conflicting.length) {
     await env.DB.prepare(
-      `UPDATE telegram_pending_phones SET used_at = datetime('now') WHERE id = ?`
+      `UPDATE telegram_pending_phones SET used_at = datetime('now')
+       WHERE id = ? AND tenant_id = '__global__'`
     ).bind(id).run();
     await sendTelegramMessage(env, chatId,
       `📱 Этот номер уже указан в вашем профиле Kamizo (${already.length}). Ничего менять не нужно.`);
@@ -222,7 +230,8 @@ export async function handlePhoneCallback(
   const fromId = String(callback?.from?.id ?? '');
 
   const pending = await env.DB.prepare(
-    'SELECT * FROM telegram_pending_phones WHERE id = ?'
+    `SELECT * FROM telegram_pending_phones
+     WHERE id = ? AND tenant_id = '__global__'`
   ).bind(pendingId).first() as any;
 
   if (!pending || pending.used_at) {
@@ -242,7 +251,7 @@ export async function handlePhoneCallback(
 
   await env.DB.prepare(
     `UPDATE telegram_pending_phones SET used_at = datetime('now')
-     WHERE id = ? AND used_at IS NULL`
+     WHERE id = ? AND tenant_id = '__global__' AND used_at IS NULL`
   ).bind(pendingId).run();
 
   if (action === 'n') {

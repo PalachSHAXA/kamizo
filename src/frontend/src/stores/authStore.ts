@@ -133,7 +133,7 @@ const installSession = (
   localStorage.setItem('auth_token', token);
   // fix/mobile-token-persistence: зеркалим в Preferences (Keychain на iOS,
   // EncryptedSharedPreferences на Android). Fire-and-forget — не блокируем.
-  writeTokenToNativeStorage(token);
+  void writeTokenToNativeStorage(token);
   markLoggedIn();
   set({ user, token, isLoading: false, error: null, pickerTenants: null });
   void useTenantStore.getState().fetchConfig().catch(() => { /* non-critical */ });
@@ -293,7 +293,7 @@ export const useAuthStore = create<AuthState>()(
           void unregisterNativePush(jwtSnapshot);
         }).catch(() => { /* non-critical */ });
         localStorage.removeItem('auth_token');
-        writeTokenToNativeStorage(null); // fix/mobile-token-persistence
+        void writeTokenToNativeStorage(null); // fix/mobile-token-persistence
         set({ user: null, token: null, error: null });
         resetSessionScopedState();
         authApi.logout();
@@ -509,18 +509,19 @@ export const useAuthStore = create<AuthState>()(
         }
         if (state?.token) {
           localStorage.setItem('auth_token', state.token);
-          writeTokenToNativeStorage(state.token);
+          void writeTokenToNativeStorage(state.token);
         } else {
           // No token - clear stale state
           localStorage.removeItem('auth_token');
-          writeTokenToNativeStorage(null);
+          void writeTokenToNativeStorage(null);
         }
       },
     }
   )
 );
 
-registerSessionExpiredHandler(() => {
+registerSessionExpiredHandler(async () => {
   useAuthStore.setState({ user: null, token: null, error: null });
   resetSessionScopedState();
+  await writeTokenToNativeStorage(null);
 });

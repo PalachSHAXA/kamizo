@@ -98,12 +98,16 @@
   // дому. Здесь он просто параметр, который надо донести до приложения.
   var params = new URLSearchParams(location.search);
   var token = params.get('telegramDraft') || '';
+  var requestedTarget = params.get('target') || '/';
+  var target = requestedTarget.charAt(0) === '/' && requestedTarget.slice(0, 2) !== '//'
+    ? requestedTarget : '/';
   var host = location.host;
 
   // Веб-версия того же тенанта: домен берём из адреса этой страницы, а
   // не зашиваем — ссылка бота ведёт на домен тенанта, и уводить
   // человека на app.kamizo.uz значило бы отправить его в чужой кабинет.
-  var webUrl = location.protocol + '//' + host + '/' + (token ? '?telegramDraft=' + encodeURIComponent(token) : '');
+  var query = token ? '?telegramDraft=' + encodeURIComponent(token) : '';
+  var webUrl = location.protocol + '//' + host + target + query;
   document.getElementById('web').href = webUrl;
 
   var ua = navigator.userAgent || '';
@@ -116,12 +120,14 @@
   if (isAndroid) {
     // browser_fallback_url обязателен: без него встроенный браузер при
     // отсутствии приложения покажет ошибку вместо веб-версии.
-    appUrl = 'intent://' + host + '/' +
-      (token ? '?telegramDraft=' + encodeURIComponent(token) : '') +
+    appUrl = 'intent://' + host + target + query +
       '#Intent;scheme=https;package=uz.kamizo.app;' +
       'S.browser_fallback_url=' + encodeURIComponent(webUrl) + ';end';
   } else if (isIOS) {
-    appUrl = 'kamizo://draft' + (token ? '?telegramDraft=' + encodeURIComponent(token) : '');
+    var iosParams = new URLSearchParams();
+    iosParams.set('target', target);
+    if (token) iosParams.set('telegramDraft', token);
+    appUrl = 'kamizo://open?' + iosParams.toString();
   }
 
   var statusEl = document.getElementById('status');
@@ -131,7 +137,7 @@
   if (!appUrl) {
     // Десктоп: приложения нет и быть не может — незачем делать вид.
     appEl.style.display = 'none';
-    statusEl.textContent = 'Переходим к форме заявки.';
+    statusEl.textContent = 'Переходим в Kamizo.';
     location.replace(webUrl);
     return;
   }
@@ -153,7 +159,7 @@
       statusEl.textContent = 'Приложение не открылось.';
     }, 1500);
   } else {
-    statusEl.textContent = 'Выберите, где открыть заявку.';
+    statusEl.textContent = 'Выберите, где открыть Kamizo.';
   }
 })();
 </script>

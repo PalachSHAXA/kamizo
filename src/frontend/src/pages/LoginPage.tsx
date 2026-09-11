@@ -143,8 +143,6 @@ export function LoginPage() {
   const authError = useAuthStore((state) => state.error);
   const pickerTenants = useAuthStore((state) => state.pickerTenants);
   const clearPicker = useAuthStore((state) => state.clearPicker);
-  // Второй фактор через Telegram (ТЗ §17). Подписка на конкретные поля,
-  // а не на весь стор — правило из CLAUDE.md.
   const pendingApproval = useAuthStore((state) => state.pendingApproval);
   const awaitLoginApproval = useAuthStore((state) => state.awaitLoginApproval);
   const clearPendingApproval = useAuthStore((state) => state.clearPendingApproval);
@@ -186,6 +184,10 @@ export function LoginPage() {
     s.replace(/[–—−]/g, '-').replace(/ /g, ' ');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [approvalCode, setApprovalCode] = useState('');
+  const [approvalCodeError, setApprovalCodeError] = useState('');
+  const [approvalCodeAccepted, setApprovalCodeAccepted] = useState(false);
+  const [isVerifyingApprovalCode, setIsVerifyingApprovalCode] = useState(false);
 
   const languages: { code: Language; label: string; flag: string }[] = [
     { code: 'ru', label: 'RU', flag: '🇷🇺' },
@@ -224,6 +226,63 @@ export function LoginPage() {
   const [demoRolesReload, setDemoRolesReload] = useState(0);
   const [demoLoggingIn, setDemoLoggingIn] = useState<string | null>(null);
 
+  const navigateAfterLogin = () => {
+    const requested = new URLSearchParams(window.location.search).get('returnTo');
+    const target = requested?.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : '/';
+    window.history.replaceState({}, '', target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  const finishTelegramApproval = async () => {
+    const result = await awaitLoginApproval();
+    if (result === 'denied') {
+      setError(language === 'ru' ? 'Вход отклонён в Telegram.' : 'Kirish Telegramda rad etildi.');
+    } else if (result === 'expired') {
+      setError(language === 'ru' ? 'Время подтверждения истекло.' : 'Tasdiqlash vaqti tugadi.');
+    } else if (result === 'success') {
+      navigateAfterLogin();
+    }
+  };
+
+  const handleVerifyApprovalCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pendingApproval || !/^\d{6}$/.test(approvalCode) || isVerifyingApprovalCode) return;
+    setIsVerifyingApprovalCode(true);
+    setApprovalCodeError('');
+    try {
+      const result = await authApi.verifyLoginApprovalCode(pendingApproval.requestId, approvalCode);
+      if (result.verified) {
+        setApprovalCodeAccepted(true);
+        return;
+      }
+      if (result.status === 'expired') {
+        setApprovalCodeError(language === 'ru' ? 'Код истёк. Войдите заново.' : 'Kod muddati tugadi. Qaytadan kiring.');
+      } else if (result.status === 'denied') {
+        setApprovalCodeError(language === 'ru' ? 'Попытки закончились. Войдите заново.' : 'Urinishlar tugadi. Qaytadan kiring.');
+      } else {
+        setApprovalCodeError(language === 'ru'
+          ? `Неверный код. Осталось попыток: ${result.remainingAttempts}`
+          : `Kod noto‘g‘ri. Qolgan urinishlar: ${result.remainingAttempts}`);
+      }
+    } catch (verificationError: unknown) {
+      setApprovalCodeError(verificationError instanceof Error
+        ? verificationError.message
+        : (language === 'ru' ? 'Не удалось проверить код' : 'Kodni tekshirib bo‘lmadi'));
+    } finally {
+      setIsVerifyingApprovalCode(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!pendingApproval) {
+      setApprovalCode('');
+      setApprovalCodeError('');
+      setApprovalCodeAccepted(false);
+    }
+  }, [pendingApproval]);
+
   useEffect(() => {
     if (tenant?.slug !== 'demo' || demoGateOpen) return;
     let cancelled = false;
@@ -255,31 +314,6 @@ export function LoginPage() {
     }
   };
 
-  // Ожидание подтверждения входа в Telegram (ТЗ §17).
-  //
-  // Опрос ведёт стор; здесь только реакция на исход. «Запрещён» и
-  // «истёк» разделены намеренно: первое означает, что кто-то осознанно
-  // отклонил вход, и человек должен это увидеть, а не решить, что
-  // подвела связь.
-  const handleAwaitApproval = async () => {
-    const res = await awaitLoginApproval();
-    if (res === 'denied') {
-      setError(language === 'ru'
-        ? 'Вход запрещён из Telegram. Если это были не вы — смените пароль.'
-        : "Kirish Telegramdan taqiqlandi. Agar bu siz bo'lmasangiz — parolni o'zgartiring.");
-    } else if (res === 'expired') {
-      setError(language === 'ru'
-        ? 'Время подтверждения истекло. Войдите заново.'
-        : 'Tasdiqlash vaqti tugadi. Qaytadan kiring.');
-    }
-    // 'success' — App перерисуется сам, как только в сторе появится user.
-  };
-
-  const handleCancelApproval = () => {
-    clearPendingApproval();
-    setError('');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -296,11 +330,11 @@ export function LoginPage() {
       //   (driven by store.pickerTenants); password stays in this
       //   component's useState for the re-submit.
       // outcome === 'success' → App re-renders with Layout when user is set.
-      // outcome === 'approval' → второй фактор через Telegram (ТЗ §17):
-      //   пароль верен, но токена нет, пока человек не нажмёт «Это я» в
-      //   боте. Экран ожидания рисуется по store.pendingApproval, а
-      //   опрос статуса ведёт сам стор.
-      if (outcome === 'approval') await handleAwaitApproval();
+      if (outcome === 'approval') {
+        await finishTelegramApproval();
+      } else if (outcome === 'success') {
+        navigateAfterLogin();
+      }
     } catch {
       setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
     }
@@ -317,7 +351,9 @@ export function LoginPage() {
       // Same as handleSubmit: let authStore's mapped error surface
       // through displayError instead of clobbering it with the
       // hardcoded generic.
-      await login(loginValue, password, slug);
+      const outcome = await login(loginValue, password, slug);
+      if (outcome === 'approval') await finishTelegramApproval();
+      else if (outcome === 'success') navigateAfterLogin();
       // outcome === 'success' → App re-renders.
       // outcome === 'picker' should NOT happen here (the slug pinned a
       // single tenant), but if it ever did, the picker just re-renders.
@@ -732,33 +768,53 @@ export function LoginPage() {
       </div>
 
 
-      {/* Ожидание подтверждения входа в Telegram (ТЗ §17).
-          Появляется, когда пароль принят, но у аккаунта включён второй
-          фактор: JWT ещё не выдан, и сессии нет до нажатия «Это я» в
-          боте. Форма остаётся смонтированной под этим слоем, чтобы при
-          отмене пароль не пришлось вводить заново — та же логика, что у
-          оверлея выбора рабочего пространства ниже. */}
+
       {pendingApproval && (
-        <div
-          className="fixed inset-0 z-50 bg-gradient-to-br from-white via-orange-50/30 to-orange-50/50 flex items-center justify-center px-6"
-          style={{ height: '100svh' }}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/95 px-6" style={{ height: '100svh' }}>
           <div className="w-full max-w-sm text-center">
-            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-primary-100 flex items-center justify-center">
-              <Loader2 className="w-7 h-7 text-primary-600 animate-spin" />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-100">
+              <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
             </div>
-            <h2 className="text-lg font-semibold mb-2">
+            <h2 className="mb-2 text-lg font-semibold">
               {language === 'ru' ? 'Подтвердите вход' : 'Kirishni tasdiqlang'}
             </h2>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="mb-6 text-sm text-gray-500">
               {language === 'ru'
-                ? 'Мы отправили запрос в ваш Telegram. Откройте чат с ботом и нажмите «Это я».'
-                : "So'rov Telegramingizga yuborildi. Bot bilan chatni oching va «Bu men» ni bosing."}
+                ? 'Введите код из Telegram или нажмите «Это я» в сообщении бота.'
+                : 'Telegramdagi kodni kiriting yoki bot xabaridagi «Bu men» tugmasini bosing.'}
             </p>
+            <form onSubmit={handleVerifyApprovalCode} className="mb-4 space-y-3">
+              <input
+                value={approvalCode}
+                onChange={event => setApprovalCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                autoFocus
+                aria-label={language === 'ru' ? 'Код из Telegram' : 'Telegram kodi'}
+                placeholder="000000"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.35em] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+              />
+              {approvalCodeError && <p className="text-sm text-red-600">{approvalCodeError}</p>}
+              {approvalCodeAccepted && (
+                <p className="text-sm text-green-600">
+                  {language === 'ru' ? 'Код принят. Выполняется вход…' : 'Kod qabul qilindi. Kirilmoqda…'}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={approvalCode.length !== 6 || isVerifyingApprovalCode || approvalCodeAccepted}
+                className="w-full rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {isVerifyingApprovalCode
+                  ? (language === 'ru' ? 'Проверяем…' : 'Tekshirilmoqda…')
+                  : (language === 'ru' ? 'Подтвердить код' : 'Kodni tasdiqlash')}
+              </button>
+            </form>
             <button
               type="button"
-              onClick={handleCancelApproval}
-              className="w-full py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600"
+              onClick={() => { clearPendingApproval(); setError(''); setApprovalCode(''); }}
+              className="w-full rounded-xl border border-gray-200 py-2.5 text-sm text-gray-600"
             >
               {language === 'ru' ? 'Отмена' : 'Bekor qilish'}
             </button>

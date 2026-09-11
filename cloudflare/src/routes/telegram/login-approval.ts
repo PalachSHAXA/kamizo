@@ -28,6 +28,7 @@ import {
 // злоумышленник, знающий пароль, ждёт, что владелец по невнимательности
 // нажмёт «Это я». Чем уже окно, тем меньше шанс.
 const APPROVAL_TTL_SECONDS = 120;
+const OTP_MAX_ATTEMPTS = 5;
 
 // Опрос статуса — раз в 2 секунды на клиенте, окно 2 минуты, то есть
 // около 60 обращений на одну попытку входа. Лимит с запасом, но не
@@ -37,6 +38,29 @@ export const LOGIN_APPROVAL_POLL_LIMIT = 120;
 export interface PendingApproval {
   requestId: string;
   expiresAt: string;
+}
+
+export function generateLoginApprovalCode(): string {
+  const value = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
+  return String(value).padStart(6, '0');
+}
+
+export async function hashLoginApprovalCode(
+  requestId: string,
+  code: string,
+  secret: string | undefined
+): Promise<string> {
+  if (!secret) throw new Error('JWT_SECRET is not configured');
+  const bytes = new TextEncoder().encode(`${requestId}:${code}:${secret}`);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -79,8 +103,9 @@ export async function createLoginApproval(
   try {
     link = await env.DB.prepare(
       `SELECT telegram_chat_id, security_enabled
-       FROM telegram_users WHERE user_id = ? AND revoked_at IS NULL`
-    ).bind(user.id).first();
+       FROM telegram_users
+       WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+    ).bind(user.id, user.tenant_id || '').first();
   } catch (err) {
     log.warn('login_approval_lookup_failed', {
       reason: String((err as Error)?.message || err),
@@ -92,14 +117,18 @@ export async function createLoginApproval(
 
   const id = generateId();
   const expiresAt = new Date(Date.now() + APPROVAL_TTL_SECONDS * 1000);
+  const otpCode = generateLoginApprovalCode();
+  const otpHash = await hashLoginApprovalCode(id, otpCode, env.JWT_SECRET);
 
   await env.DB.prepare(`
     INSERT INTO telegram_login_requests
-      (id, tenant_id, user_id, telegram_chat_id, device, ip_address, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (id, tenant_id, user_id, telegram_chat_id, device, ip_address,
+       expires_at, otp_hash, otp_max_attempts)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, user.tenant_id || '', user.id, String(link.telegram_chat_id),
-    meta.device || null, meta.ip || null, expiresAt.toISOString()
+    meta.device || null, meta.ip || null, expiresAt.toISOString(),
+    otpHash, OTP_MAX_ATTEMPTS
   ).run();
 
   const when = new Date().toISOString().replace('T', ' ').slice(0, 16);
@@ -109,6 +138,9 @@ export async function createLoginApproval(
     meta.device ? `Устройство: ${escapeHtml(meta.device)}` : null,
     meta.ip ? `IP: ${escapeHtml(meta.ip)}` : null,
     `Время: ${when} UTC`,
+    '',
+    `Код входа / Kirish kodi: <code>${otpCode}</code>`,
+    'Код действует 2 минуты. Введите его на экране входа или нажмите «Это я».',
     '',
     'Если это не вы — нажмите «Запретить вход» и смените пароль.',
   ].filter(Boolean) as string[];
@@ -125,15 +157,16 @@ export async function createLoginApproval(
     // и пропускаем второй фактор.
     await env.DB.prepare(
       `UPDATE telegram_login_requests SET status = 'expired',
-       resolved_at = datetime('now') WHERE id = ?`
-    ).bind(id).run();
+       resolved_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+    ).bind(id, user.tenant_id || '').run();
     log.warn('login_approval_send_failed', { reason: sent.reason });
     return null;
   }
 
   await env.DB.prepare(
-    'UPDATE telegram_login_requests SET telegram_message_id = ? WHERE id = ?'
-  ).bind(String(sent.result?.message_id ?? ''), id).run();
+    `UPDATE telegram_login_requests SET telegram_message_id = ?
+     WHERE id = ? AND tenant_id = ?`
+  ).bind(String(sent.result?.message_id ?? ''), id, user.tenant_id || '').run();
 
   log.info('login_approval_sent', { userId: user.id, requestId: id });
   return { requestId: id, expiresAt: expiresAt.toISOString() };
@@ -174,8 +207,9 @@ export async function resolveLoginRequest(
   if (new Date(req.expires_at) < new Date()) {
     await env.DB.prepare(
       `UPDATE telegram_login_requests SET status = 'expired',
-       resolved_at = datetime('now') WHERE id = ? AND status = 'pending'`
-    ).bind(requestId).run();
+       resolved_at = datetime('now')
+       WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+    ).bind(requestId, req.tenant_id).run();
     await answerCallbackQuery(env, callback.id, 'Срок запроса истёк');
     if (chatId && req.telegram_message_id) {
       await editTelegramMessage(env, chatId, req.telegram_message_id,
@@ -187,8 +221,8 @@ export async function resolveLoginRequest(
   // Нажавший обязан быть владельцем привязки этого аккаунта.
   const owner = await env.DB.prepare(
     `SELECT telegram_user_id FROM telegram_users
-     WHERE user_id = ? AND revoked_at IS NULL`
-  ).bind(req.user_id).first() as any;
+     WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+  ).bind(req.user_id, req.tenant_id).first() as any;
 
   if (!owner || String(owner.telegram_user_id) !== fromId) {
     await answerCallbackQuery(env, callback.id, 'Недостаточно прав');
@@ -204,8 +238,8 @@ export async function resolveLoginRequest(
   // бы уже решённый запрос в другое состояние.
   const upd = await env.DB.prepare(
     `UPDATE telegram_login_requests SET status = ?, resolved_at = datetime('now')
-     WHERE id = ? AND status = 'pending'`
-  ).bind(next, requestId).run();
+     WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+  ).bind(next, requestId, req.tenant_id).run();
 
   if (!upd.meta?.changes) {
     await answerCallbackQuery(env, callback.id, 'Запрос уже обработан');
@@ -225,6 +259,73 @@ export async function resolveLoginRequest(
 
 // ──────────────────────────────────────────────────────────────────
 export function registerLoginApprovalRoutes() {
+
+// POST /api/auth/login-approval/verify-code
+// Public because JWT does not exist yet. Security is provided by the opaque
+// request id, a six-digit code, a two-minute TTL, endpoint rate limit and a
+// five-attempt DB counter.
+route('POST', '/api/auth/login-approval/verify-code', async (request, env) => {
+  const body = await request.json() as any;
+  const requestId = String(body.request_id || body.requestId || '');
+  const code = String(body.code || '').trim();
+  if (!requestId || !/^\d{6}$/.test(code)) {
+    return error('request_id and a 6-digit code are required', 400);
+  }
+
+  const req = await env.DB.prepare(
+    'SELECT * FROM telegram_login_requests WHERE id = ?'
+  ).bind(requestId).first() as any;
+  if (!req) return error('Request not found', 404);
+  if (req.status !== 'pending') return json({ verified: false, status: req.status, remainingAttempts: 0 });
+
+  if (new Date(req.expires_at) < new Date()) {
+    await env.DB.prepare(`
+      UPDATE telegram_login_requests
+      SET status = 'expired', resolved_at = datetime('now')
+      WHERE id = ? AND tenant_id = ? AND status = 'pending'
+    `).bind(requestId, req.tenant_id).run();
+    return json({ verified: false, status: 'expired', remainingAttempts: 0 });
+  }
+
+  if (!req.otp_hash || req.otp_attempts >= req.otp_max_attempts) {
+    return json({ verified: false, status: 'denied', remainingAttempts: 0 });
+  }
+
+  const providedHash = await hashLoginApprovalCode(requestId, code, env.JWT_SECRET);
+  if (!timingSafeEqual(providedHash, String(req.otp_hash))) {
+    await env.DB.prepare(`
+      UPDATE telegram_login_requests
+      SET otp_attempts = otp_attempts + 1,
+          status = CASE WHEN otp_attempts + 1 >= otp_max_attempts THEN 'denied' ELSE status END,
+          resolved_at = CASE WHEN otp_attempts + 1 >= otp_max_attempts THEN datetime('now') ELSE resolved_at END
+      WHERE id = ? AND tenant_id = ? AND status = 'pending'
+    `).bind(requestId, req.tenant_id).run();
+    const remainingAttempts = Math.max(0, Number(req.otp_max_attempts) - Number(req.otp_attempts) - 1);
+    return json({
+      verified: false,
+      status: remainingAttempts ? 'pending' : 'denied',
+      remainingAttempts,
+    });
+  }
+
+  const approved = await env.DB.prepare(`
+    UPDATE telegram_login_requests
+    SET status = 'approved', resolved_at = datetime('now')
+    WHERE id = ? AND tenant_id = ? AND status = 'pending' AND otp_hash = ?
+  `).bind(requestId, req.tenant_id, req.otp_hash).run();
+  if (!approved.meta?.changes) return json({ verified: false, status: 'consumed', remainingAttempts: 0 });
+
+  if (req.telegram_message_id) {
+    await editTelegramMessage(
+      env,
+      req.telegram_chat_id,
+      req.telegram_message_id,
+      '✅ <b>Код принят, вход подтверждён</b>\n\nМожете вернуться в приложение.'
+    );
+  }
+  createRequestLogger(request).info('login_approval_code_verified', { requestId, userId: req.user_id });
+  return json({ verified: true, status: 'approved', remainingAttempts: req.otp_max_attempts - req.otp_attempts });
+});
 
 // POST /api/auth/login-approval/status
 // Body: { request_id }
@@ -251,8 +352,9 @@ route('POST', '/api/auth/login-approval/status', async (request, env) => {
   if (req.status === 'pending' && new Date(req.expires_at) < new Date()) {
     await env.DB.prepare(
       `UPDATE telegram_login_requests SET status = 'expired',
-       resolved_at = datetime('now') WHERE id = ? AND status = 'pending'`
-    ).bind(requestId).run();
+       resolved_at = datetime('now')
+       WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+    ).bind(requestId, req.tenant_id).run();
     return json({ status: 'expired' });
   }
 
@@ -264,13 +366,13 @@ route('POST', '/api/auth/login-approval/status', async (request, env) => {
   // невозможно».
   const claim = await env.DB.prepare(
     `UPDATE telegram_login_requests SET status = 'consumed'
-     WHERE id = ? AND status = 'approved'`
-  ).bind(requestId).run();
+     WHERE id = ? AND tenant_id = ? AND status = 'approved'`
+  ).bind(requestId, req.tenant_id).run();
   if (!claim.meta?.changes) return json({ status: 'consumed' });
 
   const user = await env.DB.prepare(
-    'SELECT * FROM users WHERE id = ?'
-  ).bind(req.user_id).first() as any;
+    'SELECT * FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(req.user_id, req.tenant_id).first() as any;
   if (!user) return error('User not found', 404);
 
   // tenant берётся из строки запроса и профиля, а НЕ из чего-либо,
