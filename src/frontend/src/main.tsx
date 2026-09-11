@@ -5,6 +5,7 @@ import { Keyboard } from '@capacitor/keyboard'
 import './index.css'
 import { prepareSessionBoundary } from './stores/sessionReset'
 import { API_URL, transformUser, type UserApiResponse } from './services/api/client'
+import { hydrateTokenCache } from './services/capacitorStorage'
 
 interface ImpersonationExchangeResponse {
   user: UserApiResponse & {
@@ -47,6 +48,12 @@ export async function installImpersonationExchange(
       version: 4,
     }))
     localStorage.setItem('auth_token', exchanged.token)
+    // fix/mobile-token-persistence: зеркалим impersonation-token в
+    // Preferences тоже — иначе после reload в native shell первый
+    // hydrate прочтёт пустой Keychain и имперсонация слетит.
+    void import('./services/capacitorStorage').then(
+      ({ writeTokenToNativeStorage }) => writeTokenToNativeStorage(exchanged.token),
+    ).catch(() => {})
     localStorage.setItem('kamizo_impersonation', JSON.stringify({
       origin_url: exchanged.originUrl || '',
       tenant_name: exchanged.tenantName || '',
@@ -112,6 +119,17 @@ function installDeepLinkHandler() {
 }
 
 export async function bootstrap(reload?: () => void) {
+  // fix/mobile-token-persistence: ДО импорта App (который тянет authStore
+  // и его persist-rehydrate) заливаем token из Preferences (Keychain на
+  // iOS) в localStorage. Так первый sync getToken() в client.ts точно
+  // получит валидный JWT — а не потерянный WebView-storage'ом.
+  //
+  // Non-blocking для web (isNativePlatform=false → early return, ~0ms).
+  // На native добавляет ~5-20ms Keychain read перед первым рендером —
+  // приемлемо, ибо иначе первый rehydrate прочтёт пустой localStorage
+  // и пользователя выкинет на LoginPage.
+  await hydrateTokenCache()
+
   if (await installImpersonationExchange(reload)) return
 
   if (Capacitor.isNativePlatform()) {

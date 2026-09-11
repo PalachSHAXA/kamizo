@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User } from '../types';
+import { preferencesStorage, writeTokenToNativeStorage } from '../services/capacitorStorage';
 import { authApi } from '../services/api/auth';
 import { markLoggedIn, registerSessionExpiredHandler } from '../services/api/client';
 import { usersApi } from '../services/api/users';
@@ -130,6 +131,9 @@ const installSession = (
 ) => {
   resetSessionScopedState();
   localStorage.setItem('auth_token', token);
+  // fix/mobile-token-persistence: зеркалим в Preferences (Keychain на iOS,
+  // EncryptedSharedPreferences на Android). Fire-and-forget — не блокируем.
+  writeTokenToNativeStorage(token);
   markLoggedIn();
   set({ user, token, isLoading: false, error: null, pickerTenants: null });
   void useTenantStore.getState().fetchConfig().catch(() => { /* non-critical */ });
@@ -289,6 +293,7 @@ export const useAuthStore = create<AuthState>()(
           void unregisterNativePush(jwtSnapshot);
         }).catch(() => { /* non-critical */ });
         localStorage.removeItem('auth_token');
+        writeTokenToNativeStorage(null); // fix/mobile-token-persistence
         set({ user: null, token: null, error: null });
         resetSessionScopedState();
         authApi.logout();
@@ -481,13 +486,22 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'uk-auth-storage',
       version: 4, // v4: JWT tokens — token is no longer user.id
+      // fix/mobile-token-persistence: async storage adapter.
+      // На native (Capacitor iOS/Android) читает/пишет через Preferences
+      // (Keychain / EncryptedSharedPreferences). На web — обычный
+      // localStorage. Устраняет потерю сессии на iOS из-за eviction'а
+      // WebView localStorage системой.
+      storage: createJSONStorage(() => preferencesStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         // Do NOT persist additionalUsers - all users should come from API
         // This ensures data is consistent across all browsers/devices
       }),
-      // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh)
+      // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh).
+      // Дублируем в отдельный 'auth_token' ключ, потому что client.ts:getToken()
+      // читает именно его sync — до полного rehydrate. И зеркалим в
+      // Preferences для след. cold start'а.
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.error('Rehydrate error:', error); // keep console.error for critical rehydration debugging
@@ -495,9 +509,11 @@ export const useAuthStore = create<AuthState>()(
         }
         if (state?.token) {
           localStorage.setItem('auth_token', state.token);
+          writeTokenToNativeStorage(state.token);
         } else {
           // No token - clear stale state
           localStorage.removeItem('auth_token');
+          writeTokenToNativeStorage(null);
         }
       },
     }

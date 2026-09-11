@@ -47,6 +47,20 @@ export function clearSessionStorage(options: ClearSessionStorageOptions = {}): v
     // localStorage can be unavailable in private/restricted contexts.
   }
 
+  // fix/mobile-token-persistence: если это НЕ retention-режим (обычный
+  // 401-wipe/logout), также чистим Preferences на native — иначе след.
+  // cold start восстановит устаревший token из Keychain. При retention
+  // (preserveAuthToken=true) записываем retainedToken обратно в
+  // Preferences тоже.
+  try {
+    void import('./capacitorStorage').then(({ writeTokenToNativeStorage }) => {
+      const kept = options.preserveAuthToken
+        ? globalThis.localStorage?.getItem('auth_token') ?? null
+        : null;
+      writeTokenToNativeStorage(kept);
+    }).catch(() => {});
+  } catch { /* dynamic import unavailable */ }
+
   try {
     const storage = globalThis.sessionStorage;
     for (const key of BROWSER_SESSION_KEYS) storage.removeItem(key);
