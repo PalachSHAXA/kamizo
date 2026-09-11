@@ -48,57 +48,66 @@ import { offerPhoneShare, handleContactShared, handlePhoneCallback } from './pho
 // language === 'ru' ? ... : ... (CLAUDE.md). Язык берём из
 // users.language, а до привязки — из language_code самого Telegram.
 //
-// Узбекский апостроф — русская двойная кавычка по правилу из CLAUDE.md,
-// чтобы не экранировать его в каждой строке.
+// В шаблонных строках узбекский апостроф не требует экранирования.
 const T = {
   linked: (ru: boolean, name: string) => ru
-    ? `✅ Готово, ${name}!\n\nВаш Telegram привязан к Kamizo. Сюда будут приходить уведомления о заявках, собраниях и коды подтверждения.\n\nОтвязать — команда /unlink`
-    : `✅ Tayyor, ${name}!\n\nTelegram hisobingiz Kamizo"ga ulandi. Arizalar, yig"ilishlar haqida bildirishnomalar va tasdiqlash kodlari shu yerga keladi.\n\nUzish — /unlink buyrug"i`,
+    ? `✅ <b>Telegram успешно подключён${name ? `, ${name}` : ''}</b>\n\nТеперь я смогу присылать сюда уведомления о заявках и собраниях, а также коды подтверждения входа.\n\nЕсли захотите отключить связь, отправьте /unlink.`
+    : `✅ <b>Telegram muvaffaqiyatli ulandi${name ? `, ${name}` : ''}</b>\n\nEndi bu yerga arizalar va yig‘ilishlar haqidagi bildirishnomalar hamda kirishni tasdiqlash kodlari keladi.\n\nUlanishni bekor qilish uchun /unlink buyrug‘ini yuboring.`,
 
   badToken: (ru: boolean) => ru
-    ? '⚠️ Ссылка недействительна или устарела.\n\nОткройте Kamizo → Настройки → «Привязать Telegram» и получите новую ссылку.'
-    : '⚠️ Havola yaroqsiz yoki muddati o"tgan.\n\nKamizo → Sozlamalar → «Telegramni ulash» orqali yangi havola oling.',
+    ? 'Эта ссылка уже недействительна или её срок истёк. Пожалуйста, откройте Kamizo → Настройки → «Привязать Telegram» и получите новую ссылку.'
+    : 'Bu havola ishlamaydi yoki uning muddati tugagan. Iltimos, Kamizo → Sozlamalar → «Telegramni ulash» bo‘limidan yangi havola oling.',
 
   bareStart: (ru: boolean) => ru
-    ? '👋 Это бот Kamizo.\n\nЧтобы получать уведомления, привяжите аккаунт: откройте Kamizo → Настройки → «Привязать Telegram».'
-    : '👋 Bu Kamizo boti.\n\nBildirishnomalarni olish uchun hisobingizni ulang: Kamizo → Sozlamalar → «Telegramni ulash».',
+    ? '👋 Здравствуйте! Я помощник Kamizo.\n\nЧтобы получать уведомления и подтверждать вход, пожалуйста, привяжите аккаунт: Kamizo → Настройки → «Привязать Telegram».'
+    : '👋 Assalomu alaykum! Men Kamizo yordamchisiman.\n\nBildirishnomalarni olish va kirishni tasdiqlash uchun hisobingizni ulang: Kamizo → Sozlamalar → «Telegramni ulash».',
 
   unlinked: (ru: boolean) => ru
-    ? '🔌 Telegram отвязан. Уведомления сюда больше не придут.'
-    : '🔌 Telegram uzildi. Bildirishnomalar bu yerga kelmaydi.',
+    ? 'Готово, Telegram отключён от Kamizo. Уведомления в этот чат больше приходить не будут.'
+    : 'Tayyor, Telegram Kamizodan uzildi. Bu chatga bildirishnomalar boshqa kelmaydi.',
 
   notLinked: (ru: boolean) => ru
-    ? 'Этот чат не привязан ни к одному аккаунту Kamizo.'
-    : 'Bu chat hech qanday Kamizo hisobiga ulanmagan.',
+    ? 'Этот чат пока не связан с аккаунтом Kamizo. Если хотите подключить его, откройте Kamizo → Настройки → «Привязать Telegram».'
+    : 'Bu chat hozircha Kamizo hisobiga ulanmagan. Uni ulash uchun Kamizo → Sozlamalar → «Telegramni ulash» bo‘limini oching.',
 
-  help: (ru: boolean) => ru
-    ? 'Я помогаю открыть функции Kamizo прямо из Telegram:\n\n• оформить заявку ЖКХ\n• сдать или найти квартиру\n• найти услугу или товар\n• оформить гостевой пропуск\n• охране проверить QR\n• сотруднику найти владельца авто\n\nКоманды:\n/start — привязать аккаунт\n/phone — записать номер телефона\n/unlink — отвязать\n/help — эта справка'
-    : 'Kamizo funksiyalarini Telegram orqali ochishga yordam beraman:\n\n• kommunal ariza\n• kvartirani ijaraga berish yoki topish\n• xizmat yoki mahsulot topish\n• mehmon ruxsatnomasi\n• qo‘riqlash uchun QR tekshirish\n• avtomobil egasini topish\n\nBuyruqlar:\n/start — hisobni ulash\n/phone — telefon raqamini yozish\n/unlink — uzish\n/help — yordam',
+  help: (ru: boolean, group = false) => ru
+    ? `Здравствуйте! Я помогу быстро перейти к нужной функции Kamizo:\n\n• оформить заявку по дому\n• сдать или найти квартиру\n• найти услугу или товар\n• оформить гостевой пропуск\n• проверить QR-код\n• найти владельца автомобиля${group ? '\n\nПросто опишите, что вам нужно, и я постараюсь подсказать подходящий раздел.' : '\n\nКоманды:\n/start — узнать, как подключить аккаунт\n/phone — добавить или изменить номер\n/unlink — отключить Telegram\n/help — показать эту справку'}`
+    : `Assalomu alaykum! Kamizodagi kerakli funksiyani tez topishga yordam beraman:\n\n• uy bo‘yicha ariza yaratish\n• kvartira topish yoki ijaraga berish\n• xizmat yoki mahsulot topish\n• mehmon ruxsatnomasini yaratish\n• QR-kodni tekshirish\n• avtomobil egasini topish${group ? '\n\nNima kerakligini yozing, mos bo‘limni topishga harakat qilaman.' : '\n\nBuyruqlar:\n/start — hisobni ulash haqida maʼlumot\n/phone — raqam qo‘shish yoki o‘zgartirish\n/unlink — Telegramni uzish\n/help — shu yordamni ko‘rsatish'}`,
 
   // §6 шаг 7 + §15: при подключении бот публикует понятное уведомление
   // участникам группы. Люди в чате не нажимали никаких кнопок и должны
   // сразу понимать, кто и зачем к ним пришёл.
-  groupConnected: (address: string, entrance: string | null, listener: boolean) => {
+  groupConnected: (ru: boolean, address: string, entrance: string | null, listener: boolean) => {
     const lines = [
-      '✅ <b>Группа подключена к Kamizo</b>',
+      ru ? '✅ <b>Группа успешно подключена к Kamizo</b>' : '✅ <b>Guruh Kamizoga muvaffaqiyatli ulandi</b>',
       '',
-      `🏠 ${escapeHtml(address)}${entrance ? `, подъезд ${escapeHtml(entrance)}` : ''}`,
+      `🏠 ${escapeHtml(address)}${entrance ? `, ${ru ? 'подъезд' : 'kirish yo‘lagi'} ${escapeHtml(entrance)}` : ''}`,
       '',
-      'Сюда будут приходить объявления вашей управляющей компании.',
+      ru ? 'Теперь здесь будут появляться объявления вашей управляющей компании.' : 'Endi bu yerga boshqaruv kompaniyangiz eʼlonlari keladi.',
     ];
     if (listener) {
       lines.push(
         '',
-        'Бот также читает новые сообщения группы, чтобы замечать сообщения о проблемах ЖКХ и предлагать оформить заявку.',
-        'История переписки не сохраняется, текст сохраняется только если вы сами оформите заявку.'
+        ru
+          ? 'Если в сообщении появится проблема по дому, я деликатно предложу оформить заявку в Kamizo.'
+          : 'Xabarda uy bilan bog‘liq muammo bo‘lsa, Kamizoda ariza yaratishni muloyimlik bilan taklif qilaman.',
+        ru
+          ? 'История переписки не сохраняется. Текст попадёт в Kamizo только после вашего подтверждения.'
+          : 'Yozishmalar tarixi saqlanmaydi. Matn Kamizoga faqat siz tasdiqlaganingizdan keyin yuboriladi.'
       );
     }
     return lines.join('\n');
   },
 
-  groupBadToken: '⚠️ Ссылка подключения недействительна или устарела. Попросите администратора УК сформировать новую в разделе «Настройки → Интеграции → Telegram».',
-  groupTaken: '⚠️ Эта группа уже подключена к Kamizo. Сначала отключите её в кабинете управляющей компании.',
-  groupSetup: 'Бот добавлен. Если в группе включены темы, откройте нужную тему и отправьте команду подключения из Kamizo.',
+  groupBadToken: (ru: boolean) => ru
+    ? 'Эта команда подключения уже недействительна. Пожалуйста, попросите администратора УК создать новую в разделе «Настройки → Интеграции → Telegram».'
+    : 'Ulanish buyrug‘i endi ishlamaydi. Iltimos, BK administratoridan «Sozlamalar → Integratsiyalar → Telegram» bo‘limida yangi buyruq yaratishni so‘rang.',
+  groupTaken: (ru: boolean) => ru
+    ? 'Эта группа или тема уже подключена к Kamizo. Если нужно изменить подключение, пожалуйста, обратитесь к администратору УК.'
+    : 'Bu guruh yoki mavzu Kamizoga allaqachon ulangan. Ulanishni o‘zgartirish uchun BK administratoriga murojaat qiling.',
+  groupSetup: (ru: boolean) => ru
+    ? 'Спасибо, бот добавлен. Чтобы завершить подключение, скопируйте команду из Kamizo и отправьте её в нужной группе или теме.'
+    : 'Rahmat, bot qo‘shildi. Ulanishni yakunlash uchun Kamizodagi buyruqni nusxalab, kerakli guruh yoki mavzuga yuboring.',
 };
 
 // ──────────────────────────────────────────────────────────────────
@@ -237,18 +246,18 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
     const isGroup = chatType === 'group' || chatType === 'supergroup';
 
     if (isGroup) {
+      const ru = !String(message.from?.language_code || '').startsWith('uz');
       // Команды в группе: только подключение по токену. Остальные
       // игнорируем молча — бот не должен отвечать на каждую команду в
       // домовом чате.
       if (command === '/start' && payload === 'setup') {
-        await sendTelegramMessage(e, chatId, T.groupSetup, {
+        await sendTelegramMessage(e, chatId, T.groupSetup(ru), {
           messageThreadId: Number(message.message_thread_id || 0),
         });
       } else if ((command === '/start' || command === '/connect') && payload) {
         await handleGroupConnect(e, message, payload, log, command === '/start');
       } else if (command === '/help') {
-        const ru = !String(message.from?.language_code || '').startsWith('uz');
-        await sendTelegramMessage(e, chatId, T.help(ru), {
+        await sendTelegramMessage(e, chatId, T.help(ru, true), {
           messageThreadId: Number(message.message_thread_id || 0),
         });
       }
@@ -342,7 +351,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       // осознанно связал аккаунт с ботом и понимает, кому и зачем даёт
       // данные. Просьба, пришедшая через неделю сама по себе, читается
       // куда хуже. offerPhoneShare молчит, если номер уже есть.
-      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId));
+      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId), tgLang, true);
 
       log.info('telegram_linked', { userId: row.user_id });
       return json({ ok: true });
@@ -351,7 +360,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
     // /phone — повторно вызвать запрос номера. Нужна тем, кто отказался
     // сразу после привязки или сменил номер.
     if (command === '/phone') {
-      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId));
+      await offerPhoneShare(e, chatId, String(message.from?.id ?? chatId), tgLang);
       return json({ ok: true });
     }
 
@@ -410,6 +419,7 @@ async function handleGroupConnect(
   env: Env, message: any, token: string, log: any, wholeGroup = false
 ): Promise<void> {
   const chatId = String(message.chat.id);
+  const ru = !String(message.from?.language_code || '').startsWith('uz');
   // A startgroup deep-link binds the whole chat. In a forum, Telegram may
   // deliver that command inside General with a non-zero thread id; storing it
   // would accidentally restrict the listener to General. `/connect TOKEN`
@@ -424,7 +434,7 @@ async function handleGroupConnect(
 
   // Срок — в JS, по той же причине, что описана выше для личных токенов.
   if (!tok || new Date(tok.expires_at) < new Date()) {
-    await sendTelegramMessage(env, chatId, T.groupBadToken);
+    await sendTelegramMessage(env, chatId, T.groupBadToken(ru));
     return;
   }
 
@@ -437,7 +447,7 @@ async function handleGroupConnect(
   ).bind(tok.created_by, tok.tenant_id).first() as any;
   const MANAGEMENT = ['super_admin', 'admin', 'director', 'manager', 'department_head'];
   if (!admin || !MANAGEMENT.includes(admin.role)) {
-    await sendTelegramMessage(env, chatId, T.groupBadToken);
+    await sendTelegramMessage(env, chatId, T.groupBadToken(ru));
     log.warn('telegram_group_connect_admin_revoked', { tokenId: tok.id });
     return;
   }
@@ -447,7 +457,7 @@ async function handleGroupConnect(
     'SELECT id, name, address FROM buildings WHERE id = ? AND tenant_id = ?'
   ).bind(tok.building_id, tok.tenant_id).first() as any;
   if (!building) {
-    await sendTelegramMessage(env, chatId, T.groupBadToken);
+    await sendTelegramMessage(env, chatId, T.groupBadToken(ru));
     log.warn('telegram_group_connect_building_gone', { tokenId: tok.id });
     return;
   }
@@ -458,7 +468,7 @@ async function handleGroupConnect(
      WHERE id = ? AND used_at IS NULL`
   ).bind(tok.id).run();
   if ((claimed.meta?.changes ?? 0) !== 1) {
-    await sendTelegramMessage(env, chatId, T.groupBadToken);
+    await sendTelegramMessage(env, chatId, T.groupBadToken(ru));
     return;
   }
 
@@ -481,7 +491,7 @@ async function handleGroupConnect(
     ).run();
   } catch (err: any) {
     if (/UNIQUE|constraint|telegram_chat_scope_conflict/i.test(String(err?.message || err))) {
-      await sendTelegramMessage(env, chatId, T.groupTaken);
+      await sendTelegramMessage(env, chatId, T.groupTaken(ru));
       return;
     }
     throw err;
@@ -491,6 +501,7 @@ async function handleGroupConnect(
     env,
     chatId,
     T.groupConnected(
+      ru,
       building.address || building.name || '',
       tok.entrance,
       tok.listener_enabled === 1

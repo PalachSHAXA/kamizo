@@ -30,6 +30,10 @@ import {
 const APPROVAL_TTL_SECONDS = 120;
 const OTP_MAX_ATTEMPTS = 5;
 
+function isRussian(language: unknown): boolean {
+  return !String(language || '').toLowerCase().startsWith('uz');
+}
+
 // Опрос статуса — раз в 2 секунды на клиенте, окно 2 минуты, то есть
 // около 60 обращений на одну попытку входа. Лимит с запасом, но не
 // безграничный: перебор request_id он всё равно ограничивает.
@@ -102,9 +106,10 @@ export async function createLoginApproval(
   let link: any = null;
   try {
     link = await env.DB.prepare(
-      `SELECT telegram_chat_id, security_enabled
-       FROM telegram_users
-       WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+      `SELECT t.telegram_chat_id, t.security_enabled, u.language
+       FROM telegram_users t
+       JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
+       WHERE t.user_id = ? AND t.tenant_id = ? AND t.revoked_at IS NULL`
     ).bind(user.id, user.tenant_id || '').first();
   } catch (err) {
     log.warn('login_approval_lookup_failed', {
@@ -132,23 +137,37 @@ export async function createLoginApproval(
   ).run();
 
   const when = new Date().toISOString().replace('T', ' ').slice(0, 16);
-  const lines = [
-    '🔐 <b>Новый вход в Kamizo</b>',
+  const ru = isRussian(link.language);
+  const lines = (ru ? [
+    '🔐 <b>Подтвердите вход в Kamizo</b>',
     '',
+    'Мы получили попытку входа в ваш аккаунт.',
     meta.device ? `Устройство: ${escapeHtml(meta.device)}` : null,
-    meta.ip ? `IP: ${escapeHtml(meta.ip)}` : null,
+    meta.ip ? `IP-адрес: ${escapeHtml(meta.ip)}` : null,
     `Время: ${when} UTC`,
     '',
-    `Код входа / Kirish kodi: <code>${otpCode}</code>`,
-    'Код действует 2 минуты. Введите его на экране входа или нажмите «Это я».',
+    `Ваш код: <code>${otpCode}</code>`,
+    'Код действует 2 минуты. Введите его в приложении или нажмите «Да, это я».',
     '',
-    'Если это не вы — нажмите «Запретить вход» и смените пароль.',
-  ].filter(Boolean) as string[];
+    'Если вход выполняете не вы, пожалуйста, запретите его и смените пароль.',
+  ] : [
+    '🔐 <b>Kamizoga kirishni tasdiqlang</b>',
+    '',
+    'Hisobingizga kirishga urinish aniqlandi.',
+    meta.device ? `Qurilma: ${escapeHtml(meta.device)}` : null,
+    meta.ip ? `IP-manzil: ${escapeHtml(meta.ip)}` : null,
+    `Vaqt: ${when} UTC`,
+    '',
+    `Kirish kodi: <code>${otpCode}</code>`,
+    'Kod 2 daqiqa amal qiladi. Uni ilovaga kiriting yoki «Ha, bu men» tugmasini bosing.',
+    '',
+    'Agar bu siz bo‘lmasangiz, kirishni rad eting va parolingizni almashtiring.',
+  ]).filter(Boolean) as string[];
 
   const sent = await sendTelegramMessage(env, link.telegram_chat_id, lines.join('\n'), {
     buttons: [
-      { text: '✅ Это я', callback_data: `la:a:${id}` },
-      { text: '🚫 Запретить вход', callback_data: `la:d:${id}` },
+      { text: ru ? '✅ Да, это я' : '✅ Ha, bu men', callback_data: `la:a:${id}` },
+      { text: ru ? '🚫 Это не я' : '🚫 Bu men emas', callback_data: `la:d:${id}` },
     ],
   });
 
@@ -196,11 +215,17 @@ export async function resolveLoginRequest(
   const chatId = callback?.message?.chat?.id;
 
   const req = await env.DB.prepare(
-    'SELECT * FROM telegram_login_requests WHERE id = ?'
+    `SELECT r.*, u.language
+     FROM telegram_login_requests r
+     LEFT JOIN users u ON u.id = r.user_id AND u.tenant_id = r.tenant_id
+     WHERE r.id = ?`
   ).bind(requestId).first() as any;
+  const ru = isRussian(req?.language || callback?.from?.language_code);
 
   if (!req || req.status !== 'pending') {
-    await answerCallbackQuery(env, callback.id, 'Запрос уже обработан или устарел');
+    await answerCallbackQuery(env, callback.id, ru
+      ? 'Этот запрос уже обработан или устарел'
+      : 'Bu so‘rov allaqachon ko‘rib chiqilgan yoki eskirgan');
     return;
   }
 
@@ -210,10 +235,12 @@ export async function resolveLoginRequest(
        resolved_at = datetime('now')
        WHERE id = ? AND tenant_id = ? AND status = 'pending'`
     ).bind(requestId, req.tenant_id).run();
-    await answerCallbackQuery(env, callback.id, 'Срок запроса истёк');
+    await answerCallbackQuery(env, callback.id, ru ? 'Время подтверждения истекло' : 'Tasdiqlash vaqti tugadi');
     if (chatId && req.telegram_message_id) {
       await editTelegramMessage(env, chatId, req.telegram_message_id,
-        '⌛ <b>Запрос входа истёк</b>\n\nПопробуйте войти заново.');
+        ru
+          ? '⌛ <b>Время подтверждения истекло</b>\n\nПожалуйста, попробуйте войти ещё раз.'
+          : '⌛ <b>Tasdiqlash vaqti tugadi</b>\n\nIltimos, qayta kirib ko‘ring.');
     }
     return;
   }
@@ -225,7 +252,9 @@ export async function resolveLoginRequest(
   ).bind(req.user_id, req.tenant_id).first() as any;
 
   if (!owner || String(owner.telegram_user_id) !== fromId) {
-    await answerCallbackQuery(env, callback.id, 'Недостаточно прав');
+    await answerCallbackQuery(env, callback.id, ru
+      ? 'Подтвердить вход может только владелец аккаунта'
+      : 'Kirishni faqat hisob egasi tasdiqlashi mumkin');
     log.warn('login_approval_foreign_press', { requestId, fromId });
     return;
   }
@@ -242,16 +271,22 @@ export async function resolveLoginRequest(
   ).bind(next, requestId, req.tenant_id).run();
 
   if (!upd.meta?.changes) {
-    await answerCallbackQuery(env, callback.id, 'Запрос уже обработан');
+    await answerCallbackQuery(env, callback.id, ru ? 'Этот запрос уже обработан' : 'Bu so‘rov allaqachon ko‘rib chiqilgan');
     return;
   }
 
-  await answerCallbackQuery(env, callback.id, approved ? 'Вход подтверждён' : 'Вход запрещён');
+  await answerCallbackQuery(env, callback.id, approved
+    ? (ru ? 'Спасибо, вход подтверждён' : 'Rahmat, kirish tasdiqlandi')
+    : (ru ? 'Вход отклонён' : 'Kirish rad etildi'));
 
   if (chatId && req.telegram_message_id) {
     await editTelegramMessage(env, chatId, req.telegram_message_id, approved
-      ? '✅ <b>Вход подтверждён</b>\n\nМожете вернуться в приложение.'
-      : '🚫 <b>Вход запрещён</b>\n\nЕсли это были не вы — смените пароль в Kamizo.');
+      ? (ru
+          ? '✅ <b>Спасибо, вход подтверждён</b>\n\nТеперь можно вернуться в приложение.'
+          : '✅ <b>Rahmat, kirish tasdiqlandi</b>\n\nEndi ilovaga qaytishingiz mumkin.')
+      : (ru
+          ? '🚫 <b>Вход отклонён</b>\n\nВаш аккаунт остаётся защищён. Если пароль мог узнать кто-то ещё, смените его в Kamizo.'
+          : '🚫 <b>Kirish rad etildi</b>\n\nHisobingiz himoyalangan. Agar parolingizni boshqa birov bilishi mumkin bo‘lsa, uni Kamizoda almashtiring.'));
   }
 
   log.info('login_approval_resolved', { requestId, status: next });
@@ -273,7 +308,10 @@ route('POST', '/api/auth/login-approval/verify-code', async (request, env) => {
   }
 
   const req = await env.DB.prepare(
-    'SELECT * FROM telegram_login_requests WHERE id = ?'
+    `SELECT r.*, u.language
+     FROM telegram_login_requests r
+     LEFT JOIN users u ON u.id = r.user_id AND u.tenant_id = r.tenant_id
+     WHERE r.id = ?`
   ).bind(requestId).first() as any;
   if (!req) return error('Request not found', 404);
   if (req.status !== 'pending') return json({ verified: false, status: req.status, remainingAttempts: 0 });
@@ -320,7 +358,9 @@ route('POST', '/api/auth/login-approval/verify-code', async (request, env) => {
       env,
       req.telegram_chat_id,
       req.telegram_message_id,
-      '✅ <b>Код принят, вход подтверждён</b>\n\nМожете вернуться в приложение.'
+      isRussian(req.language)
+        ? '✅ <b>Спасибо, код принят</b>\n\nВход подтверждён, можно вернуться в приложение.'
+        : '✅ <b>Rahmat, kod qabul qilindi</b>\n\nKirish tasdiqlandi, ilovaga qaytishingiz mumkin.'
     );
   }
   createRequestLogger(request).info('login_approval_code_verified', { requestId, userId: req.user_id });

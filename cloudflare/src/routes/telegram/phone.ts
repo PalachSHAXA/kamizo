@@ -19,13 +19,29 @@ import type { Env } from '../../types';
 import { generateId } from '../../utils/helpers';
 import {
   sendTelegramMessage, editTelegramMessage, answerCallbackQuery, escapeHtml,
-  REQUEST_CONTACT_KEYBOARD, REMOVE_KEYBOARD,
+  REMOVE_KEYBOARD,
 } from '../../utils/telegram';
 
 // Срок жизни ожидающего подтверждения. Человек прямо сейчас смотрит на
 // сообщение с кнопками — десяти минут более чем достаточно, а держать
 // номер в промежуточной таблице дольше незачем.
 const PENDING_TTL_MINUTES = 10;
+
+function isRussian(languageCode: unknown): boolean {
+  return !String(languageCode || '').toLowerCase().startsWith('uz');
+}
+
+function contactKeyboard(ru: boolean) {
+  return {
+    keyboard: [[{
+      text: ru ? '📱 Поделиться моим номером' : '📱 Telefon raqamimni ulashish',
+      request_contact: true,
+    }]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+    selective: true,
+  };
+}
 
 // Нормализация к E.164.
 //
@@ -57,29 +73,43 @@ function prettyPhone(e164: string): string {
 // номер уже есть во всех привязанных аккаунтах: незачем просить то,
 // что уже получено.
 export async function offerPhoneShare(
-  env: Env, chatId: string | number, telegramUserId: string
+  env: Env, chatId: string | number, telegramUserId: string,
+  languageCode?: string, quietWhenComplete = false
 ): Promise<void> {
   const { results } = await env.DB.prepare(`
     SELECT u.id, u.phone, u.language FROM telegram_users t
-    JOIN users u ON u.id = t.user_id
+    JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
     WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
   `).bind(String(telegramUserId)).all();
 
   const linked = (results || []) as any[];
-  if (!linked.length) return;
+  const ru = linked.length
+    ? (linked[0]?.language || 'ru') === 'ru'
+    : isRussian(languageCode);
+  if (!linked.length) {
+    await sendTelegramMessage(env, chatId, ru
+      ? 'Сначала, пожалуйста, привяжите аккаунт Kamizo. Откройте Kamizo → Настройки → «Привязать Telegram».'
+      : 'Avval Kamizo hisobingizni ulang. Kamizo → Sozlamalar → «Telegramni ulash» bo‘limini oching.');
+    return;
+  }
 
   const missing = linked.filter(u => !u.phone || !String(u.phone).trim());
-  if (!missing.length) return;
-
-  const ru = (linked[0]?.language || 'ru') === 'ru';
+  if (!missing.length) {
+    if (!quietWhenComplete) {
+      await sendTelegramMessage(env, chatId, ru
+        ? 'Спасибо! Ваш номер уже указан в профиле Kamizo, поэтому ничего менять не нужно.'
+        : 'Rahmat! Telefon raqamingiz Kamizo profilingizda allaqachon ko‘rsatilgan, hech narsani o‘zgartirish shart emas.');
+    }
+    return;
+  }
 
   await sendTelegramMessage(env, chatId,
     ru
-      ? 'Поделитесь номером телефона, чтобы управляющая компания могла связаться с вами по заявкам, гостевому доступу и зарегистрированному автомобилю.\n\n'
-        + 'Номер не публикуется в Telegram-группе. Он попадёт в профиль Kamizo только после отдельного подтверждения — на следующем шаге вы увидите номер и решите сами.'
+      ? 'Пожалуйста, поделитесь своим номером, чтобы управляющая компания могла связаться с вами по заявкам, гостевому доступу или автомобилю.\n\n'
+        + 'Номер не появится в группе. Сначала я покажу его вам и попрошу отдельно подтвердить сохранение в профиле Kamizo.'
       : 'Arizalar, mehmon kirishi va ro‘yxatdan o‘tgan avtomobil bo‘yicha boshqaruv kompaniyasi siz bilan bog‘lanishi uchun telefon raqamingizni ulashing.\n\n'
-        + 'Raqam Telegram guruhida eʼlon qilinmaydi. U faqat keyingi bosqichdagi alohida tasdiqdan so‘ng Kamizo profilingizga yoziladi.',
-    { replyMarkup: REQUEST_CONTACT_KEYBOARD }
+        + 'Raqam Telegram guruhida ko‘rinmaydi. Avval uni sizga ko‘rsataman va Kamizo profiliga saqlash uchun alohida tasdiq so‘rayman.',
+    { replyMarkup: contactKeyboard(ru) }
   );
 }
 
@@ -101,10 +131,13 @@ export async function handleContactShared(
   const fromId = String(message?.from?.id ?? '');
   const contact = message?.contact;
   if (!chatId || !fromId || !contact) return;
+  const telegramRu = isRussian(message?.from?.language_code);
 
   if (String(contact.user_id ?? '') !== fromId) {
     await sendTelegramMessage(env, chatId,
-      '⚠️ Это чужой контакт.\n\nВ профиль можно записать только собственный номер — нажмите кнопку «Поделиться номером», а не пересылайте карточку из адресной книги.',
+      telegramRu
+        ? 'Похоже, вы отправили контакт другого человека. В профиль можно сохранить только ваш номер. Пожалуйста, отправьте /phone и нажмите «Поделиться моим номером».'
+        : 'Boshqa odamning kontakti yuborilganga o‘xshaydi. Profilga faqat o‘z raqamingizni saqlash mumkin. /phone buyrug‘ini yuborib, «Telefon raqamimni ulashish» tugmasini bosing.',
       { replyMarkup: REMOVE_KEYBOARD }
     );
     log.warn('phone_share_foreign_contact', { fromId });
@@ -114,22 +147,27 @@ export async function handleContactShared(
   const phone = normalizePhone(contact.phone_number);
   if (!phone) {
     await sendTelegramMessage(env, chatId,
-      '⚠️ Не удалось разобрать номер. Попробуйте ещё раз или укажите его в профиле Kamizo вручную.',
+      telegramRu
+        ? 'Не получилось распознать номер. Пожалуйста, отправьте /phone и попробуйте ещё раз либо укажите номер в профиле Kamizo.'
+        : 'Telefon raqamini aniqlab bo‘lmadi. /phone buyrug‘ini yuborib qayta urinib ko‘ring yoki raqamni Kamizo profilida kiriting.',
       { replyMarkup: REMOVE_KEYBOARD }
     );
     return;
   }
 
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.name, u.phone, t.tenant_id FROM telegram_users t
-    JOIN users u ON u.id = t.user_id
+    SELECT u.id, u.name, u.phone, u.language, t.tenant_id FROM telegram_users t
+    JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
     WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
   `).bind(fromId).all();
   const linked = (results || []) as any[];
+  const ru = linked.length ? (linked[0]?.language || 'ru') === 'ru' : telegramRu;
 
   if (!linked.length) {
     await sendTelegramMessage(env, chatId,
-      'Сначала привяжите аккаунт: откройте Kamizo → Настройки → «Привязать Telegram».',
+      ru
+        ? 'Сначала, пожалуйста, привяжите аккаунт: откройте Kamizo → Настройки → «Привязать Telegram».'
+        : 'Avval hisobingizni ulang: Kamizo → Sozlamalar → «Telegramni ulash» bo‘limini oching.',
       { replyMarkup: REMOVE_KEYBOARD }
     );
     return;
@@ -158,7 +196,7 @@ export async function handleContactShared(
 
   // Клавиатуру запроса контакта снимаем отдельным ходом: reply-разметку
   // и inline-кнопки в одном сообщении Telegram не совмещает.
-  await sendTelegramMessage(env, chatId, 'Спасибо!', { replyMarkup: REMOVE_KEYBOARD });
+  await sendTelegramMessage(env, chatId, ru ? 'Спасибо, номер получен.' : 'Rahmat, raqam qabul qilindi.', { replyMarkup: REMOVE_KEYBOARD });
 
   // Нечего делать: этот номер уже стоит везде, где мог бы.
   if (!empty.length && !conflicting.length) {
@@ -167,27 +205,37 @@ export async function handleContactShared(
        WHERE id = ? AND tenant_id = '__global__'`
     ).bind(id).run();
     await sendTelegramMessage(env, chatId,
-      `📱 Этот номер уже указан в вашем профиле Kamizo (${already.length}). Ничего менять не нужно.`);
+      ru
+        ? '📱 Этот номер уже сохранён в вашем профиле Kamizo. Всё в порядке, ничего менять не нужно.'
+        : '📱 Bu raqam Kamizo profilingizda allaqachon saqlangan. Hammasi joyida, hech narsani o‘zgartirish shart emas.');
     return;
   }
 
-  const lines = [`📱 Ваш номер: <b>${escapeHtml(prettyPhone(phone))}</b>`, ''];
+  const lines = [
+    ru ? `📱 Ваш номер: <b>${escapeHtml(prettyPhone(phone))}</b>` : `📱 Telefon raqamingiz: <b>${escapeHtml(prettyPhone(phone))}</b>`,
+    '',
+  ];
 
   if (empty.length) {
-    lines.push(empty.length > 1
-      ? `Профилей без номера: ${empty.length}. Записать туда этот номер как рабочий?`
-      : 'В вашем профиле Kamizo номер не указан. Записать туда этот как рабочий?');
+    lines.push(ru
+      ? (empty.length > 1
+          ? `Этот номер можно сохранить в ${empty.length} профилях, где контакт пока не указан. Сохранить?`
+          : 'В профиле Kamizo номер пока не указан. Сохранить этот номер?')
+      : (empty.length > 1
+          ? `Bu raqamni kontakt ko‘rsatilmagan ${empty.length} ta profilga saqlash mumkin. Saqlaymizmi?`
+          : 'Kamizo profilingizda raqam hozircha ko‘rsatilmagan. Bu raqamni saqlaymizmi?'));
   }
 
   if (conflicting.length) {
     if (empty.length) lines.push('');
     const list = conflicting.map(u => `• ${escapeHtml(String(u.phone).trim())}`).join('\n');
-    lines.push(
-      conflicting.length > 1
-        ? `А в других профилях уже указаны другие номера:\n${list}`
-        : `А в другом профиле уже указан другой номер:\n${list}`,
-      'Их можно оставить как есть или заменить.'
-    );
+    lines.push(ru
+      ? (conflicting.length > 1
+          ? `В других профилях уже сохранены номера:\n${list}\nИх можно оставить без изменений или заменить.`
+          : `В другом профиле уже сохранён номер:\n${list}\nЕго можно оставить без изменений или заменить.`)
+      : (conflicting.length > 1
+          ? `Boshqa profillarda quyidagi raqamlar saqlangan:\n${list}\nUlarni o‘zgartirmasdan qoldirish yoki almashtirish mumkin.`
+          : `Boshqa profilda quyidagi raqam saqlangan:\n${list}\nUni o‘zgartirmasdan qoldirish yoki almashtirish mumkin.`));
   }
 
   // Кнопки в столбец: три длинные подписи в одну строку Telegram
@@ -196,14 +244,16 @@ export async function handleContactShared(
   const rows: { text: string; callback_data: string }[][] = [];
   if (empty.length) {
     rows.push([{
-      text: conflicting.length ? '✅ Заполнить только пустые' : '✅ Да, это мой рабочий номер',
+      text: ru
+        ? (conflicting.length ? '✅ Сохранить только в пустых' : '✅ Да, сохранить номер')
+        : (conflicting.length ? '✅ Faqat bo‘sh profillarga' : '✅ Ha, raqamni saqlash'),
       callback_data: `ph:y:${id}`,
     }]);
   }
   if (conflicting.length) {
-    rows.push([{ text: '🔁 Заменить во всех профилях', callback_data: `ph:a:${id}` }]);
+    rows.push([{ text: ru ? '🔁 Заменить во всех профилях' : '🔁 Barcha profillarda almashtirish', callback_data: `ph:a:${id}` }]);
   }
-  rows.push([{ text: 'Нет', callback_data: `ph:n:${id}` }]);
+  rows.push([{ text: ru ? 'Нет, спасибо' : 'Yo‘q, rahmat', callback_data: `ph:n:${id}` }]);
 
   await sendTelegramMessage(env, chatId, lines.join('\n'), {
     replyMarkup: { inline_keyboard: rows },
@@ -228,24 +278,35 @@ export async function handlePhoneCallback(
 
   const chatId = callback?.message?.chat?.id;
   const fromId = String(callback?.from?.id ?? '');
+  let ru = isRussian(callback?.from?.language_code);
 
   const pending = await env.DB.prepare(
     `SELECT * FROM telegram_pending_phones
      WHERE id = ? AND tenant_id = '__global__'`
   ).bind(pendingId).first() as any;
 
+  if (pending) {
+    const profile = await env.DB.prepare(`
+      SELECT u.language FROM telegram_users t
+      JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
+      WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
+      ORDER BY t.linked_at ASC LIMIT 1
+    `).bind(fromId).first() as any;
+    if (profile?.language) ru = profile.language === 'ru';
+  }
+
   if (!pending || pending.used_at) {
-    await answerCallbackQuery(env, callback.id, 'Запрос уже обработан');
+    await answerCallbackQuery(env, callback.id, ru ? 'Этот запрос уже обработан' : 'Bu so‘rov allaqachon ko‘rib chiqilgan');
     return;
   }
   // Срок — в JS: expires_at хранится ISO-строкой.
   if (new Date(pending.expires_at) < new Date()) {
-    await answerCallbackQuery(env, callback.id, 'Срок запроса истёк');
+    await answerCallbackQuery(env, callback.id, ru ? 'Время подтверждения истекло' : 'Tasdiqlash vaqti tugadi');
     return;
   }
   // Подтверждает тот же человек, что делился.
   if (String(pending.telegram_user_id) !== fromId) {
-    await answerCallbackQuery(env, callback.id, 'Недостаточно прав');
+    await answerCallbackQuery(env, callback.id, ru ? 'Эта кнопка доступна только владельцу номера' : 'Bu tugma faqat raqam egasi uchun');
     return;
   }
 
@@ -255,18 +316,20 @@ export async function handlePhoneCallback(
   ).bind(pendingId).run();
 
   if (action === 'n') {
-    await answerCallbackQuery(env, callback.id, 'Хорошо, номер не сохранён');
+    await answerCallbackQuery(env, callback.id, ru ? 'Хорошо, номер не сохранён' : 'Yaxshi, raqam saqlanmadi');
     if (chatId) {
       await editTelegramMessage(env, chatId, callback.message.message_id,
-        'Номер не сохранён. Указать его можно в профиле Kamizo или командой /phone.');
+        ru
+          ? 'Хорошо, номер не сохранён. Если передумаете, укажите его в профиле Kamizo или отправьте команду /phone.'
+          : 'Yaxshi, raqam saqlanmadi. Keyinroq uni Kamizo profilida yoki /phone buyrug‘i orqali ko‘rsatishingiz mumkin.');
     }
     return;
   }
 
   // §16: один Telegram может быть привязан к аккаунтам в нескольких УК.
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.name, u.phone FROM telegram_users t
-    JOIN users u ON u.id = t.user_id
+    SELECT u.id, u.name, u.phone, t.tenant_id FROM telegram_users t
+    JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
     WHERE t.telegram_user_id = ? AND t.revoked_at IS NULL
   `).bind(fromId).all();
   const linked = (results || []) as any[];
@@ -280,20 +343,24 @@ export async function handlePhoneCallback(
   for (const u of linked) {
     const res = await env.DB.prepare(
       `UPDATE users SET phone = ?, updated_at = datetime('now')
-       WHERE id = ?${onlyEmpty ? " AND (phone IS NULL OR TRIM(phone) = '')" : ''}`
-    ).bind(pending.phone, u.id).run();
+       WHERE id = ? AND tenant_id = ?${onlyEmpty ? " AND (phone IS NULL OR TRIM(phone) = '')" : ''}`
+    ).bind(pending.phone, u.id, u.tenant_id).run();
     changed += res.meta?.changes || 0;
   }
 
-  await answerCallbackQuery(env, callback.id, changed ? 'Номер сохранён' : 'Изменений не потребовалось');
+  await answerCallbackQuery(env, callback.id, changed
+    ? (ru ? 'Спасибо, номер сохранён' : 'Rahmat, raqam saqlandi')
+    : (ru ? 'Номер уже был сохранён' : 'Raqam allaqachon saqlangan'));
   if (chatId) {
     const tail = onlyEmpty && linked.length > changed
-      ? '\n\nОстальные профили оставлены без изменений.'
+      ? (ru ? '\n\nОстальные профили оставлены без изменений.' : '\n\nQolgan profillar o‘zgartirilmadi.')
       : '';
     await editTelegramMessage(env, chatId, callback.message.message_id,
       changed
-        ? `✅ Номер <b>${escapeHtml(prettyPhone(pending.phone))}</b> записан${changed > 1 ? ` в профили Kamizo (${changed})` : ' в профиль Kamizo'}.${tail}\n\nИзменить его можно в приложении или командой /phone.`
-        : 'Ничего не изменилось — номер уже был указан.');
+        ? (ru
+            ? `✅ Спасибо! Номер <b>${escapeHtml(prettyPhone(pending.phone))}</b> сохранён${changed > 1 ? ` в ${changed} профилях Kamizo` : ' в профиле Kamizo'}.${tail}\n\nИзменить его можно в приложении или командой /phone.`
+            : `✅ Rahmat! <b>${escapeHtml(prettyPhone(pending.phone))}</b> raqami${changed > 1 ? ` ${changed} ta Kamizo profilida` : ' Kamizo profilida'} saqlandi.${tail}\n\nUni ilovada yoki /phone buyrug‘i orqali o‘zgartirish mumkin.`)
+        : (ru ? 'Всё в порядке: этот номер уже был сохранён.' : 'Hammasi joyida: bu raqam allaqachon saqlangan.'));
   }
 
   log.info('phone_saved_from_telegram', { mode: action, changed, linked: linked.length });
