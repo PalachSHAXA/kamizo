@@ -164,6 +164,11 @@ export const authApi = {
 
   logout: () => {
     localStorage.removeItem('auth_token');
+    // fix/mobile-token-persistence: чистим Preferences тоже, чтобы след.
+    // cold start на native не восстановил токен из Keychain обратно.
+    void import('../capacitorStorage').then(
+      ({ writeTokenToNativeStorage }) => writeTokenToNativeStorage(null),
+    ).catch(() => {});
   },
 
   register: async (userData: {
