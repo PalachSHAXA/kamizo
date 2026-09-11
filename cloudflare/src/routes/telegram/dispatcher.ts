@@ -82,21 +82,21 @@ function ruPrep(label: string): string {
 
 const D = {
   suggest: (lang: ZhkhLang, label: string) => lang === 'uz'
-    ? `Siz ${label} haqida xabar berdingiz shekilli.\n\nKamizoda ariza rasmiylashtirilsinmi?`
-    : `Похоже, вы сообщили ${ruPrep(label)} ${label}.\n\nОформить заявку в Kamizo?`,
+    ? `Bu ${label} haqidagi murojaatga o‘xshaydi.\n\nXohlasangiz, Kamizoda ariza rasmiylashtirishga yordam beraman.`
+    : `Похоже, вы сообщаете ${ruPrep(label)} ${label}.\n\nЕсли хотите, я помогу оформить заявку в Kamizo.`,
 
   btnCreate: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Ariza rasmiylashtirish' : '📝 Оформить заявку',
-  btnSkipRu: 'Не нужно',
-  btnSkipUz: 'Kerak emas',
+  btnSkipRu: 'Спасибо, не нужно',
+  btnSkipUz: 'Rahmat, kerak emas',
 
   dismissed: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Tushunarli, ariza kerak emas.' : 'Понял, заявка не нужна.',
+    ? 'Yaxshi, ariza yaratmaymiz.' : 'Хорошо, заявку создавать не будем.',
 
   dismissedToast: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Yaxshi, boshqa taklif qilmayman' : 'Хорошо, не буду предлагать',
+    ? 'Yaxshi, ariza yaratilmadi' : 'Хорошо, заявка не создана',
 
-  openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю Kamizo',
+  openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю форму в Kamizo',
 
   // Ссылка отдаётся кнопкой, а не разметкой внутри текста. Текстовый
   // якорь Telegram рисует по-разному в разных клиентах, а при
@@ -104,24 +104,25 @@ const D = {
   // фразу «Открыть форму», по которой некуда нажать. С кнопкой так не
   // выйдет: она либо появится, либо запрос упадёт с ошибкой в логах.
   draft: (lang: ZhkhLang) => lang === 'uz'
-    ? `📝 <b>Ariza rasmiylashtirish</b>
+    ? `📝 <b>Ariza tayyorlashga yordam beraman</b>
 
-Havola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
-    : `📝 <b>Оформление заявки</b>
+Maʼlumotlarni tekshirib, Kamizoda tasdiqlang. Havola 30 daqiqa amal qiladi, ariza esa faqat siz tasdiqlaganingizdan keyin yaratiladi.`
+    : `📝 <b>Помогу оформить заявку</b>
 
-Ссылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+Проверьте данные и подтвердите их в Kamizo. Ссылка действует 30 минут, а заявка будет создана только после вашего подтверждения.`,
 
   btnOpen: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Kamizoda shaklni ochish' : '📝 Открыть форму в Kamizo',
 
-  handled: (lang: ZhkhLang) => lang === 'uz' ? 'Allaqachon koʻrib chiqilgan' : 'Уже обработано',
+  handled: (lang: ZhkhLang) => lang === 'uz' ? 'Bu so‘rov allaqachon ko‘rib chiqilgan' : 'Этот запрос уже обработан',
 
   notAuthor: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Bu taklif xabar muallifiga tegishli'
-    : 'Это предложение адресовано автору сообщения',
+    ? 'Bu tugmadan faqat xabar muallifi foydalanishi mumkin'
+    : 'Этой кнопкой может воспользоваться только автор сообщения',
 
   groupGone: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Guruh endi ulanmagan' : 'Группа больше не подключена',
+    ? 'Bu guruh Kamizoga ulanmagan. Iltimos, boshqaruv kompaniyasiga murojaat qiling'
+    : 'Эта группа больше не подключена к Kamizo. Пожалуйста, обратитесь в управляющую компанию',
 };
 
 // §14: «Не более одного предложения одному пользователю в одной группе
@@ -159,73 +160,73 @@ const NAV_COPY: Record<NavigationIntent, {
   ru: string; uz: string; buttonRu: string; buttonUz: string;
 }> = {
   rental_publish: {
-    ru: 'Похоже, вы хотите сдать квартиру. Разместить объявление в Kamizo?',
-    uz: 'Kvartirani ijaraga bermoqchimisiz? Kamizoda eʼlon joylashtiramizmi?',
-    buttonRu: 'Разместить квартиру', buttonUz: 'Kvartirani joylashtirish',
+    ru: 'Хотите сдать квартиру? Я помогу перейти к размещению объявления в Kamizo.',
+    uz: 'Kvartirani ijaraga bermoqchimisiz? Kamizoda eʼlon joylashtirishga yordam beraman.',
+    buttonRu: 'Разместить объявление', buttonUz: 'Eʼlon joylashtirish',
   },
   rental_browse: {
-    ru: 'Ищете квартиру в аренду? Открою актуальные предложения Kamizo.',
-    uz: 'Ijaraga kvartira qidiryapsizmi? Kamizodagi takliflarni ochaman.',
+    ru: 'Ищете квартиру в аренду? Я помогу посмотреть актуальные предложения в Kamizo.',
+    uz: 'Ijaraga kvartira qidiryapsizmi? Kamizodagi dolzarb takliflarni ko‘rsataman.',
     buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
   },
   useful_contacts: {
-    ru: 'Эту услугу можно поискать в полезных контактах Kamizo.',
-    uz: 'Bu xizmatni Kamizodagi foydali kontaktlardan topish mumkin.',
+    ru: 'Нужен мастер или полезный номер? Подходящий контакт можно найти в Kamizo.',
+    uz: 'Usta yoki kerakli telefon raqami kerakmi? Mos kontaktni Kamizodan topish mumkin.',
     buttonRu: 'Найти услугу', buttonUz: 'Xizmat topish',
   },
   marketplace: {
-    ru: 'Открыть Маркет УК в Kamizo?',
-    uz: 'Kamizodagi BK marketini ochamizmi?',
+    ru: 'Хотите посмотреть товары и услуги? Я помогу открыть Маркет УК в Kamizo.',
+    uz: 'Mahsulot yoki xizmatlarni ko‘rmoqchimisiz? Kamizodagi BK marketini ochishga yordam beraman.',
     buttonRu: 'Открыть Маркет', buttonUz: 'Marketni ochish',
   },
   vehicle_owner: {
-    ru: 'Владельца автомобиля можно найти по номеру в служебном поиске Kamizo.',
-    uz: 'Avtomobil egasini Kamizodagi xizmat qidiruvi orqali topish mumkin.',
+    ru: 'Нужно найти владельца автомобиля? Введите номер машины в поиске Kamizo.',
+    uz: 'Avtomobil egasini topish kerakmi? Mashina raqamini Kamizo qidiruviga kiriting.',
     buttonRu: 'Найти владельца', buttonUz: 'Egasini topish',
   },
   guest_pass: {
-    ru: 'Гостевой или курьерский пропуск можно оформить в Kamizo.',
-    uz: 'Mehmon yoki kuryer ruxsatnomasini Kamizoda yaratish mumkin.',
+    ru: 'Ожидаете гостя или курьера? Я помогу быстро оформить пропуск в Kamizo.',
+    uz: 'Mehmon yoki kuryer kutyapsizmi? Kamizoda ruxsatnoma rasmiylashtirishga yordam beraman.',
     buttonRu: 'Оформить пропуск', buttonUz: 'Ruxsatnoma yaratish',
   },
   qr_scan: {
-    ru: 'Открою служебный QR-сканер охраны.',
-    uz: 'Qoʻriqlash xizmati uchun QR skanerni ochaman.',
+    ru: 'Конечно. Открою сканер, чтобы вы могли проверить QR-пропуск.',
+    uz: 'Albatta. QR-ruxsatnomani tekshirish uchun skanerni ochaman.',
     buttonRu: 'Открыть сканер', buttonUz: 'Skanerni ochish',
   },
   vehicle_menu: {
-    ru: 'Что хотите сделать с автомобилем в Kamizo?',
-    uz: 'Kamizoda avtomobil bilan nima qilmoqchisiz?',
+    ru: 'Конечно, помогу с автомобилем. Выберите, пожалуйста, что вам нужно:',
+    uz: 'Albatta, avtomobil bo‘yicha yordam beraman. Kerakli bo‘limni tanlang:',
     buttonRu: 'Мои авто', buttonUz: 'Mening avtomobillarim',
   },
   pass_menu: {
-    ru: 'Нужно оформить гостя или проверить QR-пропуск?',
-    uz: 'Mehmon ruxsatnomasini yaratish yoki QR-ni tekshirish kerakmi?',
+    ru: 'Конечно, помогу. Выберите, пожалуйста: оформить гостевой пропуск или проверить QR-код.',
+    uz: 'Albatta, yordam beraman. Mehmon ruxsatnomasini yaratish yoki QR-kodni tekshirishni tanlang.',
     buttonRu: 'Оформить гостя', buttonUz: 'Mehmonni rasmiylashtirish',
   },
   rental_menu: {
-    ru: 'Хотите найти квартиру или разместить свою?',
-    uz: 'Kvartira topish yoki o‘zingiznikini joylashtirishni xohlaysizmi?',
+    ru: 'С радостью помогу с арендой. Выберите, пожалуйста: найти квартиру или разместить свою.',
+    uz: 'Ijara bo‘yicha yordam beraman. Kvartira topish yoki o‘zingiznikini joylashtirishni tanlang.',
     buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
   },
   parking_issue: {
-    ru: 'Похоже, это жалоба на парковку или посторонний автомобиль. Сообщить УК или найти владельца?',
-    uz: 'Bu noto‘g‘ri to‘xtash yoki begona avtomobil haqidagi murojaatga o‘xshaydi. BKga yozamizmi?',
+    ru: 'Понимаю, такая ситуация с парковкой может мешать жильцам. Сообщить об этом управляющей компании?',
+    uz: 'Tushunaman, bunday to‘xtash holati aholiga xalaqit berishi mumkin. Bu haqda BKga yozamizmi?',
     buttonRu: 'Сообщить УК', buttonUz: 'BKga yozish',
   },
   barrier_issue: {
-    ru: 'Похоже, вопрос связан с охраной или въездом через шлагбаум.',
-    uz: 'Bu qo‘riqlash yoki shlagbaum orqali kirish masalasiga o‘xshaydi.',
-    buttonRu: 'Открыть гостевой доступ', buttonUz: 'Mehmon kirishini ochish',
+    ru: 'Понимаю. Если возникла проблема со въездом или связью с охраной, напишите в чат управляющей компании.',
+    uz: 'Tushunaman. Kirish yoki qo‘riqlash bilan bog‘liq muammo bo‘lsa, boshqaruv kompaniyasi chatiga yozing.',
+    buttonRu: 'Написать в чат', buttonUz: 'Chatga yozish',
   },
   resident_proposal: {
-    ru: 'Это предложение по улучшению дома. Отправить его управляющей компании в Kamizo?',
-    uz: 'Bu uyni yaxshilash bo‘yicha taklif. Uni Kamizo orqali BKga yuboramizmi?',
+    ru: 'Спасибо за идею! Предложение по улучшению дома можно отправить управляющей компании в Kamizo.',
+    uz: 'Taklifingiz uchun rahmat! Uyni yaxshilash bo‘yicha fikrni Kamizo orqali BKga yuborish mumkin.',
     buttonRu: 'Написать УК', buttonUz: 'BKga yozish',
   },
   assistant_help: {
-    ru: 'Я могу помочь открыть нужный раздел Kamizo: заявки, аренду квартир, услуги, Маркет УК, гостевые пропуска и поиск автомобиля.',
-    uz: 'Kamizodagi kerakli bo‘limni ochishga yordam beraman: arizalar, ijara, xizmatlar, BK marketi, mehmon ruxsatnomalari va avtomobil qidiruvi.',
+    ru: 'Здравствуйте! Я помогу быстро найти нужный раздел Kamizo: заявки, аренду, услуги, Маркет УК, гостевые пропуска или автомобили.',
+    uz: 'Assalomu alaykum! Kamizodagi kerakli bo‘limni tez topishga yordam beraman: arizalar, ijara, xizmatlar, BK marketi, mehmon ruxsatnomalari yoki avtomobillar.',
     buttonRu: 'Открыть Kamizo', buttonUz: 'Kamizoni ochish',
   },
 };
@@ -234,8 +235,8 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
   path: string; ru: string; uz: string;
 }>>> = {
   vehicle_menu: [
-    { path: '/vehicle-search', ru: 'Чья машина?', uz: 'Mashina kimniki?' },
-    { path: '/vehicles', ru: 'Мои авто', uz: 'Mening avtomobillarim' },
+    { path: '/vehicle-search', ru: 'Найти владельца', uz: 'Egasini topish' },
+    { path: '/vehicles', ru: 'Мои автомобили', uz: 'Mening avtomobillarim' },
   ],
   pass_menu: [
     { path: '/guest-access', ru: 'Оформить гостя', uz: 'Mehmon ruxsati' },
@@ -249,7 +250,7 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
     { path: '/chat', ru: 'Сообщить УК', uz: 'BKga yozish' },
   ],
   barrier_issue: [
-    { path: '/chat', ru: 'Написать охране', uz: 'Qo‘riqlashga yozish' },
+    { path: '/chat', ru: 'Написать в чат УК', uz: 'BK chatiga yozish' },
   ],
 };
 
