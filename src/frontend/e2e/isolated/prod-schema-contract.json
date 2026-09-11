@@ -31,6 +31,7 @@
         { "name": "contract_type", "type": "TEXT" },
         { "name": "total_area", "type": "REAL" },
         { "name": "password_changed_at", "type": "TEXT" },
+        { "name": "auth_revoked_at", "type": "TEXT" },
         { "name": "account_type", "type": "TEXT" },
         { "name": "status", "type": "TEXT" },
         { "name": "tenant_id", "type": "TEXT" },
