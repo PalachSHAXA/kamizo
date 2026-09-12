@@ -163,6 +163,7 @@ const DRAFT_TTL_MINUTES = 30;
 const AI_ACTIVE_MIN_SIMILARITY = 0.72;
 const AI_ACTIVE_MIN_MARGIN = 0.06;
 const AI_ACTIVE_MIN_CONFIDENCE = 0.82;
+const AI_SHORT_MAINTENANCE_MAX_LENGTH = 120;
 
 const NAV_COPY: Record<NavigationIntent, {
   ru: string; uz: string; buttonRu: string; buttonUz: string;
@@ -487,11 +488,16 @@ export async function handleGroupMessage(
           mode: aiMode,
         });
 
-        const actionable = aiMode === 'active'
-          && ai.kind !== 'none'
+        const shortMaintenance = ai.kind === 'maintenance'
+          && text.length <= AI_SHORT_MAINTENANCE_MAX_LENGTH
+          && ai.similarity >= 0.70
+          && ai.margin >= 0.015
+          && ai.confidence >= 0.69;
+        const strictMatch = ai.kind !== 'none'
           && ai.similarity >= AI_ACTIVE_MIN_SIMILARITY
           && ai.margin >= AI_ACTIVE_MIN_MARGIN
           && ai.confidence >= AI_ACTIVE_MIN_CONFIDENCE;
+        const actionable = aiMode === 'active' && (shortMaintenance || strictMatch);
         if (!actionable) return;
 
         if (ai.kind === 'navigation') {

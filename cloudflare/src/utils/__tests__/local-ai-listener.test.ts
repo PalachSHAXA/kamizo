@@ -70,7 +70,7 @@ describe('local AI listener', () => {
     await expect(classifyWithLocalAi(env(), 'ambiguous')).resolves.toMatchObject({ kind: 'none' });
   });
 
-  it('does not queue requests while the model is busy', async () => {
+  it('allows one bounded waiter and drops further requests while busy', async () => {
     let release!: (response: Response) => void;
     const pending = new Promise<Response>(resolve => { release = resolve; });
     const fetchMock = vi.fn().mockReturnValue(pending);
@@ -78,11 +78,15 @@ describe('local AI listener', () => {
 
     const first = classifyWithLocalAi(env(), 'первое сообщение');
     await Promise.resolve();
-    await expect(classifyWithLocalAi(env(), 'второе сообщение')).resolves.toBeNull();
+    const second = classifyWithLocalAi(env(), 'второе сообщение');
+    await Promise.resolve();
+    await expect(classifyWithLocalAi(env(), 'третье сообщение')).resolves.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    release(new Response(JSON.stringify({ embeddings: [] })));
+    release(new Response(JSON.stringify({ embeddings: [prototypeVectors[0]] })));
     await first;
+    await second;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('opens the circuit after repeated inference failures', async () => {
@@ -110,7 +114,7 @@ describe('local AI listener', () => {
   });
 
   it('ships vectors matching every prototype and the fixed model dimensions', () => {
-    expect(prototypeVectors).toHaveLength(41);
+    expect(prototypeVectors).toHaveLength(44);
     expect(prototypeVectors.every(vector => vector.length === 128)).toBe(true);
     expect(prototypeVectors.flat().every(Number.isFinite)).toBe(true);
   });

@@ -104,4 +104,39 @@ describe('Telegram AI shadow privacy', () => {
     await vi.waitFor(() => expect(mocks.sendTelegramMessage).toHaveBeenCalledTimes(1));
     expect(mocks.sendTelegramMessage.mock.calls[0][2]).toContain('<b>Kamizo</b>');
   });
+
+  it('accepts a close garbage/cleaning match only for a short maintenance request', async () => {
+    mocks.mode = 'active';
+    mocks.classifyWithLocalAi.mockResolvedValue({
+      kind: 'maintenance', category: 'garbage', confidence: 0.716,
+      similarity: 0.715, margin: 0.022, lang: 'ru',
+    });
+    await handleGroupMessage(
+      envWithGroup({ id: 'group-1', tenant_id: 'tenant-1' }, 'active'),
+      { ...message, text: 'надо мусор выбросить' },
+      { info: vi.fn() },
+    );
+
+    await vi.waitFor(() => expect(mocks.sendTelegramMessage).toHaveBeenCalledTimes(1));
+  });
+
+  it('rejects the same weak margin for a long multi-issue message', async () => {
+    mocks.mode = 'active';
+    mocks.classifyWithLocalAi.mockResolvedValue({
+      kind: 'maintenance', category: 'cleaning', confidence: 0.731,
+      similarity: 0.711, margin: 0.027, lang: 'uz',
+    });
+    await handleGroupMessage(
+      envWithGroup({ id: 'group-1', tenant_id: 'tenant-1' }, 'active'),
+      {
+        ...message,
+        text: 'надо мусор выбросить. Assalomu aleykum, 117-dom 7-podezd 5-etaj lampochkasi kuygan. Tuzatib berolisilami, iltimos.',
+      },
+      { info: vi.fn() },
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mocks.sendTelegramMessage).not.toHaveBeenCalled();
+  });
 });

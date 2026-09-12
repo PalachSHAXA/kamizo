@@ -57,17 +57,21 @@ export const AI_LISTENER_PROTOTYPES: Prototype[] = [
   { kind: 'maintenance', category: 'garbage', text: 'passage: Чиқинди олиб кетилмаган, контейнер тўлиб кетган.' },
   { kind: 'maintenance', category: 'lighting', text: 'passage: Подъездда чироқ ёнмаяпти, жуда қоронғи.' },
   { kind: 'maintenance', category: 'cleaning', text: 'passage: Подъезд ифлос, тозалаш керак.' },
+  { kind: 'maintenance', category: 'garbage', text: 'passage: Надо выбросить мусор. Нужно вынести мусор и убрать отходы.' },
+  { kind: 'maintenance', category: 'lighting', text: 'passage: Assalomu aleykum. Dom, podezd va etajdagi lampochkasi kuygan. Tuzatib bera olasizlarmi, iltimos.' },
+  { kind: 'maintenance', category: 'lighting', text: 'passage: Podyezdda lampochka kuygan, chiroq yonmayapti. Almashtirib bering, iltimos.' },
 ];
 
 const EMBEDDING_MODEL = 'qwen3-embedding:0.6b';
 const EMBEDDING_DIMENSIONS = 128;
 // Regenerate the checked-in vectors whenever prototype text changes. The
 // fingerprint fails closed instead of mixing stale vectors with new labels.
-const PROTOTYPE_FINGERPRINT = 'efd6b3d9';
+const PROTOTYPE_FINGERPRINT = '519dc60d';
 
 let activeRequests = 0;
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
+const waiters: Array<() => void> = [];
 
 function positiveInteger(raw: string | undefined, fallback: number, max: number): number {
   const parsed = Number(raw);
@@ -115,6 +119,29 @@ function prototypeKey(prototype: Prototype): string {
   if (prototype.kind === 'navigation') return `navigation:${prototype.intent}`;
   if (prototype.kind === 'maintenance') return `maintenance:${prototype.category}`;
   return 'none';
+}
+
+async function acquireInferenceSlot(maxConcurrency: number): Promise<boolean> {
+  if (activeRequests < maxConcurrency) {
+    activeRequests++;
+    return true;
+  }
+  // One bounded waiter preserves a pair of near-simultaneous resident
+  // messages without allowing an unbounded queue to load the VPS.
+  if (waiters.length >= 1) return false;
+  await new Promise<void>(resolve => waiters.push(resolve));
+  return true;
+}
+
+function releaseInferenceSlot(): void {
+  activeRequests--;
+  const next = waiters.shift();
+  if (next) {
+    // Reserve the released slot before waking the waiter, preventing a new
+    // request from overtaking it and exceeding max concurrency.
+    activeRequests++;
+    next();
+  }
 }
 
 async function embed(env: Env, input: string[], timeoutMs: number): Promise<number[][]> {
@@ -167,11 +194,10 @@ export async function classifyWithLocalAi(
     || prototypeVectors.some(vector => !validVector(vector))) return null;
 
   const maxConcurrency = positiveInteger(env.AI_LISTENER_MAX_CONCURRENCY, 1, 2);
-  if (activeRequests >= maxConcurrency) return null;
+  if (!await acquireInferenceSlot(maxConcurrency)) return null;
 
-  activeRequests++;
   try {
-    const timeoutMs = positiveInteger(env.AI_LISTENER_TIMEOUT_MS, 3000, 5000);
+    const timeoutMs = positiveInteger(env.AI_LISTENER_TIMEOUT_MS, 7000, 10_000);
     const [query] = await embed(env, [`query: ${text}`], timeoutMs);
     const bestByClass = new Map<string, { index: number; score: number }>();
     prototypeVectors.forEach((vector, index) => {
@@ -190,7 +216,7 @@ export async function classifyWithLocalAi(
     consecutiveFailures = 0;
     // Similarity is not a calibrated probability. Require both a meaningful
     // absolute match and separation from the runner-up before taking action.
-    if (best.score < 0.58 || margin < 0.025 || prototype.kind === 'none') {
+    if (best.score < 0.58 || margin < 0.015 || prototype.kind === 'none') {
       return {
         kind: 'none', confidence: Math.max(0, best.score),
         similarity: best.score, margin, lang,
@@ -209,7 +235,7 @@ export async function classifyWithLocalAi(
     }
     return null;
   } finally {
-    activeRequests--;
+    releaseInferenceSlot();
   }
 }
 
@@ -217,4 +243,5 @@ export function resetLocalAiListenerStateForTests(): void {
   activeRequests = 0;
   consecutiveFailures = 0;
   circuitOpenUntil = 0;
+  waiters.length = 0;
 }
