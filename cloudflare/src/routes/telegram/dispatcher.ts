@@ -16,8 +16,9 @@
 //      и статистике. Текст уходит в БД только если человек сам нажал
 //      «Оформить заявку»: тогда он кладётся в черновик с коротким
 //      сроком жизни. §15: «не создавать скрытый архив сообщений».
-//   3. Разбор целиком локальный (utils/zhkh-classifier.ts). Никакой
-//      внешней LLM — §15 требует отдельного решения на этот счёт.
+//   3. Сначала работают локальные правила. Неуверенные сообщения могут
+//      попасть только в локальную модель на loopback VPS; внешний AI URL
+//      код отклоняет. При перегрузке или ошибке модель молча пропускается.
 
 import type { Env } from '../../types';
 import { route } from '../../router';
@@ -32,7 +33,10 @@ import {
   detectLanguage, type ZhkhLang, type ZhkhCategory,
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
-import { classifyNavigationIntent, type NavigationMatch, type NavigationIntent } from '../../utils/navigation-intent';
+import {
+  classifyNavigationIntent, type NavigationMatch, type NavigationIntent,
+} from '../../utils/navigation-intent';
+import { classifyWithLocalAi, getAiListenerMode } from '../../utils/local-ai-listener';
 import { normalizeFeatures } from '../../lib/features';
 
 // Тексты диспетчера на обоих языках.
@@ -347,10 +351,9 @@ async function handleNavigationIntent(
 // ──────────────────────────────────────────────────────────────────
 // Обработка обычного сообщения в группе.
 //
-// Вызывается из вебхука для КАЖДОГО текстового сообщения подключённой
-// группы, поэтому дешёвые проверки идут первыми: сначала отсев по
-// флагу и по классификатору (обе без запросов к БД для большинства
-// сообщений), и только потом обращения к базе.
+// Вызывается из вебхука для каждого нового группового сообщения. Сначала
+// проверяем активную привязку: даже локальный AI не должен обрабатывать
+// сообщения группы, которая не подключена к Kamizo или отключила listener.
 export async function handleGroupMessage(
   env: Env, message: any, log: any
 ): Promise<void> {
@@ -363,17 +366,13 @@ export async function handleGroupMessage(
   // §14: не реагируем на сообщения ботов, включая собственные.
   if (message?.from?.is_bot) return;
 
-  // Правки словаря из БД. Кэш на минуту, поэтому запроса на каждое
-  // сообщение не происходит: иначе главное свойство классификации —
-  // дешевизна — исчезло бы, ведь подавляющее большинство реплик в
-  // домовом чате не про поломки, и платить за них обращением к базе
-  // нельзя.
   await ensureDictionaryLoaded(env);
 
   const classified = classifyZhkhMessage(text);
   const hit = classified && classified.confidence >= SUGGESTION_THRESHOLD ? classified : null;
   const navigation = hit ? null : classifyNavigationIntent(text);
-  if (!hit && !navigation) return;
+  const aiMode = getAiListenerMode(env);
+  if (!hit && !navigation && aiMode === 'off') return;
 
   const group = await env.DB.prepare(
     `SELECT id, tenant_id, building_id, entrance, message_thread_id
@@ -384,6 +383,30 @@ export async function handleGroupMessage(
      LIMIT 1`
   ).bind(chatId, messageThreadId, messageThreadId).first() as any;
   if (!group) return;
+
+  if (!hit && !navigation && !message?.forward_origin && !message?.forward_date) {
+    if (aiMode === 'shadow') {
+      // Shadow inference must never delay Telegram's webhook. Only one local
+      // request runs at a time; further messages immediately skip AI.
+      void classifyWithLocalAi(env, text).then(ai => {
+        if (!ai) return;
+        log.info('dispatcher_ai_classified', {
+          tenantId: group.tenant_id,
+          kind: ai.kind,
+          intent: ai.kind === 'navigation' ? ai.intent : undefined,
+          category: ai.kind === 'maintenance' ? ai.category : undefined,
+          confidence: ai.confidence,
+          similarity: ai.similarity,
+          margin: ai.margin,
+          lang: ai.lang,
+          mode: aiMode,
+        });
+      }).catch(() => {});
+      return;
+    }
+  }
+
+  if (!hit && !navigation) return;
 
   if (navigation) {
     await handleNavigationIntent(env, group, message, navigation, log);
