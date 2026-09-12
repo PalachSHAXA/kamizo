@@ -47,6 +47,7 @@ describe('local AI listener', () => {
     });
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
     expect(request.model).toBe('qwen3-embedding:0.6b');
+    expect(request.keep_alive).toBe('24h');
     expect(request.input[0]).toContain('автомобиль перекрыл дорогу');
   });
 
