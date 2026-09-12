@@ -102,6 +102,6 @@ describe('Telegram AI shadow privacy', () => {
 
     release({ kind: 'navigation', intent: 'barrier_issue', confidence: 0.95, similarity: 0.8, margin: 0.1, lang: 'ru' });
     await vi.waitFor(() => expect(mocks.sendTelegramMessage).toHaveBeenCalledTimes(1));
-    expect(mocks.sendTelegramMessage.mock.calls[0][2]).toContain('Kamizo Yordamchi');
+    expect(mocks.sendTelegramMessage.mock.calls[0][2]).toContain('<b>Kamizo</b>');
   });
 });

@@ -263,7 +263,7 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
 };
 
 function withAssistantIdentity(text: string, aiAssisted: boolean): string {
-  return aiAssisted ? `🤝 <b>Kamizo Yordamchi</b>\n\n${text}` : text;
+  return aiAssisted ? `🤝 <b>Kamizo</b>\n\n${text}` : text;
 }
 
 async function handleNavigationIntent(
