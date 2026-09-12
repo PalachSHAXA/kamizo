@@ -131,7 +131,9 @@ async function embed(env: Env, input: string[], timeoutMs: number): Promise<numb
         model: EMBEDDING_MODEL,
         input,
         dimensions: EMBEDDING_DIMENSIONS,
-        keep_alive: '10m',
+        // Keep the small embedding model resident so the first message after
+        // a quiet period is not lost to cold-start loading.
+        keep_alive: '24h',
       }),
     });
     if (!response.ok) throw new Error(`local_ai_http_${response.status}`);
