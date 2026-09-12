@@ -52,6 +52,10 @@ const MATCHES: Record<NavigationIntent, Omit<NavigationMatch, 'intent'>> = {
   assistant_help: { path: '/' },
 };
 
+export function navigationMatchForIntent(intent: NavigationIntent): NavigationMatch {
+  return { intent, ...MATCHES[intent] };
+}
+
 function normalize(raw: string): string {
   return raw
     .toLocaleLowerCase('ru')
