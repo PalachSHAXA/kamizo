@@ -147,15 +147,17 @@ async function embed(env: Env, input: string[], timeoutMs: number): Promise<numb
   }
 }
 
-export function getAiListenerMode(env: Env): 'off' | 'shadow' {
-  return env.AI_LISTENER_MODE === 'shadow' ? 'shadow' : 'off';
+export function getAiListenerMode(env: Env): 'off' | 'shadow' | 'active' {
+  return env.AI_LISTENER_MODE === 'shadow' || env.AI_LISTENER_MODE === 'active'
+    ? env.AI_LISTENER_MODE
+    : 'off';
 }
 
 export async function classifyWithLocalAi(
   env: Env,
   text: string,
 ): Promise<LocalAiListenerResult | null> {
-  if (getAiListenerMode(env) === 'off' || !text || text.length > 1200) return null;
+  if (getAiListenerMode(env) === 'off' || !text || text.length > 4000) return null;
   const baseUrl = env.AI_LISTENER_URL || 'http://127.0.0.1:11434';
   if (!isLoopbackUrl(baseUrl) || Date.now() < circuitOpenUntil) return null;
   if (prototypeFingerprint() !== PROTOTYPE_FINGERPRINT

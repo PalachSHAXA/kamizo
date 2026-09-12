@@ -95,7 +95,7 @@ export interface Env {
 
   // Локальный AI fallback для Telegram listener. Текст отправляется только
   // на loopback URL VPS и никогда не сохраняется приложением.
-  AI_LISTENER_MODE?: 'off' | 'shadow';
+  AI_LISTENER_MODE?: 'off' | 'shadow' | 'active';
   AI_LISTENER_URL?: string;
   AI_LISTENER_TIMEOUT_MS?: string;
   AI_LISTENER_MAX_CONCURRENCY?: string;

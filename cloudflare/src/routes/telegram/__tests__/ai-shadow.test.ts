@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../../../types';
 
 const mocks = vi.hoisted(() => ({
+  mode: 'shadow' as 'shadow' | 'active',
   classifyWithLocalAi: vi.fn(),
   sendTelegramMessage: vi.fn(),
 }));
 
 vi.mock('../../../utils/local-ai-listener', () => ({
   classifyWithLocalAi: mocks.classifyWithLocalAi,
-  getAiListenerMode: () => 'shadow',
+  getAiListenerMode: () => mocks.mode,
 }));
 
 vi.mock('../../../utils/zhkh-dictionary', () => ({
@@ -31,12 +32,22 @@ const message = {
   text: 'Не могу попасть домой, дежурный молчит и проезд закрыт',
 };
 
-function envWithGroup(group: unknown) {
+function envWithGroup(group: unknown, mode: 'shadow' | 'active' = 'shadow') {
   return {
-    AI_LISTENER_MODE: 'shadow',
+    AI_LISTENER_MODE: mode,
     DB: {
-      prepare: vi.fn(() => ({
-        bind: vi.fn(() => ({ first: vi.fn(async () => group) })),
+      prepare: vi.fn((sql: string) => ({
+        bind: vi.fn(() => ({
+          first: vi.fn(async () => {
+            if (sql.includes('FROM telegram_groups')) return group;
+            if (sql.includes('SELECT url, features')) {
+              return { url: 'https://app.kamizo.uz', features: '[]' };
+            }
+            return null;
+          }),
+          all: vi.fn(async () => ({ results: [] })),
+          run: vi.fn(async () => ({ meta: { changes: 1 } })),
+        })),
       })),
     },
   } as unknown as Env;
@@ -44,8 +55,10 @@ function envWithGroup(group: unknown) {
 
 describe('Telegram AI shadow privacy', () => {
   beforeEach(() => {
+    mocks.mode = 'shadow';
     mocks.classifyWithLocalAi.mockReset();
     mocks.sendTelegramMessage.mockReset();
+    mocks.sendTelegramMessage.mockResolvedValue({ ok: true });
   });
 
   it('never sends an unconnected group message to AI', async () => {
@@ -70,5 +83,25 @@ describe('Telegram AI shadow privacy', () => {
     release({ kind: 'navigation', intent: 'barrier_issue', confidence: 0.95, similarity: 0.8, margin: 0.1, lang: 'ru' });
     await Promise.resolve();
     expect(mocks.sendTelegramMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns immediately but sends a named reply for a confident active result', async () => {
+    mocks.mode = 'active';
+    let release!: (value: unknown) => void;
+    mocks.classifyWithLocalAi.mockReturnValue(new Promise(resolve => { release = resolve; }));
+    const handled = handleGroupMessage(
+      envWithGroup({ id: 'group-1', tenant_id: 'tenant-1' }, 'active'),
+      message,
+      { info: vi.fn() },
+    );
+
+    await expect(Promise.race([
+      handled.then(() => 'done'),
+      new Promise(resolve => setTimeout(() => resolve('waiting'), 25)),
+    ])).resolves.toBe('done');
+
+    release({ kind: 'navigation', intent: 'barrier_issue', confidence: 0.95, similarity: 0.8, margin: 0.1, lang: 'ru' });
+    await vi.waitFor(() => expect(mocks.sendTelegramMessage).toHaveBeenCalledTimes(1));
+    expect(mocks.sendTelegramMessage.mock.calls[0][2]).toContain('Kamizo Yordamchi');
   });
 });

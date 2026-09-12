@@ -34,7 +34,8 @@ import {
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
 import {
-  classifyNavigationIntent, type NavigationMatch, type NavigationIntent,
+  classifyNavigationIntent, navigationMatchForIntent,
+  type NavigationMatch, type NavigationIntent,
 } from '../../utils/navigation-intent';
 import { classifyWithLocalAi, getAiListenerMode } from '../../utils/local-ai-listener';
 import { normalizeFeatures } from '../../lib/features';
@@ -110,10 +111,10 @@ const D = {
   draft: (lang: ZhkhLang) => lang === 'uz'
     ? `📝 <b>Ariza tayyorlashga yordam beraman</b>
 
-Maʼlumotlarni tekshirib, Kamizoda tasdiqlang. Havola 30 daqiqa amal qiladi, ariza esa faqat siz tasdiqlaganingizdan keyin yaratiladi.`
+Maʼlumotlarni tekshirib, Kamizoda tasdiqlang. Havola 30 daqiqa amal qiladi. Siz yuborganingizdan keyin murojaat boshqaruv kompaniyangizga yetkaziladi.`
     : `📝 <b>Помогу оформить заявку</b>
 
-Проверьте данные и подтвердите их в Kamizo. Ссылка действует 30 минут, а заявка будет создана только после вашего подтверждения.`,
+Проверьте данные и подтвердите их в Kamizo. Ссылка действует 30 минут. После отправки обращение поступит в вашу управляющую компанию.`,
 
   btnOpen: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Kamizoda shaklni ochish' : '📝 Открыть форму в Kamizo',
@@ -159,6 +160,9 @@ function dedupeMinutes(env: Env): number {
 // проверил форму — полчаса с запасом. Дольше держать нельзя: ссылка
 // видна всем участникам группового чата.
 const DRAFT_TTL_MINUTES = 30;
+const AI_ACTIVE_MIN_SIMILARITY = 0.72;
+const AI_ACTIVE_MIN_MARGIN = 0.06;
+const AI_ACTIVE_MIN_CONFIDENCE = 0.82;
 
 const NAV_COPY: Record<NavigationIntent, {
   ru: string; uz: string; buttonRu: string; buttonUz: string;
@@ -258,12 +262,17 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
   ],
 };
 
+function withAssistantIdentity(text: string, aiAssisted: boolean): string {
+  return aiAssisted ? `🤝 <b>Kamizo Yordamchi</b>\n\n${text}` : text;
+}
+
 async function handleNavigationIntent(
   env: Env,
   group: { id: string; tenant_id: string },
   message: any,
   match: NavigationMatch,
-  log: any
+  log: any,
+  aiConfidence?: number,
 ): Promise<void> {
   const chatId = String(message.chat.id);
   const threadId = Number(message.message_thread_id || 0);
@@ -327,7 +336,7 @@ async function handleNavigationIntent(
   const sent = await sendTelegramMessage(
     env,
     chatId,
-    lang === 'uz' ? copy.uz : copy.ru,
+    withAssistantIdentity(lang === 'uz' ? copy.uz : copy.ru, aiConfidence !== undefined),
     {
       messageThreadId: threadId,
       replyToMessageId: Number(message.message_id),
@@ -340,12 +349,88 @@ async function handleNavigationIntent(
     INSERT INTO telegram_suggestions
       (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
        telegram_user_id, telegram_message_id, category, confidence, outcome)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'routed')
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'routed')
   `).bind(
     generateId(), group.tenant_id, group.id, chatId, threadId,
-    telegramUserId, String(message.message_id), `nav:${match.intent}`
+    telegramUserId, String(message.message_id), `nav:${match.intent}`, aiConfidence ?? 1
   ).run();
-  log.info('dispatcher_navigation_routed', { tenantId: group.tenant_id, intent: match.intent });
+  log.info('dispatcher_navigation_routed', {
+    tenantId: group.tenant_id, intent: match.intent,
+    source: aiConfidence === undefined ? 'rules' : 'ai',
+  });
+}
+
+async function handleMaintenanceSuggestion(
+  env: Env,
+  group: { id: string; tenant_id: string },
+  message: any,
+  hit: { category: ZhkhCategory; confidence: number; lang: ZhkhLang },
+  log: any,
+  aiAssisted = false,
+): Promise<void> {
+  const chatId = String(message.chat.id);
+  const fromId = String(message.from.id);
+  const messageThreadId = Number(message.message_thread_id || 0);
+
+  const hours = cooldownHours(env);
+  if (hours > 0) {
+    const recent = await env.DB.prepare(
+      `SELECT 1 FROM telegram_suggestions
+       WHERE telegram_chat_id = ? AND message_thread_id = ? AND telegram_user_id = ?
+         AND tenant_id = ?
+         AND category NOT LIKE 'nav:%'
+         AND created_at > datetime('now', ?)
+       LIMIT 1`
+    ).bind(chatId, messageThreadId, fromId, group.tenant_id, `-${hours} hours`).first();
+    if (recent) return;
+  }
+
+  const minutes = dedupeMinutes(env);
+  if (minutes > 0) {
+    const sameIssue = await env.DB.prepare(
+      `SELECT 1 FROM telegram_suggestions
+       WHERE telegram_chat_id = ? AND message_thread_id = ? AND category = ?
+         AND tenant_id = ?
+         AND created_at > datetime('now', ?)
+       LIMIT 1`
+    ).bind(chatId, messageThreadId, hit.category, group.tenant_id, `-${minutes} minutes`).first();
+    if (sameIssue) return;
+  }
+
+  const suggestionId = generateId();
+  await env.DB.prepare(`
+    INSERT INTO telegram_suggestions
+      (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
+       telegram_user_id, telegram_message_id, category, confidence)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    suggestionId, group.tenant_id, group.id, chatId, messageThreadId, fromId,
+    String(message.message_id), hit.category, hit.confidence
+  ).run();
+
+  const label = categoryLabel(hit.category, hit.lang);
+  const sent = await sendTelegramMessage(
+    env, chatId, withAssistantIdentity(D.suggest(hit.lang, label), aiAssisted),
+    {
+      messageThreadId,
+      replyToMessageId: Number(message.message_id),
+      buttons: [
+        { text: D.btnCreate(hit.lang), callback_data: `sg:y:${suggestionId}` },
+        {
+          text: hit.lang === 'uz' ? D.btnSkipUz : D.btnSkipRu,
+          callback_data: `sg:n:${suggestionId}`,
+        },
+      ],
+    }
+  );
+
+  if (sent.ok) {
+    log.info('dispatcher_suggested', {
+      tenantId: group.tenant_id, category: hit.category,
+      confidence: hit.confidence, lang: hit.lang,
+      source: aiAssisted ? 'ai' : 'rules',
+    });
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -385,10 +470,10 @@ export async function handleGroupMessage(
   if (!group) return;
 
   if (!hit && !navigation && !message?.forward_origin && !message?.forward_date) {
-    if (aiMode === 'shadow') {
-      // Shadow inference must never delay Telegram's webhook. Only one local
-      // request runs at a time; further messages immediately skip AI.
-      void classifyWithLocalAi(env, text).then(ai => {
+    if (aiMode === 'shadow' || aiMode === 'active') {
+      // Local inference must never delay Telegram's webhook. Only one request
+      // runs at a time; further messages immediately skip AI without a queue.
+      void classifyWithLocalAi(env, text).then(async ai => {
         if (!ai) return;
         log.info('dispatcher_ai_classified', {
           tenantId: group.tenant_id,
@@ -401,6 +486,25 @@ export async function handleGroupMessage(
           lang: ai.lang,
           mode: aiMode,
         });
+
+        const actionable = aiMode === 'active'
+          && ai.kind !== 'none'
+          && ai.similarity >= AI_ACTIVE_MIN_SIMILARITY
+          && ai.margin >= AI_ACTIVE_MIN_MARGIN
+          && ai.confidence >= AI_ACTIVE_MIN_CONFIDENCE;
+        if (!actionable) return;
+
+        if (ai.kind === 'navigation') {
+          await handleNavigationIntent(
+            env, group, message, navigationMatchForIntent(ai.intent), log, ai.confidence,
+          );
+        } else if (ai.kind === 'maintenance') {
+          await handleMaintenanceSuggestion(env, group, message, {
+            category: ai.category,
+            confidence: ai.confidence,
+            lang: ai.lang,
+          }, log, true);
+        }
       }).catch(() => {});
       return;
     }
@@ -413,74 +517,7 @@ export async function handleGroupMessage(
     return;
   }
   if (!hit) return;
-
-  // Кулдаун по человеку. Сравнение времени в SQL здесь корректно: обе
-  // стороны — datetime('now'), одинаковый формат. (В отличие от мест,
-  // где хранится ISO-строка из toISOString(); там сверка идёт в JS.)
-  const hours = cooldownHours(env);
-  if (hours > 0) {
-    const recent = await env.DB.prepare(
-      `SELECT 1 FROM telegram_suggestions
-       WHERE telegram_chat_id = ? AND message_thread_id = ? AND telegram_user_id = ?
-         AND tenant_id = ?
-         AND category NOT LIKE 'nav:%'
-          AND created_at > datetime('now', ?)
-       LIMIT 1`
-    ).bind(chatId, messageThreadId, fromId, group.tenant_id, `-${hours} hours`).first();
-    if (recent) return;
-  }
-
-  // Дедупликация по категории в этой группе.
-  const minutes = dedupeMinutes(env);
-  if (minutes > 0) {
-    const sameIssue = await env.DB.prepare(
-      `SELECT 1 FROM telegram_suggestions
-       WHERE telegram_chat_id = ? AND message_thread_id = ? AND category = ?
-         AND tenant_id = ?
-          AND created_at > datetime('now', ?)
-       LIMIT 1`
-    ).bind(chatId, messageThreadId, hit.category, group.tenant_id, `-${minutes} minutes`).first();
-    if (sameIssue) return;
-  }
-
-  const suggestionId = generateId();
-  await env.DB.prepare(`
-    INSERT INTO telegram_suggestions
-      (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
-       telegram_user_id, telegram_message_id, category, confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    suggestionId, group.tenant_id, group.id, chatId, messageThreadId, fromId,
-    String(message.message_id), hit.category, hit.confidence
-  ).run();
-
-  // Отвечаем реплаем на конкретное сообщение (§12), а не в пустоту —
-  // в живом чате иначе непонятно, к чему относится предложение.
-  //
-  // Язык — из самого сообщения: в группе неизвестно, кто автор, пока он
-  // не привязал аккаунт, так что users.language недоступен.
-  const label = categoryLabel(hit.category, hit.lang);
-  const sent = await sendTelegramMessage(
-    env, chatId, D.suggest(hit.lang, label),
-    {
-      messageThreadId,
-      replyToMessageId: Number(message.message_id),
-      buttons: [
-        { text: D.btnCreate(hit.lang), callback_data: `sg:y:${suggestionId}` },
-        {
-          text: hit.lang === 'uz' ? D.btnSkipUz : D.btnSkipRu,
-          callback_data: `sg:n:${suggestionId}`,
-        },
-      ],
-    }
-  );
-
-  if (sent.ok) {
-    log.info('dispatcher_suggested', {
-      tenantId: group.tenant_id, category: hit.category,
-      confidence: hit.confidence, lang: hit.lang,
-    });
-  }
+  await handleMaintenanceSuggestion(env, group, message, hit, log);
 }
 
 // ──────────────────────────────────────────────────────────────────
