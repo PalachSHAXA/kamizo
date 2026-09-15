@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useBuildingStore } from '../../../stores/buildingStore';
 import { useLanguageStore } from '../../../stores/languageStore';
 import { useToastStore } from '../../../stores/toastStore';
@@ -475,8 +476,15 @@ export function EstimateV2WizardPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* fix/mobile-wizard-header-tabs: раньше кнопка «← К списку» была
+          с полным текстом справа от заголовка в flex-row justify-between.
+          На 375px и 320px текст не помещался и разбивался в 3 строки
+          (← К / списк / у). Фикс: на mobile (< sm) — icon-only кнопка
+          (ArrowLeft) с aria-label, на sm: и выше — иконка + текст как
+          раньше. min-w-0 на заголовке чтобы длинный subtitle не вытеснял
+          кнопку. */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-gray-900">
             {editId ? (isRu ? 'Редактирование сметы' : 'Smetani tahrirlash') : (isRu ? 'Новая смета' : 'Yangi smeta')}
           </h1>
@@ -488,9 +496,11 @@ export function EstimateV2WizardPage() {
         </div>
         <button
           onClick={() => navigate('/finance/estimates')}
-          className="text-sm text-gray-500 hover:text-gray-700"
+          aria-label={isRu ? 'К списку смет' : 'Smetalar ro\'yxatiga'}
+          className="shrink-0 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 p-2 sm:p-0"
         >
-          {isRu ? '← К списку' : '← Ro\'yxatga'}
+          <ArrowLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+          <span className="hidden sm:inline">{isRu ? 'К списку' : 'Ro\'yxatga'}</span>
         </button>
       </div>
 
@@ -526,18 +536,33 @@ export function EstimateV2WizardPage() {
             {/* Режим сметы: на дом / на ЖК */}
             <div>
               <div className="text-xs font-medium text-gray-600 mb-1">{isRu ? 'Тип сметы' : 'Smeta turi'}</div>
-              <div className="inline-flex flex-wrap rounded-lg border border-gray-200 overflow-hidden text-sm">
-                {(['building', 'complex', 'unassigned'] as const).map((m) => (
+              {/* fix/mobile-wizard-header-tabs: раньше `inline-flex flex-wrap`
+                  давал непредсказуемое число строк (2-3 ряда), а «На ЖК
+                  (объект)» с px-4 вылезал за правую границу card на 320px.
+                  Фикс: grid-cols-1 на очень узких (< 400px), grid-cols-3 на
+                  sm: и выше — предсказуемый layout с равными ячейками.
+                  min-w-0 + truncate на content не даёт названию вылезти,
+                  text-xs sm:text-sm — компактнее на mobile. */}
+              <div className="grid grid-cols-1 min-[400px]:grid-cols-3 rounded-lg border border-gray-200 overflow-hidden text-xs sm:text-sm">
+                {(['building', 'complex', 'unassigned'] as const).map((m, idx) => (
                   <button
                     key={m}
                     type="button"
                     disabled={!!editId}
                     onClick={() => setScopeMode(m)}
-                    className={`px-4 py-2 font-medium ${scopeMode === m ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-50`}
+                    className={`min-w-0 px-3 py-2 font-medium text-center ${
+                      scopeMode === m ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                    } disabled:opacity-50 ${
+                      // border-b между строками на mobile (grid-cols-1),
+                      // border-r между колонками на wide (grid-cols-3)
+                      idx > 0 ? 'border-t border-gray-200 min-[400px]:border-t-0 min-[400px]:border-l' : ''
+                    }`}
                   >
-                    {m === 'building' && (isRu ? 'На один дом' : 'Bitta uy')}
-                    {m === 'complex' && (isRu ? 'На ЖК (объект)' : 'JK (obyekt)')}
-                    {m === 'unassigned' && (isRu ? 'Без объекта' : 'Obyektsiz')}
+                    <span className="truncate block">
+                      {m === 'building' && (isRu ? 'На один дом' : 'Bitta uy')}
+                      {m === 'complex' && (isRu ? 'На ЖК (объект)' : 'JK (obyekt)')}
+                      {m === 'unassigned' && (isRu ? 'Без объекта' : 'Obyektsiz')}
+                    </span>
                   </button>
                 ))}
               </div>
