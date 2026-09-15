@@ -20,7 +20,7 @@ import { json, bilingualError, error } from '../../utils/helpers';
 import { isSuperAdmin } from '../../index';
 import { TENANT_FEATURES, normalizeFeatures } from '../../lib/features';
 import { clearFeatureCache } from '../../middleware/tenant';
-import { sendTelegramMessage, callTelegram } from '../../utils/telegram';
+import { sendTelegramMessage, callTelegram, escapeHtml } from '../../utils/telegram';
 
 export function registerTelegramSuperAdminRoutes() {
 
@@ -180,7 +180,10 @@ route('POST', '/api/super-admin/telegram/deliveries/:id/retry', async (request, 
   ).bind(d.announcement_id, d.tenant_id).first() as any;
   if (!ann) return error('Announcement not found', 404);
 
-  const text = `📢 <b>${ann.title}</b>\n\n${ann.content}`;
+  const prefix = ann.priority === 'urgent' ? '🚨'
+    : ann.priority === 'important' ? '❗'
+    : '📢';
+  const text = `${prefix} <b>${escapeHtml(ann.title)}</b>\n\n${escapeHtml(ann.content)}`;
   const send = await sendTelegramMessage(e, d.telegram_chat_id, text, {
     messageThreadId: Number(d.message_thread_id || 0),
   });

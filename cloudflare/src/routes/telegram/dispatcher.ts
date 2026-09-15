@@ -16,8 +16,9 @@
 //      и статистике. Текст уходит в БД только если человек сам нажал
 //      «Оформить заявку»: тогда он кладётся в черновик с коротким
 //      сроком жизни. §15: «не создавать скрытый архив сообщений».
-//   3. Разбор целиком локальный (utils/zhkh-classifier.ts). Никакой
-//      внешней LLM — §15 требует отдельного решения на этот счёт.
+//   3. Сначала работают локальные правила. Неуверенные сообщения могут
+//      попасть только в локальную модель на loopback VPS; внешний AI URL
+//      код отклоняет. При перегрузке или ошибке модель молча пропускается.
 
 import type { Env } from '../../types';
 import { route } from '../../router';
@@ -32,7 +33,11 @@ import {
   detectLanguage, type ZhkhLang, type ZhkhCategory,
 } from '../../utils/zhkh-classifier';
 import { ensureDictionaryLoaded } from '../../utils/zhkh-dictionary';
-import { classifyNavigationIntent, type NavigationMatch, type NavigationIntent } from '../../utils/navigation-intent';
+import {
+  classifyNavigationIntent, navigationMatchForIntent,
+  type NavigationMatch, type NavigationIntent,
+} from '../../utils/navigation-intent';
+import { classifyWithLocalAi, getAiListenerMode } from '../../utils/local-ai-listener';
 import { normalizeFeatures } from '../../lib/features';
 
 // Тексты диспетчера на обоих языках.
@@ -82,21 +87,21 @@ function ruPrep(label: string): string {
 
 const D = {
   suggest: (lang: ZhkhLang, label: string) => lang === 'uz'
-    ? `Siz ${label} haqida xabar berdingiz shekilli.\n\nKamizoda ariza rasmiylashtirilsinmi?`
-    : `Похоже, вы сообщили ${ruPrep(label)} ${label}.\n\nОформить заявку в Kamizo?`,
+    ? `Bu ${label} haqidagi murojaatga o‘xshaydi.\n\nXohlasangiz, Kamizoda ariza rasmiylashtirishga yordam beraman.`
+    : `Похоже, вы сообщаете ${ruPrep(label)} ${label}.\n\nЕсли хотите, я помогу оформить заявку в Kamizo.`,
 
   btnCreate: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Ariza rasmiylashtirish' : '📝 Оформить заявку',
-  btnSkipRu: 'Не нужно',
-  btnSkipUz: 'Kerak emas',
+  btnSkipRu: 'Спасибо, не нужно',
+  btnSkipUz: 'Rahmat, kerak emas',
 
   dismissed: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Tushunarli, ariza kerak emas.' : 'Понял, заявка не нужна.',
+    ? 'Yaxshi, ariza yaratmaymiz.' : 'Хорошо, заявку создавать не будем.',
 
   dismissedToast: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Yaxshi, boshqa taklif qilmayman' : 'Хорошо, не буду предлагать',
+    ? 'Yaxshi, ariza yaratilmadi' : 'Хорошо, заявка не создана',
 
-  openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю Kamizo',
+  openingToast: (lang: ZhkhLang) => lang === 'uz' ? 'Kamizo ochilmoqda' : 'Открываю форму в Kamizo',
 
   // Ссылка отдаётся кнопкой, а не разметкой внутри текста. Текстовый
   // якорь Telegram рисует по-разному в разных клиентах, а при
@@ -104,24 +109,25 @@ const D = {
   // фразу «Открыть форму», по которой некуда нажать. С кнопкой так не
   // выйдет: она либо появится, либо запрос упадёт с ошибкой в логах.
   draft: (lang: ZhkhLang) => lang === 'uz'
-    ? `📝 <b>Ariza rasmiylashtirish</b>
+    ? `📝 <b>Ariza tayyorlashga yordam beraman</b>
 
-Havola 30 daqiqa amal qiladi. Ariza faqat siz tasdiqlaganingizdan keyin yaratiladi.`
-    : `📝 <b>Оформление заявки</b>
+Maʼlumotlarni tekshirib, Kamizoda tasdiqlang. Havola 30 daqiqa amal qiladi. Siz yuborganingizdan keyin murojaat boshqaruv kompaniyangizga yetkaziladi.`
+    : `📝 <b>Помогу оформить заявку</b>
 
-Ссылка действует 30 минут. Заявка будет создана только после вашего подтверждения.`,
+Проверьте данные и подтвердите их в Kamizo. Ссылка действует 30 минут. После отправки обращение поступит в вашу управляющую компанию.`,
 
   btnOpen: (lang: ZhkhLang) => lang === 'uz'
     ? '📝 Kamizoda shaklni ochish' : '📝 Открыть форму в Kamizo',
 
-  handled: (lang: ZhkhLang) => lang === 'uz' ? 'Allaqachon koʻrib chiqilgan' : 'Уже обработано',
+  handled: (lang: ZhkhLang) => lang === 'uz' ? 'Bu so‘rov allaqachon ko‘rib chiqilgan' : 'Этот запрос уже обработан',
 
   notAuthor: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Bu taklif xabar muallifiga tegishli'
-    : 'Это предложение адресовано автору сообщения',
+    ? 'Bu tugmadan faqat xabar muallifi foydalanishi mumkin'
+    : 'Этой кнопкой может воспользоваться только автор сообщения',
 
   groupGone: (lang: ZhkhLang) => lang === 'uz'
-    ? 'Guruh endi ulanmagan' : 'Группа больше не подключена',
+    ? 'Bu guruh Kamizoga ulanmagan. Iltimos, boshqaruv kompaniyasiga murojaat qiling'
+    : 'Эта группа больше не подключена к Kamizo. Пожалуйста, обратитесь в управляющую компанию',
 };
 
 // §14: «Не более одного предложения одному пользователю в одной группе
@@ -154,78 +160,82 @@ function dedupeMinutes(env: Env): number {
 // проверил форму — полчаса с запасом. Дольше держать нельзя: ссылка
 // видна всем участникам группового чата.
 const DRAFT_TTL_MINUTES = 30;
+const AI_ACTIVE_MIN_SIMILARITY = 0.72;
+const AI_ACTIVE_MIN_MARGIN = 0.06;
+const AI_ACTIVE_MIN_CONFIDENCE = 0.82;
+const AI_SHORT_MAINTENANCE_MAX_LENGTH = 120;
 
 const NAV_COPY: Record<NavigationIntent, {
   ru: string; uz: string; buttonRu: string; buttonUz: string;
 }> = {
   rental_publish: {
-    ru: 'Похоже, вы хотите сдать квартиру. Разместить объявление в Kamizo?',
-    uz: 'Kvartirani ijaraga bermoqchimisiz? Kamizoda eʼlon joylashtiramizmi?',
-    buttonRu: 'Разместить квартиру', buttonUz: 'Kvartirani joylashtirish',
+    ru: 'Хотите сдать квартиру? Я помогу перейти к размещению объявления в Kamizo.',
+    uz: 'Kvartirani ijaraga bermoqchimisiz? Kamizoda eʼlon joylashtirishga yordam beraman.',
+    buttonRu: 'Разместить объявление', buttonUz: 'Eʼlon joylashtirish',
   },
   rental_browse: {
-    ru: 'Ищете квартиру в аренду? Открою актуальные предложения Kamizo.',
-    uz: 'Ijaraga kvartira qidiryapsizmi? Kamizodagi takliflarni ochaman.',
+    ru: 'Ищете квартиру в аренду? Я помогу посмотреть актуальные предложения в Kamizo.',
+    uz: 'Ijaraga kvartira qidiryapsizmi? Kamizodagi dolzarb takliflarni ko‘rsataman.',
     buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
   },
   useful_contacts: {
-    ru: 'Эту услугу можно поискать в полезных контактах Kamizo.',
-    uz: 'Bu xizmatni Kamizodagi foydali kontaktlardan topish mumkin.',
+    ru: 'Нужен мастер или полезный номер? Подходящий контакт можно найти в Kamizo.',
+    uz: 'Usta yoki kerakli telefon raqami kerakmi? Mos kontaktni Kamizodan topish mumkin.',
     buttonRu: 'Найти услугу', buttonUz: 'Xizmat topish',
   },
   marketplace: {
-    ru: 'Открыть Маркет УК в Kamizo?',
-    uz: 'Kamizodagi BK marketini ochamizmi?',
+    ru: 'Хотите посмотреть товары и услуги? Я помогу открыть Маркет УК в Kamizo.',
+    uz: 'Mahsulot yoki xizmatlarni ko‘rmoqchimisiz? Kamizodagi BK marketini ochishga yordam beraman.',
     buttonRu: 'Открыть Маркет', buttonUz: 'Marketni ochish',
   },
   vehicle_owner: {
-    ru: 'Владельца автомобиля можно найти по номеру в служебном поиске Kamizo.',
-    uz: 'Avtomobil egasini Kamizodagi xizmat qidiruvi orqali topish mumkin.',
+    ru: 'Нужно найти владельца автомобиля? Введите номер машины в поиске Kamizo.',
+    uz: 'Avtomobil egasini topish kerakmi? Mashina raqamini Kamizo qidiruviga kiriting.',
     buttonRu: 'Найти владельца', buttonUz: 'Egasini topish',
   },
   guest_pass: {
-    ru: 'Гостевой или курьерский пропуск можно оформить в Kamizo.',
-    uz: 'Mehmon yoki kuryer ruxsatnomasini Kamizoda yaratish mumkin.',
+    ru: 'Ожидаете гостя или курьера? Я помогу быстро оформить пропуск в Kamizo.',
+    uz: 'Mehmon yoki kuryer kutyapsizmi? Kamizoda ruxsatnoma rasmiylashtirishga yordam beraman.',
     buttonRu: 'Оформить пропуск', buttonUz: 'Ruxsatnoma yaratish',
   },
   qr_scan: {
-    ru: 'Открою служебный QR-сканер охраны.',
-    uz: 'Qoʻriqlash xizmati uchun QR skanerni ochaman.',
+    ru: 'Конечно. Открою сканер, чтобы вы могли проверить QR-пропуск.',
+    uz: 'Albatta. QR-ruxsatnomani tekshirish uchun skanerni ochaman.',
     buttonRu: 'Открыть сканер', buttonUz: 'Skanerni ochish',
   },
   vehicle_menu: {
-    ru: 'Что хотите сделать с автомобилем в Kamizo?',
-    uz: 'Kamizoda avtomobil bilan nima qilmoqchisiz?',
+    ru: 'Конечно, помогу с автомобилем. Выберите, пожалуйста, что вам нужно:',
+    uz: 'Albatta, avtomobil bo‘yicha yordam beraman. Kerakli bo‘limni tanlang:',
     buttonRu: 'Мои авто', buttonUz: 'Mening avtomobillarim',
   },
   pass_menu: {
-    ru: 'Нужно оформить гостя или проверить QR-пропуск?',
-    uz: 'Mehmon ruxsatnomasini yaratish yoki QR-ni tekshirish kerakmi?',
+    ru: 'Конечно, помогу. Выберите, пожалуйста: оформить гостевой пропуск или проверить QR-код.',
+    uz: 'Albatta, yordam beraman. Mehmon ruxsatnomasini yaratish yoki QR-kodni tekshirishni tanlang.',
     buttonRu: 'Оформить гостя', buttonUz: 'Mehmonni rasmiylashtirish',
   },
   rental_menu: {
-    ru: 'Хотите найти квартиру или разместить свою?',
-    uz: 'Kvartira topish yoki o‘zingiznikini joylashtirishni xohlaysizmi?',
+    ru: 'С радостью помогу с арендой. Выберите, пожалуйста: найти квартиру или разместить свою.',
+    uz: 'Ijara bo‘yicha yordam beraman. Kvartira topish yoki o‘zingiznikini joylashtirishni tanlang.',
     buttonRu: 'Найти квартиру', buttonUz: 'Kvartira topish',
   },
   parking_issue: {
-    ru: 'Похоже, это жалоба на парковку или посторонний автомобиль. Сообщить УК или найти владельца?',
-    uz: 'Bu noto‘g‘ri to‘xtash yoki begona avtomobil haqidagi murojaatga o‘xshaydi. BKga yozamizmi?',
+    ru: 'Понимаю, такая ситуация с парковкой может мешать жильцам. Сообщить об этом управляющей компании?',
+    uz: 'Tushunaman, bunday to‘xtash holati aholiga xalaqit berishi mumkin. Bu haqda BKga yozamizmi?',
     buttonRu: 'Сообщить УК', buttonUz: 'BKga yozish',
   },
   barrier_issue: {
-    ru: 'Похоже, вопрос связан с охраной или въездом через шлагбаум.',
-    uz: 'Bu qo‘riqlash yoki shlagbaum orqali kirish masalasiga o‘xshaydi.',
-    buttonRu: 'Открыть гостевой доступ', buttonUz: 'Mehmon kirishini ochish',
+    ru: 'Понимаю. Если возникла проблема со въездом или связью с охраной, напишите в чат управляющей компании.',
+    uz: 'Tushunaman. Kirish yoki qo‘riqlash bilan bog‘liq muammo bo‘lsa, boshqaruv kompaniyasi chatiga yozing.',
+    buttonRu: 'Написать в чат', buttonUz: 'Chatga yozish',
   },
   resident_proposal: {
-    ru: 'Это предложение по улучшению дома. Отправить его управляющей компании в Kamizo?',
-    uz: 'Bu uyni yaxshilash bo‘yicha taklif. Uni Kamizo orqali BKga yuboramizmi?',
+    ru: 'Спасибо за идею! Предложение по улучшению дома можно отправить управляющей компании в Kamizo.',
+    uz: 'Taklifingiz uchun rahmat! Uyni yaxshilash bo‘yicha fikrni Kamizo orqali BKga yuborish mumkin.',
     buttonRu: 'Написать УК', buttonUz: 'BKga yozish',
   },
   assistant_help: {
-    ru: 'Я могу помочь открыть нужный раздел Kamizo: заявки, аренду квартир, услуги, Маркет УК, гостевые пропуска и поиск автомобиля.',
-    uz: 'Kamizodagi kerakli bo‘limni ochishga yordam beraman: arizalar, ijara, xizmatlar, BK marketi, mehmon ruxsatnomalari va avtomobil qidiruvi.',
+    ru: 'Здравствуйте! Я помогу быстро найти нужный раздел Kamizo: заявки, аренду, услуги, Маркет УК, гостевые пропуска или автомобили.',
+    uz: 'Assalomu alaykum! Kamizodagi kerakli bo‘limni tez topishga yordam beraman: arizalar, ijara, xizmatlar, BK marketi, mehmon ruxsatnomalari yoki avtomobillar.',
     buttonRu: 'Открыть Kamizo', buttonUz: 'Kamizoni ochish',
   },
 };
@@ -234,8 +244,8 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
   path: string; ru: string; uz: string;
 }>>> = {
   vehicle_menu: [
-    { path: '/vehicle-search', ru: 'Чья машина?', uz: 'Mashina kimniki?' },
-    { path: '/vehicles', ru: 'Мои авто', uz: 'Mening avtomobillarim' },
+    { path: '/vehicle-search', ru: 'Найти владельца', uz: 'Egasini topish' },
+    { path: '/vehicles', ru: 'Мои автомобили', uz: 'Mening avtomobillarim' },
   ],
   pass_menu: [
     { path: '/guest-access', ru: 'Оформить гостя', uz: 'Mehmon ruxsati' },
@@ -249,16 +259,21 @@ const NAV_MENU_ACTIONS: Partial<Record<NavigationIntent, Array<{
     { path: '/chat', ru: 'Сообщить УК', uz: 'BKga yozish' },
   ],
   barrier_issue: [
-    { path: '/chat', ru: 'Написать охране', uz: 'Qo‘riqlashga yozish' },
+    { path: '/chat', ru: 'Написать в чат УК', uz: 'BK chatiga yozish' },
   ],
 };
+
+function withAssistantIdentity(text: string, aiAssisted: boolean): string {
+  return aiAssisted ? `🤝 <b>Kamizo</b>\n\n${text}` : text;
+}
 
 async function handleNavigationIntent(
   env: Env,
   group: { id: string; tenant_id: string },
   message: any,
   match: NavigationMatch,
-  log: any
+  log: any,
+  aiConfidence?: number,
 ): Promise<void> {
   const chatId = String(message.chat.id);
   const threadId = Number(message.message_thread_id || 0);
@@ -322,7 +337,7 @@ async function handleNavigationIntent(
   const sent = await sendTelegramMessage(
     env,
     chatId,
-    lang === 'uz' ? copy.uz : copy.ru,
+    withAssistantIdentity(lang === 'uz' ? copy.uz : copy.ru, aiConfidence !== undefined),
     {
       messageThreadId: threadId,
       replyToMessageId: Number(message.message_id),
@@ -335,64 +350,29 @@ async function handleNavigationIntent(
     INSERT INTO telegram_suggestions
       (id, tenant_id, telegram_group_id, telegram_chat_id, message_thread_id,
        telegram_user_id, telegram_message_id, category, confidence, outcome)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'routed')
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'routed')
   `).bind(
     generateId(), group.tenant_id, group.id, chatId, threadId,
-    telegramUserId, String(message.message_id), `nav:${match.intent}`
+    telegramUserId, String(message.message_id), `nav:${match.intent}`, aiConfidence ?? 1
   ).run();
-  log.info('dispatcher_navigation_routed', { tenantId: group.tenant_id, intent: match.intent });
+  log.info('dispatcher_navigation_routed', {
+    tenantId: group.tenant_id, intent: match.intent,
+    source: aiConfidence === undefined ? 'rules' : 'ai',
+  });
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Обработка обычного сообщения в группе.
-//
-// Вызывается из вебхука для КАЖДОГО текстового сообщения подключённой
-// группы, поэтому дешёвые проверки идут первыми: сначала отсев по
-// флагу и по классификатору (обе без запросов к БД для большинства
-// сообщений), и только потом обращения к базе.
-export async function handleGroupMessage(
-  env: Env, message: any, log: any
+async function handleMaintenanceSuggestion(
+  env: Env,
+  group: { id: string; tenant_id: string },
+  message: any,
+  hit: { category: ZhkhCategory; confidence: number; lang: ZhkhLang },
+  log: any,
+  aiAssisted = false,
 ): Promise<void> {
-  const text: string = message?.text || message?.caption || '';
-  const chatId = String(message?.chat?.id ?? '');
-  const fromId = String(message?.from?.id ?? '');
-  const messageThreadId = Number(message?.message_thread_id || 0);
+  const chatId = String(message.chat.id);
+  const fromId = String(message.from.id);
+  const messageThreadId = Number(message.message_thread_id || 0);
 
-  if (!text || !chatId || !fromId) return;
-  // §14: не реагируем на сообщения ботов, включая собственные.
-  if (message?.from?.is_bot) return;
-
-  // Правки словаря из БД. Кэш на минуту, поэтому запроса на каждое
-  // сообщение не происходит: иначе главное свойство классификации —
-  // дешевизна — исчезло бы, ведь подавляющее большинство реплик в
-  // домовом чате не про поломки, и платить за них обращением к базе
-  // нельзя.
-  await ensureDictionaryLoaded(env);
-
-  const classified = classifyZhkhMessage(text);
-  const hit = classified && classified.confidence >= SUGGESTION_THRESHOLD ? classified : null;
-  const navigation = hit ? null : classifyNavigationIntent(text);
-  if (!hit && !navigation) return;
-
-  const group = await env.DB.prepare(
-    `SELECT id, tenant_id, building_id, entrance, message_thread_id
-     FROM telegram_groups
-     WHERE telegram_chat_id = ? AND disabled_at IS NULL AND listener_enabled = 1
-       AND message_thread_id IN (?, 0)
-     ORDER BY CASE WHEN message_thread_id = ? THEN 0 ELSE 1 END
-     LIMIT 1`
-  ).bind(chatId, messageThreadId, messageThreadId).first() as any;
-  if (!group) return;
-
-  if (navigation) {
-    await handleNavigationIntent(env, group, message, navigation, log);
-    return;
-  }
-  if (!hit) return;
-
-  // Кулдаун по человеку. Сравнение времени в SQL здесь корректно: обе
-  // стороны — datetime('now'), одинаковый формат. (В отличие от мест,
-  // где хранится ISO-строка из toISOString(); там сверка идёт в JS.)
   const hours = cooldownHours(env);
   if (hours > 0) {
     const recent = await env.DB.prepare(
@@ -400,20 +380,19 @@ export async function handleGroupMessage(
        WHERE telegram_chat_id = ? AND message_thread_id = ? AND telegram_user_id = ?
          AND tenant_id = ?
          AND category NOT LIKE 'nav:%'
-          AND created_at > datetime('now', ?)
+         AND created_at > datetime('now', ?)
        LIMIT 1`
     ).bind(chatId, messageThreadId, fromId, group.tenant_id, `-${hours} hours`).first();
     if (recent) return;
   }
 
-  // Дедупликация по категории в этой группе.
   const minutes = dedupeMinutes(env);
   if (minutes > 0) {
     const sameIssue = await env.DB.prepare(
       `SELECT 1 FROM telegram_suggestions
        WHERE telegram_chat_id = ? AND message_thread_id = ? AND category = ?
          AND tenant_id = ?
-          AND created_at > datetime('now', ?)
+         AND created_at > datetime('now', ?)
        LIMIT 1`
     ).bind(chatId, messageThreadId, hit.category, group.tenant_id, `-${minutes} minutes`).first();
     if (sameIssue) return;
@@ -430,14 +409,9 @@ export async function handleGroupMessage(
     String(message.message_id), hit.category, hit.confidence
   ).run();
 
-  // Отвечаем реплаем на конкретное сообщение (§12), а не в пустоту —
-  // в живом чате иначе непонятно, к чему относится предложение.
-  //
-  // Язык — из самого сообщения: в группе неизвестно, кто автор, пока он
-  // не привязал аккаунт, так что users.language недоступен.
   const label = categoryLabel(hit.category, hit.lang);
   const sent = await sendTelegramMessage(
-    env, chatId, D.suggest(hit.lang, label),
+    env, chatId, withAssistantIdentity(D.suggest(hit.lang, label), aiAssisted),
     {
       messageThreadId,
       replyToMessageId: Number(message.message_id),
@@ -455,8 +429,101 @@ export async function handleGroupMessage(
     log.info('dispatcher_suggested', {
       tenantId: group.tenant_id, category: hit.category,
       confidence: hit.confidence, lang: hit.lang,
+      source: aiAssisted ? 'ai' : 'rules',
     });
   }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Обработка обычного сообщения в группе.
+//
+// Вызывается из вебхука для каждого нового группового сообщения. Сначала
+// проверяем активную привязку: даже локальный AI не должен обрабатывать
+// сообщения группы, которая не подключена к Kamizo или отключила listener.
+export async function handleGroupMessage(
+  env: Env, message: any, log: any
+): Promise<void> {
+  const text: string = message?.text || message?.caption || '';
+  const chatId = String(message?.chat?.id ?? '');
+  const fromId = String(message?.from?.id ?? '');
+  const messageThreadId = Number(message?.message_thread_id || 0);
+
+  if (!text || !chatId || !fromId) return;
+  // §14: не реагируем на сообщения ботов, включая собственные.
+  if (message?.from?.is_bot) return;
+
+  await ensureDictionaryLoaded(env);
+
+  const classified = classifyZhkhMessage(text);
+  const hit = classified && classified.confidence >= SUGGESTION_THRESHOLD ? classified : null;
+  const navigation = hit ? null : classifyNavigationIntent(text);
+  const aiMode = getAiListenerMode(env);
+  if (!hit && !navigation && aiMode === 'off') return;
+
+  const group = await env.DB.prepare(
+    `SELECT id, tenant_id, building_id, entrance, message_thread_id
+     FROM telegram_groups
+     WHERE telegram_chat_id = ? AND disabled_at IS NULL AND listener_enabled = 1
+       AND message_thread_id IN (?, 0)
+     ORDER BY CASE WHEN message_thread_id = ? THEN 0 ELSE 1 END
+     LIMIT 1`
+  ).bind(chatId, messageThreadId, messageThreadId).first() as any;
+  if (!group) return;
+
+  if (!hit && !navigation && !message?.forward_origin && !message?.forward_date) {
+    if (aiMode === 'shadow' || aiMode === 'active') {
+      // Local inference must never delay Telegram's webhook. Only one request
+      // runs at a time; further messages immediately skip AI without a queue.
+      void classifyWithLocalAi(env, text).then(async ai => {
+        if (!ai) return;
+        log.info('dispatcher_ai_classified', {
+          tenantId: group.tenant_id,
+          kind: ai.kind,
+          intent: ai.kind === 'navigation' ? ai.intent : undefined,
+          category: ai.kind === 'maintenance' ? ai.category : undefined,
+          confidence: ai.confidence,
+          similarity: ai.similarity,
+          margin: ai.margin,
+          lang: ai.lang,
+          mode: aiMode,
+        });
+
+        const shortMaintenance = ai.kind === 'maintenance'
+          && text.length <= AI_SHORT_MAINTENANCE_MAX_LENGTH
+          && ai.similarity >= 0.70
+          && ai.margin >= 0.015
+          && ai.confidence >= 0.69;
+        const strictMatch = ai.kind !== 'none'
+          && ai.similarity >= AI_ACTIVE_MIN_SIMILARITY
+          && ai.margin >= AI_ACTIVE_MIN_MARGIN
+          && ai.confidence >= AI_ACTIVE_MIN_CONFIDENCE;
+        const actionable = aiMode === 'active' && (shortMaintenance || strictMatch);
+        if (!actionable) return;
+
+        if (ai.kind === 'navigation') {
+          await handleNavigationIntent(
+            env, group, message, navigationMatchForIntent(ai.intent), log, ai.confidence,
+          );
+        } else if (ai.kind === 'maintenance') {
+          await handleMaintenanceSuggestion(env, group, message, {
+            category: ai.category,
+            confidence: ai.confidence,
+            lang: ai.lang,
+          }, log, true);
+        }
+      }).catch(() => {});
+      return;
+    }
+  }
+
+  if (!hit && !navigation) return;
+
+  if (navigation) {
+    await handleNavigationIntent(env, group, message, navigation, log);
+    return;
+  }
+  if (!hit) return;
+  await handleMaintenanceSuggestion(env, group, message, hit, log);
 }
 
 // ──────────────────────────────────────────────────────────────────
