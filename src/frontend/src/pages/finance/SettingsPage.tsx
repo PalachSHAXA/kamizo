@@ -153,11 +153,17 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex flex-col items-stretch justify-between gap-3 min-[360px]:flex-row min-[360px]:items-center">
         <div>
+          {/* fix: заголовок «Настройки доступа» ранее путался с общими
+              «Настройки» (профиль). Уточняем содержимое — пени + доступ
+              к финансам, что соответствует новому пункту меню. */}
           <h1 className="text-xl font-bold text-gray-900">
-            {t('Настройки доступа', 'Ruxsat sozlamalari')}
+            {t('Пени и доступ к финансам', 'Jarima va moliyaga kirish')}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {t('Управление доступом к финансовому модулю', 'Moliya moduliga kirish boshqaruvi')}
+            {t(
+              'Пени за просрочку (ПКМ №930) и управление доступом сотрудников к финансовому модулю',
+              'Kechikish uchun jarimalar (VMQ №930) va xodimlarning moliya moduliga kirishini boshqarish'
+            )}
           </p>
         </div>
         {!isDemoSession && <button
