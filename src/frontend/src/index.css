@@ -1041,9 +1041,18 @@ p, li {
   }
 
   /* BottomBar is position:fixed — pad content so it's not hidden behind the bar.
-     Chat page hides BottomBar, so no padding needed there. */
+     Chat page hides BottomBar, so no padding needed there.
+     fix/mobile-finance-bottombar-overlay: buffer увеличен 16→32px. Причина —
+     --bottom-bar-h=64px это ТОЛЬКО reference-высота bar'а, но визуально
+     BottomBar на iOS шире: pill-button «Ещё» / «+» выступает вверх (кнопки
+     52px в контейнере ~64px + 8px top-padding = 72px), плюс drop-shadow
+     ещё +8px, плюс safe-area на iPhone с home-indicator. При +16px
+     последние 15-20px нижнего контента (chip «Без объекта», KPI «Общий
+     долг», подсказки под inputs) прятались под pill-buttons. +32 закрывает
+     все 5 finance-страниц (Estimates/Charges/Debtors/Wizard/Settings) без
+     точечных правок в каждой. Проверено в webkit-simulator 375+320px. */
   #main-content:not(.chat-active) {
-    padding-bottom: calc(var(--bottom-bar-h) + 16px) !important;
+    padding-bottom: calc(var(--bottom-bar-h) + 32px) !important;
   }
 
   /* Chat fills remaining space via flex */
