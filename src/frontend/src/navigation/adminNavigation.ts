@@ -100,7 +100,11 @@ const financeRoutes: NavigationDefinition[] = [
   { id: 'income', path: '/finance/income', icon: TrendingUp, label: text('Доходы УК', 'UK daromadlari') },
   { id: 'expenses', path: '/finance/expenses', icon: TrendingDown, label: text('Расходы', 'Xarajatlar') },
   { id: 'materials', path: '/finance/materials', icon: Package, label: text('Материалы', 'Materiallar') },
-  { id: 'finance-settings', path: '/finance/settings', icon: ShieldCheck, label: text('Доступ', 'Kirish') },
+  // fix: «Доступ» → «Пени и доступ» — прежний однословный лейбл не намекал
+  // на содержимое (Пени за просрочку по ПКМ №930 + управление доступом
+  // сотрудников к финансовому модулю). Пользователи искали «Настройки» и
+  // не находили пункт вообще.
+  { id: 'finance-settings', path: '/finance/settings', icon: ShieldCheck, label: text('Пени и доступ', 'Jarima va kirish') },
 ];
 
 const navigationByRole: Record<AdminNavigationRole, NavigationDefinition[]> = {

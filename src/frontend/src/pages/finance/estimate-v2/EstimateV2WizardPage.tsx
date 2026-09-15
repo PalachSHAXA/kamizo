@@ -698,13 +698,20 @@ export function EstimateV2WizardPage() {
 
       {/* Footer nav */}
       <div className="flex items-center justify-between">
-        <button
-          onClick={handleBack}
-          disabled={step === 0 || saving}
-          className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {isRu ? '← Назад' : '← Orqaga'}
-        </button>
+        {/* fix: скрываем «Назад» на шаге 0 полностью — semantically некуда
+            возвращаться. Ранее была disabled с opacity-40, но на mobile
+            это плохо читаемо как «неактивно», и пользователи пытались тапать. */}
+        {step > 0 ? (
+          <button
+            onClick={handleBack}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isRu ? '← Назад' : '← Orqaga'}
+          </button>
+        ) : (
+          <span /> /* keeper для flex-space-between — иначе «Далее» уедет влево */
+        )}
 
         <div className="flex items-center gap-2">
           {!isDemoSession && step === steps.length - 1 && result && (
