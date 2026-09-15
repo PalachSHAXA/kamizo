@@ -186,9 +186,18 @@ export default function IncomePage() {
       {isDemoSession && <FinanceDemoReadOnlyBanner />}
 
       {/* Filters */}
+      {/* fix/mobile-income-filter-grid (C2): раньше был `flex-col sm:flex-row
+          items-end` — на mobile flex-col + items-end выравнивал детей
+          вправо, а `flex-1 min-w-0` в column direction не задаёт width, и
+          дети ужимались до intrinsic. Итог — все контролы (Период, дата,
+          Категория, Применить) прижаты к правой половине card, левые 50%
+          пустуют. Фикс: `items-stretch` на mobile (default flex-col), явно
+          `w-full` на inner div'ах чтобы input'ы растянулись, и sm:items-end
+          для десктопа — там column flip'ится в row и flex-1 работает как
+          надо. */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-4">
-        <div className="flex flex-col sm:flex-row items-end gap-3">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="w-full sm:flex-1 sm:min-w-0">
             <label className="block text-xs font-medium text-gray-500 mb-1">
               <Calendar className="w-3.5 h-3.5 inline mr-1" />
               {t('Период', 'Davr')}
@@ -200,7 +209,7 @@ export default function IncomePage() {
               className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="w-full sm:flex-1 sm:min-w-0">
             <label className="block text-xs font-medium text-gray-500 mb-1">
               <Tag className="w-3.5 h-3.5 inline mr-1" />
               {t('Категория', 'Kategoriya')}
@@ -220,7 +229,7 @@ export default function IncomePage() {
           </div>
           <button
             onClick={handleApplyFilters}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+            className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Filter className="w-4 h-4" />
             {t('Применить', 'Qo\'llash')}
@@ -229,18 +238,25 @@ export default function IncomePage() {
       </div>
 
       {/* Summary Card */}
+      {/* fix/mobile-income-filter-grid (C3): раньше правая колонка «Записей»
+          в flex-row не имела flex-shrink-0/whitespace-nowrap. На 320px после
+          иконки (48px) + «Общий доход» / «803 322,14 сум» (крупный текст)
+          у правой колонки оставалось ~5px, и «Записей» переносилось по
+          буквам вертикально (З/а/п/и/с/е/й). Фикс: shrink-0 + whitespace-nowrap
+          + допустимая упаковка в column на mobile (иконка + сумма → 1 row,
+          «Записей: N» → 2 row) — стакается вертикально когда не влезает. */}
       <div className="bg-white/60 backdrop-blur-xl rounded-xl border border-gray-100 shadow-sm p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
             <Banknote className="w-6 h-6 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-sm text-gray-500">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-gray-500 truncate">
               {t('Общий доход за период', 'Davr uchun umumiy daromad')}
             </p>
-            <p className="text-2xl font-bold text-gray-900">{formatAmount(totalIncome)}</p>
+            <p className="text-2xl font-bold text-gray-900 break-words">{formatAmount(totalIncome)}</p>
           </div>
-          <div className="ml-auto text-right">
+          <div className="text-right shrink-0 whitespace-nowrap">
             <p className="text-xs text-gray-400">{t('Записей', 'Yozuvlar')}</p>
             <p className="text-lg font-semibold text-gray-700">{filteredIncome.length}</p>
           </div>
