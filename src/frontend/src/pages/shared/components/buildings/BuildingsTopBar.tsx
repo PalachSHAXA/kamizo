@@ -52,48 +52,53 @@ export function BuildingsTopBar({
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
 
   return (
-    <div className="h-[52px] bg-white border-b border-gray-200 flex items-center px-5 gap-3 flex-shrink-0">
-      {viewLevel !== 'branches' && (
-        <button
-          onClick={onBack}
-          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-      )}
+    <div className="bg-white border-b border-gray-200 flex-shrink-0 px-3 sm:px-5 py-2 sm:py-0 sm:h-[52px] flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+      {/* Row 1 (mobile) / left (desktop): back + breadcrumb */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 sm:flex-initial">
+        {viewLevel !== 'branches' && (
+          <button
+            onClick={onBack}
+            aria-label={t('Назад', 'Orqaga')}
+            className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all flex-shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+        )}
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-[13px] text-gray-400">
-        <button
-          onClick={onBreadcrumbBranches}
-          className={`hover:text-orange-500 transition-colors ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
-        >
-          {t('Комплексы', 'Komplekslar')}
-        </button>
-        {selectedBranch && (
-          <>
-            <ChevronRight className="w-3 h-3 text-gray-300" />
-            <button
-              onClick={onBreadcrumbBuildings}
-              className={`hover:text-orange-500 transition-colors ${viewLevel === 'buildings' ? 'text-gray-900 font-bold' : ''}`}
-            >
-              {selectedBranch.name}
-            </button>
-          </>
-        )}
-        {selectedBuilding && (
-          <>
-            <ChevronRight className="w-3 h-3 text-gray-300" />
-            <span className="text-gray-900 font-bold">{selectedBuilding.name}</span>
-          </>
-        )}
+        {/* Breadcrumb — truncate on narrow, no per-letter break */}
+        <div className="flex items-center gap-1.5 text-[13px] text-gray-400 min-w-0 flex-1 sm:flex-initial overflow-hidden">
+          <button
+            onClick={onBreadcrumbBranches}
+            className={`hover:text-orange-500 transition-colors whitespace-nowrap flex-shrink-0 ${viewLevel === 'branches' ? 'text-gray-900 font-bold' : ''}`}
+          >
+            {t('Комплексы', 'Komplekslar')}
+          </button>
+          {selectedBranch && (
+            <>
+              <ChevronRight className="w-3 h-3 text-gray-300 flex-shrink-0" />
+              <button
+                onClick={onBreadcrumbBuildings}
+                className={`hover:text-orange-500 transition-colors truncate min-w-0 ${viewLevel === 'buildings' ? 'text-gray-900 font-bold' : ''}`}
+              >
+                {selectedBranch.name}
+              </button>
+            </>
+          )}
+          {selectedBuilding && (
+            <>
+              <ChevronRight className="w-3 h-3 text-gray-300 flex-shrink-0" />
+              <span className="text-gray-900 font-bold truncate min-w-0">{selectedBuilding.name}</span>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Right buttons */}
-      <div className="flex items-center gap-2 ml-auto">
+      {/* Row 2 (mobile) / right (desktop): action buttons — nowrap, icon-only add on narrow */}
+      <div className="flex items-center gap-2 sm:ml-auto flex-shrink-0">
         <button
           onClick={onRefresh}
-          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all"
+          aria-label={t('Обновить', 'Yangilash')}
+          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400 hover:border-orange-400 hover:text-orange-500 transition-all flex-shrink-0"
         >
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
@@ -102,20 +107,20 @@ export function BuildingsTopBar({
           <button
             onClick={onGenerateApartments}
             disabled={isGenerating}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-orange-400 hover:text-orange-500 transition-all disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-orange-400 hover:text-orange-500 transition-all disabled:opacity-50 whitespace-nowrap"
           >
             {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-            {t('Сгенерировать', 'Yaratish')}
+            <span className="hidden min-[400px]:inline">{t('Сгенерировать', 'Yaratish')}</span>
           </button>
         )}
 
         {viewLevel === 'entrances' && apartments.length > 0 && (
           <button
             onClick={onAddApartment}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-orange-400 hover:text-orange-500 transition-all"
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-orange-400 hover:text-orange-500 transition-all whitespace-nowrap"
           >
             <Plus className="w-3.5 h-3.5" />
-            {t('Добавить кв.', "Xonadon qo'shish")}
+            <span className="hidden min-[400px]:inline">{t('Добавить кв.', "Xonadon qo'shish")}</span>
           </button>
         )}
 
@@ -125,27 +130,29 @@ export function BuildingsTopBar({
               <button
                 onClick={(e) => onExportBranch(selectedBranch, e)}
                 disabled={exportingBranchId === selectedBranch.id}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-green-400 hover:text-green-600 transition-all disabled:opacity-50"
+                aria-label={t('Экспорт', 'Eksport')}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-green-400 hover:text-green-600 transition-all disabled:opacity-50 whitespace-nowrap"
               >
                 {exportingBranchId === selectedBranch.id
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Download className="w-3.5 h-3.5" />}
-                {t('Экспорт', 'Eksport')}
+                <span className="hidden min-[400px]:inline">{t('Экспорт', 'Eksport')}</span>
               </button>
             )}
             <button
               onClick={onOpenImport}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-blue-400 hover:text-blue-500 transition-all"
+              aria-label={t('Импорт', 'Import')}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold flex items-center gap-1.5 hover:border-blue-400 hover:text-blue-500 transition-all whitespace-nowrap"
             >
               <Upload className="w-3.5 h-3.5" />
-              {t('Импорт', 'Import')}
+              <span className="hidden min-[400px]:inline">{t('Импорт', 'Import')}</span>
             </button>
           </>
         )}
 
         <button
           onClick={onAdd}
-          className="px-3.5 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-bold flex items-center gap-1.5 hover:bg-orange-600 transition-all"
+          className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-bold flex items-center gap-1.5 hover:bg-orange-600 transition-all whitespace-nowrap"
         >
           <Plus className="w-3.5 h-3.5" />
           {viewLevel === 'branches' && t('Комплекс', 'Kompleks')}
