@@ -154,8 +154,14 @@ export function RentalsModerationPage() {
           </span>
         </div>
 
-        {/* Tab chips — horizontal scroller */}
-        <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {/* Tab chips — horizontal scroller with fade-mask indicator on right edge */}
+        <div
+          className="px-4 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+          style={{
+            WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+            maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+          }}
+        >
           {TABS.map(tab => {
             const on = activeTab === tab.key;
             const count = counts[tab.key];
@@ -163,7 +169,7 @@ export function RentalsModerationPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all whitespace-nowrap ${
+                className={`flex-shrink-0 snap-start px-2.5 py-1.5 rounded-full text-[12px] font-bold transition-all whitespace-nowrap ${
                   on ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'
                 }`}
               >

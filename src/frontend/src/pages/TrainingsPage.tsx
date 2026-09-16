@@ -81,8 +81,8 @@ export default function TrainingsPage() {
   return (
     <div className="space-y-6">
       {/* Заголовок */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 sm:flex-1">
           <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
             <GraduationCap className="w-5 h-5 text-white" />
           </div>
@@ -97,11 +97,11 @@ export default function TrainingsPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full sm:w-auto">
           {isAdmin && !isDemoSession && (
             <button
               onClick={() => setShowAdminPanel(true)}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 flex-1 sm:flex-initial whitespace-nowrap"
             >
               <Settings className="w-4 h-4" />
               {language === 'ru' ? 'Управление' : 'Boshqarish'}
@@ -109,7 +109,7 @@ export default function TrainingsPage() {
           )}
           {!isDemoSession && <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 flex-1 sm:flex-initial whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             {language === 'ru' ? 'Предложить тренинг' : 'Trening taklif qilish'}
@@ -179,11 +179,11 @@ export default function TrainingsPage() {
                 key={proposal.id}
                 className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{proposal.topic}</h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${TRAINING_STATUS_COLORS[proposal.status]}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start flex-wrap gap-x-3 gap-y-1 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900 min-w-0 flex-1 break-words">{proposal.topic}</h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 self-start ${TRAINING_STATUS_COLORS[proposal.status]}`}>
                         {TRAINING_STATUS_LABELS[proposal.status]}
                       </span>
                     </div>
@@ -192,15 +192,17 @@ export default function TrainingsPage() {
                       <p className="text-gray-600 mb-3">{proposal.description}</p>
                     )}
 
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        {language === 'ru' ? 'Лектор' : 'Lektor'}: {proposal.partnerName}
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <User className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">
+                          {language === 'ru' ? 'Лектор' : 'Lektor'}: {proposal.partnerName}
+                        </span>
                       </span>
-                      <span className="flex items-center gap-1">{FORMAT_LABELS[proposal.format]}</span>
+                      <span className="flex items-center gap-1 whitespace-nowrap flex-shrink-0">{FORMAT_LABELS[proposal.format]}</span>
                       {proposal.status === 'scheduled' && (
-                        <span className="flex items-center gap-1 text-purple-600">
-                          <Calendar className="w-4 h-4" />
+                        <span className="flex items-center gap-1 text-purple-600 whitespace-nowrap flex-shrink-0">
+                          <Calendar className="w-4 h-4 flex-shrink-0" />
                           {proposal.scheduledDate} {language === 'ru' ? 'в' : 'da'} {proposal.scheduledTime}
                         </span>
                       )}
