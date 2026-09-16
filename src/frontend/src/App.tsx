@@ -27,6 +27,7 @@ import { getRouteRoles, isResidentMeetingsRole } from './navigation/adminNavigat
 const Layout = lazyWithRetry(() =>
   import('./components/layout/Layout').then((module) => ({ default: module.Layout }))
 );
+const TelegramActivationDemoPage = lazyWithRetry(() => import('./pages/TelegramActivationDemoPage'));
 
 const AppShellFallback = () => (
   <div
@@ -285,6 +286,7 @@ function App() {
           <NavigationDirectionTracker />
           <Suspense fallback={<AppShellFallback />}>
             <Routes>
+            <Route path="/telegram-activation-demo" element={<TelegramActivationDemoPage />} />
             <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
             {/* v118.36 — full-screen chrome-less routes go HERE, before
                 the Layout-wrapped /* catch-all. AddCarPage owns the whole
