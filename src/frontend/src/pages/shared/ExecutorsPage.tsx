@@ -231,24 +231,24 @@ export function ExecutorsPage() {
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-clip pb-24 md:pb-0">
-      <div className="flex flex-col min-[361px]:flex-row min-[361px]:items-center min-[361px]:justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
             {isDepartmentHead
               ? (language === 'ru' ? 'Мои сотрудники' : 'Mening xodimlarim')
               : (language === 'ru' ? 'Исполнители' : 'Ijrochilar')}
           </h1>
           {isDepartmentHead && userSpecialization && (
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="text-gray-500 text-sm mt-1 truncate">
               {language === 'ru' ? 'Отдел' : 'Bo\'lim'}: {specLabels[userSpecialization as ExecutorSpecialization]}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => fetchExecutors()}
-            className="btn-secondary p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95"
+            className="btn-secondary p-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation active:scale-95 flex-shrink-0"
             title={language === 'ru' ? 'Обновить' : 'Yangilash'}
             aria-label={language === 'ru' ? 'Обновить список исполнителей' : 'Ijrochilar ro\'yxatini yangilash'}
             disabled={isLoadingExecutors}
@@ -270,7 +270,7 @@ export function ExecutorsPage() {
               }
               setShowAddModal(true);
             }}
-            className="btn-primary min-h-[44px] min-w-0 max-w-full touch-manipulation active:scale-95 whitespace-nowrap"
+            className="btn-primary min-h-[44px] flex-1 sm:flex-initial touch-manipulation active:scale-95 whitespace-nowrap"
             aria-label={language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
           >
             + {language === 'ru' ? 'Добавить исполнителя' : 'Ijrochi qo\'shish'}
