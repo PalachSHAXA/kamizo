@@ -317,14 +317,15 @@ export function VehicleSearchPage() {
             <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Реестр транспорта на территории' : 'Hudud transporti reestri'}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span className="hidden sm:inline text-sm text-gray-500 whitespace-nowrap">
             {language === 'ru' ? 'Всего:' : 'Jami:'} {vehicles.length}
           </span>
           {isManager && (
             <button
               onClick={() => handleOpenModal()}
               className="btn-primary flex items-center gap-2 min-h-[44px] touch-manipulation"
+              aria-label={language === 'ru' ? 'Добавить автомобиль' : 'Avtomobil qo\'shish'}
             >
               <Plus className="w-5 h-5" />
               <span className="hidden sm:inline">
@@ -671,15 +672,15 @@ export function VehicleSearchPage() {
         <div className="glass-card p-4">
           <button
             onClick={() => setShowAllVehicles(!showAllVehicles)}
-            className="w-full flex items-center justify-between py-2"
+            className="w-full flex items-center justify-between gap-3 py-2"
           >
-            <span className="font-medium text-gray-700">
+            <span className="font-medium text-gray-700 min-w-0 flex-1 text-left">
               {language === 'ru' ? 'Все зарегистрированные автомобили' : 'Barcha ro\'yxatga olingan avtomobillar'}
-              <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-100 text-primary-600 text-sm">
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-100 text-primary-600 text-sm whitespace-nowrap">
                 {vehicles.length}
               </span>
             </span>
-            <span className="text-primary-500 text-sm">
+            <span className="text-primary-500 text-sm whitespace-nowrap flex-shrink-0">
               {showAllVehicles ? (language === 'ru' ? 'Скрыть' : 'Yashirish') : (language === 'ru' ? 'Показать' : 'Ko\'rsatish')}
             </span>
           </button>
