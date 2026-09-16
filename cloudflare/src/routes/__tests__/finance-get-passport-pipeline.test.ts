@@ -86,6 +86,10 @@ describe('GET /api/finance/estimates/:id — passport pipeline', () => {
       'b.parking_area         as building_parking_area',
       'b.basement_area        as building_basement_area',
       'b.technical_rooms_area as building_technical_rooms_area',
+      // PR-11 (миграция 090)
+      'b.trees_area           as building_trees_area',
+      'b.playground_area      as building_playground_area',
+      'b.sports_ground_area   as building_sports_ground_area',
     ]) {
       expect(selectCall.sql).toContain(field);
     }
@@ -98,6 +102,9 @@ describe('GET /api/finance/estimates/:id — passport pipeline', () => {
       building_parking_area: 800,
       building_basement_area: 600,
       building_technical_rooms_area: 250,
+      building_trees_area: 340,
+      building_playground_area: 120,
+      building_sports_ground_area: 250,
       building_year_built: 2015,
     };
     const { db } = makeDb(est);
@@ -111,6 +118,9 @@ describe('GET /api/finance/estimates/:id — passport pipeline', () => {
     expect(body.estimate.building_parking_area).toBe(800);
     expect(body.estimate.building_basement_area).toBe(600);
     expect(body.estimate.building_technical_rooms_area).toBe(250);
+    expect(body.estimate.building_trees_area).toBe(340);
+    expect(body.estimate.building_playground_area).toBe(120);
+    expect(body.estimate.building_sports_ground_area).toBe(250);
     expect(body.estimate.building_year_built).toBe(2015);
     expect(body.estimate.building_name).toBe('93/3');
   });
@@ -122,6 +132,9 @@ describe('GET /api/finance/estimates/:id — passport pipeline', () => {
       building_parking_area: null,
       building_basement_area: null,
       building_technical_rooms_area: null,
+      building_trees_area: null,
+      building_playground_area: null,
+      building_sports_ground_area: null,
     };
     const { db } = makeDb(est);
     const handler = mocks.handlers.get('GET /api/finance/estimates/:id')!;
@@ -136,5 +149,8 @@ describe('GET /api/finance/estimates/:id — passport pipeline', () => {
     expect(body.estimate.building_parking_area).toBeNull();
     expect(body.estimate.building_basement_area).toBeNull();
     expect(body.estimate.building_technical_rooms_area).toBeNull();
+    expect(body.estimate.building_trees_area).toBeNull();
+    expect(body.estimate.building_playground_area).toBeNull();
+    expect(body.estimate.building_sports_ground_area).toBeNull();
   });
 });

@@ -50,6 +50,10 @@ route('PATCH', '/api/buildings/:id', async (request, env, params) => {
     parking_area: 'parking_area', parkingArea: 'parking_area',
     basement_area: 'basement_area', basementArea: 'basement_area',
     technical_rooms_area: 'technical_rooms_area', technicalRoomsArea: 'technical_rooms_area',
+    // PR-11: озеленение + детская/спортивная площадка (миграция 090).
+    trees_area: 'trees_area', treesArea: 'trees_area',
+    playground_area: 'playground_area', playgroundArea: 'playground_area',
+    sports_ground_area: 'sports_ground_area', sportsGroundArea: 'sports_ground_area',
     manager_id: 'manager_id', managerId: 'manager_id',
     manager_name: 'manager_name', managerName: 'manager_name',
     management_start_date: 'management_start_date', managementStartDate: 'management_start_date',
