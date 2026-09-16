@@ -1,15 +1,20 @@
 // PR-6 (feat/smeta-building-passport) блок A: секция «Паспорт МКД»
 // в PDF сметы. Показывает базовые характеристики здания (адрес, площади,
 // год постройки, отопление и т.п.) плюс дополнительные площади из
-// миграции 084 (parking_area / basement_area / technical_rooms_area).
+// миграции 084 (parking_area / basement_area / technical_rooms_area)
+// и миграции 090 (trees_area / playground_area / sports_ground_area — PR-11).
 //
 // Правило рендера:
-//   - Секция показывается ТОЛЬКО если хотя бы одно из ТРЁХ НОВЫХ полей
-//     заполнено. Все три NULL → секция не рендерится (baseline-инвариант:
-//     сегодняшний PDF для myhelper 2026-08 не меняется).
+//   - Секция показывается ТОЛЬКО если хотя бы одно из ШЕСТИ ТРИГГЕР-ПОЛЕЙ
+//     заполнено (parking/basement/tech + trees/playground/sports). Все NULL
+//     → секция не рендерится (baseline-инвариант: сегодняшний PDF для
+//     myhelper 2026-08 не меняется).
 //   - Существующие поля (floors, land_area, year_built, heating_type)
 //     НЕ триггерят секцию сами по себе — они на 100% заполнены у всех
 //     prod-зданий, и включение бы сломало baseline SHA256.
+//   - Внутри секции каждая строка условная (pushIf): если конкретное поле
+//     NULL/0/пусто — строка не рендерится, но остальные видны. Так дом
+//     с только детской площадкой не получит пустых «Спортплощадка: —».
 //
 // Backend GET /api/buildings/:id уже возвращает SELECT * → новые поля
 // приходят в объекте building автоматически (nullable). Frontend передаёт
@@ -33,20 +38,28 @@ export interface BuildingPassportFields {
   has_elevator?: number | boolean | null;
   parking_spaces?: number | null;
 
-  // PR-6 blockA — миграция 084 (новые поля, триггерят рендер секции):
+  // PR-6 blockA — миграция 084 (триггерят рендер секции):
   parking_area?: number | null;
   basement_area?: number | null;
   technical_rooms_area?: number | null;
+
+  // PR-11 — миграция 090 (тоже триггерят рендер секции):
+  trees_area?: number | null;
+  playground_area?: number | null;
+  sports_ground_area?: number | null;
 }
 
-/** true если хотя бы одно из ТРЁХ НОВЫХ полей задано (>0 и не null).
+/** true если хотя бы одно из ШЕСТИ триггер-полей задано (>0 и не null).
  *  Именно этот флаг решает, показывать ли секцию в PDF. */
 export function hasExtendedPassportData(b: BuildingPassportFields | null | undefined): boolean {
   if (!b) return false;
   const p = Number(b.parking_area ?? 0);
   const bs = Number(b.basement_area ?? 0);
   const tr = Number(b.technical_rooms_area ?? 0);
-  return p > 0 || bs > 0 || tr > 0;
+  const tree = Number(b.trees_area ?? 0);
+  const play = Number(b.playground_area ?? 0);
+  const sport = Number(b.sports_ground_area ?? 0);
+  return p > 0 || bs > 0 || tr > 0 || tree > 0 || play > 0 || sport > 0;
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('ru-RU').format(Math.round(n)).replace(/ /g, ' ');
@@ -76,6 +89,11 @@ function collectRows(b: BuildingPassportFields, lang: 'ru' | 'uz'): FieldRow[] {
   pushIf(ru ? 'Площадь парковки, м²' : 'Avtoturargoh maydoni, m²', b.parking_area, (n) => fmt(n));
   pushIf(ru ? 'Площадь подвала, м²' : 'Podval maydoni, m²', b.basement_area, (n) => fmt(n));
   pushIf(ru ? 'Тех. помещения, м²' : 'Texnik xonalar, m²', b.technical_rooms_area, (n) => fmt(n));
+  // PR-11: озеленение + детская/спортивная площадка — идут ПОСЛЕ парковки/подвала/тех,
+  // порядок фиксирован для инварианта PDF SHA256 (см. estimateBuildingPassport.test.ts).
+  pushIf(ru ? 'Площадь озеленения, м²' : "Ko'kalamzorlashtirish, m²", b.trees_area, (n) => fmt(n));
+  pushIf(ru ? 'Детская площадка, м²' : "Bolalar maydonchasi, m²", b.playground_area, (n) => fmt(n));
+  pushIf(ru ? 'Спортплощадка, м²' : "Sport maydonchasi, m²", b.sports_ground_area, (n) => fmt(n));
   pushIf(ru ? 'Год постройки' : 'Qurilgan yil', b.year_built);
   pushIf(ru ? 'Год кап.ремонта' : 'Kapital ta\'mir yili', b.year_renovated);
   pushIf(ru ? 'Тип отопления' : 'Isitish turi', b.heating_type);

@@ -144,6 +144,9 @@ route('GET', '/api/finance/estimates/:id', async (request, env, params) => {
             b.parking_area         as building_parking_area,
             b.basement_area        as building_basement_area,
             b.technical_rooms_area as building_technical_rooms_area,
+            b.trees_area           as building_trees_area,
+            b.playground_area      as building_playground_area,
+            b.sports_ground_area   as building_sports_ground_area,
             su.name as submitted_by_name, au.name as approved_by_name, ru.name as rejected_by_name
        FROM finance_estimates e
        LEFT JOIN buildings b ON e.building_id = b.id

@@ -1583,6 +1583,10 @@ export default function EstimatesPage() {
                       parking_area: est.building_parking_area ?? null,
                       basement_area: est.building_basement_area ?? null,
                       technical_rooms_area: est.building_technical_rooms_area ?? null,
+                      // PR-11 (миграция 090): озеленение + детская/спортивная площадка
+                      trees_area: est.building_trees_area ?? null,
+                      playground_area: est.building_playground_area ?? null,
+                      sports_ground_area: est.building_sports_ground_area ?? null,
                     } : null;
                     const fallbackBuildings = buildings.map((building) => ({
                       id: building.id,
