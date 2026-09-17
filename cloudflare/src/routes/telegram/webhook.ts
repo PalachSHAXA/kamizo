@@ -70,6 +70,10 @@ const T = {
     ? 'Этот чат пока не связан с аккаунтом Kamizo. Если хотите подключить его, откройте Kamizo → Настройки → «Привязать Telegram».'
     : 'Bu chat hozircha Kamizo hisobiga ulanmagan. Uni ulash uchun Kamizo → Sozlamalar → «Telegramni ulash» bo‘limini oching.',
 
+  privateFallback: (ru: boolean) => ru
+    ? 'Здравствуйте! В личном чате я помогаю подключить Telegram и защитить вход в Kamizo.\n\nИспользуйте /help, чтобы посмотреть доступные команды.'
+    : 'Assalomu alaykum! Shaxsiy chatda Telegramni ulash va Kamizoga kirishni himoyalashga yordam beraman.\n\nMavjud buyruqlarni ko‘rish uchun /help ni yuboring.',
+
   help: (ru: boolean, group = false) => ru
     ? `Здравствуйте! Я помогу быстро перейти к нужной функции Kamizo:\n\n• оформить заявку по дому\n• сдать или найти квартиру\n• найти услугу или товар\n• оформить гостевой пропуск\n• проверить QR-код\n• найти владельца автомобиля${group ? '\n\nПросто опишите, что вам нужно, и я постараюсь подсказать подходящий раздел.' : '\n\nКоманды:\n/start — узнать, как подключить аккаунт\n/phone — добавить или изменить номер\n/unlink — отключить Telegram\n/help — показать эту справку'}`
     : `Assalomu alaykum! Kamizodagi kerakli funksiyani tez topishga yordam beraman:\n\n• uy bo‘yicha ariza yaratish\n• kvartira topish yoki ijaraga berish\n• xizmat yoki mahsulot topish\n• mehmon ruxsatnomasini yaratish\n• QR-kodni tekshirish\n• avtomobil egasini topish${group ? '\n\nNima kerakligini yozing, mos bo‘limni topishga harakat qilaman.' : '\n\nBuyruqlar:\n/start — hisobni ulash haqida maʼlumot\n/phone — raqam qo‘shish yoki o‘zgartirish\n/unlink — Telegramni uzish\n/help — shu yordamni ko‘rsatish'}`,
@@ -233,6 +237,9 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       const isGroupChat = message.chat?.type === 'group' || message.chat?.type === 'supergroup';
       if (isGroupChat && update.message) {
         await handleGroupMessage(e, message, log);
+      } else if (message.chat?.type === 'private' && update.message && text.trim()) {
+        const ru = !String(message.from?.language_code || '').startsWith('uz');
+        await sendTelegramMessage(e, chatId, T.privateFallback(ru));
       }
       return json({ ok: true });
     }
