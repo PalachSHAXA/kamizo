@@ -43,6 +43,9 @@ import {
 import { resolveLoginRequest } from './login-approval';
 import { handleGroupMessage, handleSuggestionCallback } from './dispatcher';
 import { offerPhoneShare, handleContactShared, handlePhoneCallback } from './phone';
+import {
+  handleActivationCallback, handleActivationContact, handleActivationStart,
+} from './activation';
 
 // Тексты бота. i18n тем же паттерном, что во всём проекте:
 // language === 'ru' ? ... : ... (CLAUDE.md). Язык берём из
@@ -184,6 +187,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       await resolveLoginRequest(e, update.callback_query, log);
       await handleSuggestionCallback(e, update.callback_query, log);
       await handlePhoneCallback(e, update.callback_query, log);
+      await handleActivationCallback(e, update.callback_query);
       return json({ ok: true });
     }
 
@@ -221,6 +225,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
     // Житель поделился контактом (кнопка request_contact в личке).
     // Проверка «свой контакт или чужой» — внутри обработчика.
     if (message.contact) {
+      if (await handleActivationContact(e, message)) return json({ ok: true });
       await handleContactShared(e, message, log);
       return json({ ok: true });
     }
@@ -302,7 +307,13 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
          WHERE token = ? AND used_at IS NULL`
       ).bind(payload).first() as any;
 
-      if (!row || new Date(row.expires_at) < new Date()) {
+      if (!row) {
+        if (await handleActivationStart(e, message, payload)) return json({ ok: true });
+        await sendTelegramMessage(e, chatId, T.badToken(ru));
+        return json({ ok: true });
+      }
+
+      if (new Date(row.expires_at) < new Date()) {
         await sendTelegramMessage(e, chatId, T.badToken(ru));
         return json({ ok: true });
       }

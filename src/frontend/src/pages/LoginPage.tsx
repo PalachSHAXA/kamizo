@@ -6,6 +6,8 @@ import { useTenantStore } from '../stores/tenantStore';
 import { AppLogo } from '../components/common/AppLogo';
 import { authApi } from '../services/api/auth';
 import type { DemoRole } from '../types/auth';
+import { TelegramActivationFlow } from '../components/auth/TelegramActivationFlow';
+import { RecoveryCodeFlow } from '../components/auth/RecoveryCodeFlow';
 
 const DEMO_GATE_SESSION_KEY = 'kamizo_demo_gate';
 const DEMO_GATE_DIGEST = '5532bcd984f55a53a1ab897267b9ac10323e17dcfea9fbf35b2fe46ea1c19864';
@@ -146,6 +148,7 @@ export function LoginPage() {
   const pendingApproval = useAuthStore((state) => state.pendingApproval);
   const awaitLoginApproval = useAuthStore((state) => state.awaitLoginApproval);
   const clearPendingApproval = useAuthStore((state) => state.clearPendingApproval);
+  const pendingActivation = useAuthStore((state) => state.pendingActivation);
   const language = useLanguageStore((state) => state.language);
   const setLanguage = useLanguageStore((state) => state.setLanguage);
   const t = useLanguageStore((state) => state.t);
@@ -188,6 +191,7 @@ export function LoginPage() {
   const [approvalCodeError, setApprovalCodeError] = useState('');
   const [approvalCodeAccepted, setApprovalCodeAccepted] = useState(false);
   const [isVerifyingApprovalCode, setIsVerifyingApprovalCode] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
 
   const languages: { code: Language; label: string; flag: string }[] = [
     { code: 'ru', label: 'RU', flag: '🇷🇺' },
@@ -702,6 +706,11 @@ export function LoginPage() {
           >
             {authLoading ? (language === 'ru' ? 'Вход...' : 'Kirish...') : (language === 'ru' ? 'Войти' : 'Kirish')}
           </button>
+          {tenant?.slug && tenant.slug !== 'demo' && (
+            <button type="button" onClick={() => setRecoveryOpen(true)} className="w-full py-2 text-sm font-medium text-gray-500 hover:text-gray-800">
+              {language === 'ru' ? 'Войти по резервному коду' : 'Zaxira kodi bilan kirish'}
+            </button>
+          )}
         </form>
 
         {/* Footer text */}
@@ -768,6 +777,9 @@ export function LoginPage() {
       </div>
 
 
+
+      {pendingActivation && <TelegramActivationFlow />}
+      {recoveryOpen && tenant?.slug && <RecoveryCodeFlow tenantSlug={tenant.slug} onClose={() => setRecoveryOpen(false)} />}
 
       {pendingApproval && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/95 px-6" style={{ height: '100svh' }}>

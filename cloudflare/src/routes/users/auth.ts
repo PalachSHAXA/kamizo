@@ -11,7 +11,8 @@ import { createRequestLogger } from '../../utils/logger';
 import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
-import { createLoginApproval } from '../telegram/login-approval';
+import { createLoginApproval, TelegramApprovalUnavailableError } from '../telegram/login-approval';
+import { createFirstLoginActivation, normalizeActivationPhone } from '../telegram/activation';
 
 const NATIVE_APP_ORIGINS = new Set([
   'https://localhost',
@@ -66,7 +67,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   // no apartment (directors, managers, super-admins, advertisers).
   // Tenant isolation is enforced by `tenant_id = users.tenant_id` —
   // super-admin or empty-tenant users get NULL.
-  const userFields = `id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
+  const userFields = `id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, auth_revoked_at, telegram_activation_required, telegram_activated_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
 
   // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
   // then verify against each candidate" code leaked timing because the
@@ -463,8 +464,33 @@ route('POST', '/api/auth/login', async (request, env) => {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'X-RateLimit-Limit': '5',
     'X-RateLimit-Remaining': rateLimit.remaining.toString(),
-    'X-RateLimit-Reset': rateLimit.resetAt.toString()
+    'X-RateLimit-Reset': rateLimit.resetAt.toString(),
+    'Cache-Control': 'no-store',
+    'Pragma': 'no-cache',
   };
+
+  if (Number(user.telegram_activation_required) === 1 && !user.telegram_activated_at) {
+    const activation = await createFirstLoginActivation(env, {
+      id: user.id,
+      tenant_id: user.tenant_id,
+      phone: user.phone,
+      auth_revoked_at: user.auth_revoked_at,
+    });
+    if (!activation) {
+      return new Response(JSON.stringify({
+        error: 'Telegram activation is required. Contact your administrator to verify the phone number.',
+        activationUnavailable: true,
+      }), { status: 409, headers });
+    }
+    return new Response(JSON.stringify({
+      requiresTelegramActivation: true,
+      ...activation,
+      account: {
+        name: user.name,
+        phone: user.phone ? String(user.phone).replace(/.(?=.{4})/g, '•') : null,
+      },
+    }), { status: 200, headers });
+  }
 
   // Второй фактор через Telegram (ТЗ §17, Этап 4).
   //
@@ -480,16 +506,27 @@ route('POST', '/api/auth/login', async (request, env) => {
   // недоступен). Во втором случае вход проходит как обычно, а факт
   // пишется в лог — иначе падение стороннего сервиса превращается в
   // отказ в обслуживании для всех, кто включил защиту.
-  const approval = await createLoginApproval(
-    env,
-    { id: user.id, name: user.name, tenant_id: user.tenant_id },
-    {
-      device: request.headers.get('User-Agent'),
-      ip: request.headers.get('CF-Connecting-IP')
-        || request.headers.get('X-Forwarded-For'),
-    },
-    createRequestLogger(request)
-  );
+  let approval;
+  try {
+    approval = await createLoginApproval(
+      env,
+      { id: user.id, name: user.name, tenant_id: user.tenant_id },
+      {
+        device: request.headers.get('User-Agent'),
+        ip: request.headers.get('CF-Connecting-IP')
+          || request.headers.get('X-Forwarded-For'),
+      },
+      createRequestLogger(request)
+    );
+  } catch (approvalError) {
+    if (approvalError instanceof TelegramApprovalUnavailableError) {
+      return new Response(JSON.stringify({
+        error: 'Telegram confirmation is temporarily unavailable. Please try again later or use a recovery code.',
+        telegramApprovalUnavailable: true,
+      }), { status: 503, headers });
+    }
+    throw approvalError;
+  }
 
   if (approval) {
     // JWT здесь НЕ выдаётся. Клиент опрашивает
@@ -576,11 +613,12 @@ route('POST', '/api/auth/register', async (request, env) => {
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
+  const activationPhone = normalizeActivationPhone(phone);
 
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
+    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id, telegram_activation_required)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, name, role, activationPhone || phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId, activationPhone ? 1 : 0).run();
 
   // Auto-create apartment record if resident has building_id + apartment number
   if (building_id && apartment && (role === 'resident' || role === 'tenant')) {
