@@ -33,7 +33,18 @@ export interface TenantPickEntry {
 export type LoginResult =
   | { kind: 'success'; user: unknown; token: string }
   | { kind: 'picker'; tenants: TenantPickEntry[] }
+  | { kind: 'activation'; activation: TelegramActivation }
   | { kind: 'approval'; requestId: string; expiresAt: string };
+
+export interface TelegramActivation {
+  requestId: string;
+  tenantId: string;
+  browserSecret: string;
+  telegramUrl: string;
+  expiresAt: string;
+  challenge: string;
+  account: { name: string; phone: string | null };
+}
 
 interface LoginSuccessResponse {
   user: UserApiResponse;
@@ -52,7 +63,11 @@ interface LoginApprovalResponse {
   expiresAt: string;
 }
 
-type LoginResponse = LoginSuccessResponse | LoginPickerResponse | LoginApprovalResponse;
+interface LoginActivationResponse extends TelegramActivation {
+  requiresTelegramActivation: true;
+}
+
+type LoginResponse = LoginSuccessResponse | LoginPickerResponse | LoginApprovalResponse | LoginActivationResponse;
 
 interface DemoRolesResponse {
   roles: DemoRole[];
@@ -76,7 +91,34 @@ function isApprovalResponse(r: LoginResponse): r is LoginApprovalResponse {
   return 'requiresApproval' in r && r.requiresApproval === true;
 }
 
+function isActivationResponse(r: LoginResponse): r is LoginActivationResponse {
+  return 'requiresTelegramActivation' in r && r.requiresTelegramActivation === true;
+}
+
 export const authApi = {
+  recoverWithCode: async (login: string, tenantSlug: string, code: string, newPassword: string) => {
+    const result = await apiRequest<{ user: UserApiResponse; token: string }>('/api/auth/recovery-code', {
+      method: 'POST',
+      body: JSON.stringify({ login, tenantSlug, code, newPassword }),
+    });
+    return { user: transformUser(result.user), token: result.token };
+  },
+  telegramActivationStatus: (requestId: string, tenantId: string, browserSecret: string) =>
+    apiRequest<{ status: 'pending' | 'awaiting_contact' | 'awaiting_match' | 'approved' | 'denied' | 'expired' | 'consumed' }>(
+      '/api/auth/telegram-activation/status', {
+        method: 'POST',
+        body: JSON.stringify({ requestId, tenantId, browserSecret }),
+      },
+    ),
+
+  completeTelegramActivation: (requestId: string, tenantId: string, browserSecret: string, newPassword: string) =>
+    apiRequest<{ user: UserApiResponse; token: string; recoveryCodes: string[] }>(
+      '/api/auth/telegram-activation/complete', {
+        method: 'POST',
+        body: JSON.stringify({ requestId, tenantId, browserSecret, newPassword }),
+      },
+    ),
+
   verifyLoginApprovalCode: (requestId: string, code: string) =>
     apiRequest<{
       verified: boolean;
@@ -145,6 +187,21 @@ export const authApi = {
 
     if (isApprovalResponse(data)) {
       return { kind: 'approval', requestId: data.requestId, expiresAt: data.expiresAt };
+    }
+
+    if (isActivationResponse(data)) {
+      return {
+        kind: 'activation',
+        activation: {
+          requestId: data.requestId,
+          tenantId: data.tenantId,
+          browserSecret: data.browserSecret,
+          telegramUrl: data.telegramUrl,
+          expiresAt: data.expiresAt,
+          challenge: data.challenge,
+          account: data.account,
+        },
+      };
     }
 
     const user = transformUser(data.user);

@@ -44,6 +44,13 @@ export interface PendingApproval {
   expiresAt: string;
 }
 
+export class TelegramApprovalUnavailableError extends Error {
+  constructor() {
+    super('Telegram approval is temporarily unavailable');
+    this.name = 'TelegramApprovalUnavailableError';
+  }
+}
+
 export function generateLoginApprovalCode(): string {
   const value = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
   return String(value).padStart(6, '0');
@@ -115,7 +122,7 @@ export async function createLoginApproval(
     log.warn('login_approval_lookup_failed', {
       reason: String((err as Error)?.message || err),
     });
-    return null;
+    throw new TelegramApprovalUnavailableError();
   }
 
   if (!link?.telegram_chat_id || link.security_enabled !== 1) return null;
@@ -179,7 +186,7 @@ export async function createLoginApproval(
        resolved_at = datetime('now') WHERE id = ? AND tenant_id = ?`
     ).bind(id, user.tenant_id || '').run();
     log.warn('login_approval_send_failed', { reason: sent.reason });
-    return null;
+    throw new TelegramApprovalUnavailableError();
   }
 
   await env.DB.prepare(

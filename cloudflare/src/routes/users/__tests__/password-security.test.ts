@@ -100,6 +100,7 @@ function createDb(resolve: (call: DbCall) => unknown = () => null) {
   const calls: DbCall[] = [];
   return {
     calls,
+    async batch() { return []; },
     prepare(sql: string) {
       let params: unknown[] = [];
       const execute = async (method: DbCall['method']) => {
@@ -496,7 +497,7 @@ describe('generated temporary password reset', () => {
     expect(update.sql).toContain('auth_revoked_at = strftime');
     expect(update.sql).toMatch(/WHERE id = \? AND tenant_id = \? AND role = \?/);
     expect(update.sql).not.toMatch(/password_plain|password\s*=/);
-    expect(update.params).toEqual([`hash:${body1.temporaryPassword}`, 'target', 'tenant-1', 'resident']);
+    expect(update.params).toEqual([`hash:${body1.temporaryPassword}`, 0, 'target', 'tenant-1', 'resident']);
     expect(JSON.stringify(body1)).not.toContain('hash:');
     expect(response1.headers.get('Cache-Control')).toBe('no-store');
     expect(response1.headers.get('Pragma')).toBe('no-cache');

@@ -3,6 +3,7 @@ import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
 import { getTenantId } from '../../middleware/tenant';
 import { invalidateOnChange } from '../../cache';
+import { acquireSecurityLock, normalizeActivationPhone, releaseSecurityLock } from '../telegram/activation';
 import { json, error, bilingualError, isManagement, isAdminLevel, canActOnRole } from '../../utils/helpers';
 import { hashPassword, verifyPassword } from '../../utils/crypto';
 
@@ -85,9 +86,11 @@ route('POST', '/api/users/me/password', async (request, env) => {
   }
 
   const newHash = await hashPassword(newPassword);
+  const lockToken = await acquireSecurityLock(env, tenantId, user.id);
+  if (!lockToken) return error('Security operation already in progress', 409);
   const result = await env.DB.prepare(
     "UPDATE users SET password_hash = ?, password_changed_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
-  ).bind(newHash, user.id, tenantId).run();
+  ).bind(newHash, user.id, tenantId).run().finally(() => releaseSecurityLock(env, tenantId, user.id, lockToken));
   if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
   return json({ success: true, password_changed_at: new Date().toISOString() });
@@ -119,9 +122,11 @@ route('POST', '/api/users/:id/password', async (request, env, params) => {
   }
 
   const newHash = await hashPassword(newPassword);
+  const lockToken = await acquireSecurityLock(env, tenantIdPwd, params.id);
+  if (!lockToken) return error('Security operation already in progress', 409);
   const result = await env.DB.prepare(
     "UPDATE users SET password_hash = ?, password_changed_at = NULL, auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
-  ).bind(newHash, params.id, tenantIdPwd, target.role).run();
+  ).bind(newHash, params.id, tenantIdPwd, target.role).run().finally(() => releaseSecurityLock(env, tenantIdPwd, params.id, lockToken));
   if ((result.meta?.changes ?? 0) !== 1) return error('Password change conflict', 409);
 
   await invalidateOnChange('users', env.RATE_LIMITER);
@@ -138,8 +143,8 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   const tenantId = getTenantId(request);
   if (!hasTenantContext(tenantId)) return error('Tenant context required', 403);
   const targetUser = await env.DB.prepare(
-    'SELECT id, login, name, role FROM users WHERE id = ? AND tenant_id = ?'
-  ).bind(params.id, tenantId).first() as { id: string; login: string; name: string; role: string } | null;
+    'SELECT id, login, name, role, phone FROM users WHERE id = ? AND tenant_id = ?'
+  ).bind(params.id, tenantId).first() as { id: string; login: string; name: string; role: string; phone: string | null } | null;
 
   if (!targetUser) return error('User not found', 404);
 
@@ -150,9 +155,11 @@ route('POST', '/api/users/:id/reset-password', async (request, env, params) => {
   const tempPassword = `${targetUser.login}_${secureToken()}`;
 
   const passwordHash = await hashPassword(tempPassword);
+  const lockToken = await acquireSecurityLock(env, tenantId, targetUser.id);
+  if (!lockToken) return error('Security operation already in progress', 409);
   const result = await env.DB.prepare(
-    "UPDATE users SET password_hash = ?, password_changed_at = NULL, auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
-  ).bind(passwordHash, targetUser.id, tenantId, targetUser.role).run();
+    "UPDATE users SET password_hash = ?, password_changed_at = NULL, auth_revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), telegram_activation_required = ?, telegram_activated_at = NULL, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND role = ?"
+  ).bind(passwordHash, normalizeActivationPhone(targetUser.phone) ? 1 : 0, targetUser.id, tenantId, targetUser.role).run().finally(() => releaseSecurityLock(env, tenantId, targetUser.id, lockToken));
   if ((result.meta?.changes ?? 0) !== 1) return error('Password reset conflict', 409);
 
   await invalidateOnChange('users', env.RATE_LIMITER);

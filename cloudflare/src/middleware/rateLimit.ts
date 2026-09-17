@@ -50,6 +50,9 @@ export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // request_id.
   'POST:/api/auth/login-approval/status': { maxRequests: 120, windowSeconds: 300 },
   'POST:/api/auth/login-approval/verify-code': { maxRequests: 10, windowSeconds: 120 },
+  'POST:/api/auth/telegram-activation/status': { maxRequests: 120, windowSeconds: 600 },
+  'POST:/api/auth/telegram-activation/complete': { maxRequests: 5, windowSeconds: 600 },
+  'POST:/api/auth/recovery-code': { maxRequests: 5, windowSeconds: 600 },
 
   // Sprint 74 P1/F3: password reset / change — brute resistance.
   'POST:/api/users/me/password': { maxRequests: 5, windowSeconds: 60 },

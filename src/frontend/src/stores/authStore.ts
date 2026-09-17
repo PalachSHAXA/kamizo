@@ -3,9 +3,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User } from '../types';
 import { preferencesStorage, writeTokenToNativeStorage } from '../services/capacitorStorage';
 import { authApi } from '../services/api/auth';
-import { markLoggedIn, registerSessionExpiredHandler } from '../services/api/client';
+import { markLoggedIn, registerSessionExpiredHandler, transformUser } from '../services/api/client';
 import { usersApi } from '../services/api/users';
-import type { TenantPickEntry } from '../services/api/auth';
+import type { TenantPickEntry, TelegramActivation } from '../services/api/auth';
 import { useToastStore } from './toastStore';
 import { resetSessionScopedState } from './sessionReset';
 import { useTenantStore } from './tenantStore';
@@ -47,7 +47,7 @@ const isUser = (value: unknown): value is User => {
 // 'approval' — пароль верен, но у аккаунта включён второй фактор через
 // Telegram (ТЗ §17). Сессии ещё нет: экран логина должен показать
 // «подтвердите вход в Telegram» и вызвать awaitLoginApproval().
-export type LoginOutcome = 'success' | 'picker' | 'error' | 'approval';
+export type LoginOutcome = 'success' | 'picker' | 'error' | 'approval' | 'activation';
 
 interface AuthState {
   user: User | null;
@@ -68,12 +68,16 @@ interface AuthState {
    * ровно между ответом login() = 'approval' и решением пользователя.
    */
   pendingApproval: { requestId: string; expiresAt: string } | null;
+  pendingActivation: TelegramActivation | null;
   /**
    * Опрашивает статус подтверждения, пока человек не нажмёт кнопку в
    * боте. При 'approved' сам ставит сессию и возвращает 'success'.
    */
   awaitLoginApproval: () => Promise<'success' | 'denied' | 'expired' | 'error'>;
   clearPendingApproval: () => void;
+  clearPendingActivation: () => void;
+  completeTelegramActivation: (newPassword: string) => Promise<{ recoveryCodes: string[]; user: User; token: string } | null>;
+  finishTelegramActivation: (user: User, token: string) => void;
   login: (loginStr: string, password: string, tenantSlug?: string) => Promise<LoginOutcome>;
   demoLogin: (roleKey: string) => Promise<LoginOutcome>;
   /** Dismiss the picker without resubmitting (user cancelled). */
@@ -151,6 +155,7 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       pickerTenants: null,
       pendingApproval: null,
+      pendingActivation: null,
       additionalUsers: {},
 
       login: async (loginStr: string, password: string, tenantSlug?: string) => {
@@ -192,6 +197,15 @@ export const useAuthStore = create<AuthState>()(
             return 'approval';
           }
 
+          if (result.kind === 'activation') {
+            set({
+              isLoading: false,
+              error: null,
+              pendingActivation: result.activation,
+            });
+            return 'activation';
+          }
+
           if (!isUser(result.user)) {
             throw new Error('Invalid user response');
           }
@@ -228,6 +242,44 @@ export const useAuthStore = create<AuthState>()(
 
       clearPendingApproval: () => {
         set({ pendingApproval: null });
+      },
+
+      clearPendingActivation: () => {
+        set({ pendingActivation: null });
+      },
+
+      completeTelegramActivation: async (newPassword) => {
+        const pending = get().pendingActivation;
+        if (!pending) return null;
+        try {
+          const result = await authApi.completeTelegramActivation(
+            pending.requestId,
+            pending.tenantId,
+            pending.browserSecret,
+            newPassword,
+          );
+          const user = transformUser(result.user);
+          if (!isUser(user)) throw new Error('Invalid user response');
+          // Persist the completed session before showing one-time recovery
+          // codes. If the app is killed on that screen, the next launch still
+          // restores the authenticated session; plaintext codes are never
+          // written to storage.
+          localStorage.setItem('auth_token', result.token);
+          await writeTokenToNativeStorage(result.token);
+          await preferencesStorage.setItem('uk-auth-storage', JSON.stringify({
+            state: { user, token: result.token },
+            version: 4,
+          }));
+          return { recoveryCodes: result.recoveryCodes, user, token: result.token };
+        } catch (activationError: unknown) {
+          set({ error: loginErrorMessage(activationError) });
+          return null;
+        }
+      },
+
+      finishTelegramActivation: (user, token) => {
+        set({ pendingActivation: null });
+        installSession(set, user, token);
       },
 
       // Опрос подтверждения входа (ТЗ §17).

@@ -14,6 +14,7 @@ import { registerTelegramSuperAdminRoutes } from './super-admin';
 import { registerDispatcherRoutes } from './dispatcher';
 import { registerDictionaryRoutes } from './dictionary';
 import { registerTelegramWebhookRoutes } from './webhook';
+import { registerTelegramActivationRoutes } from './activation';
 
 export function registerTelegramRoutes() {
   registerTelegramLinkRoutes();
@@ -22,5 +23,6 @@ export function registerTelegramRoutes() {
   registerTelegramSuperAdminRoutes();
   registerDispatcherRoutes();
   registerDictionaryRoutes();
+  registerTelegramActivationRoutes();
   registerTelegramWebhookRoutes();
 }
