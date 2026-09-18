@@ -374,7 +374,11 @@ export function SettingsPage() {
         className="sticky top-0 z-30 -mx-3 -mt-3 md:static md:mx-0 md:mt-0"
         style={{
         flex: '0 0 auto',
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
+        // env(safe-area-inset-top) убран: он уже учтён в .mobile-header выше
+        // (padding-top: safe-area + 12px), а sticky-header страницы находится
+        // НИЖЕ app-bar. Дублирование давало лишние 40-60px отступа на iPhone
+        // с notch (регресс sticky-фикса, замечено 2026-09-18).
+        paddingTop: 14,
         paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
