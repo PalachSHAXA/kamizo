@@ -103,6 +103,7 @@ export const authApi = {
     });
     return { user: transformUser(result.user), token: result.token };
   },
+
   telegramActivationStatus: (requestId: string, tenantId: string, browserSecret: string) =>
     apiRequest<{ status: 'pending' | 'awaiting_contact' | 'awaiting_match' | 'approved' | 'denied' | 'expired' | 'consumed' }>(
       '/api/auth/telegram-activation/status', {
@@ -137,6 +138,13 @@ export const authApi = {
     }>('/api/auth/login-approval/status', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId }),
+    }),
+
+  // Turn email-delivered login codes (2FA) on/off for the current user.
+  setEmail2fa: (enabled: boolean) =>
+    apiRequest<{ email_2fa_enabled: number }>('/api/auth/email-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
     }),
 
   getDemoRoles: async (): Promise<DemoRole[]> => {
@@ -214,11 +222,6 @@ export const authApi = {
 
   logout: () => {
     localStorage.removeItem('auth_token');
-    // fix/mobile-token-persistence: чистим Preferences тоже, чтобы след.
-    // cold start на native не восстановил токен из Keychain обратно.
-    void import('../capacitorStorage').then(
-      ({ writeTokenToNativeStorage }) => writeTokenToNativeStorage(null),
-    ).catch(() => {});
   },
 
   register: async (userData: {

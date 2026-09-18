@@ -7,10 +7,11 @@ import {
   Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
-  Shield, Send,
+  Shield, Send, Mail,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
+import { authApi } from '../services/api/auth';
 import { useLanguageStore } from '../stores/languageStore';
 import { useToastStore } from '../stores/toastStore';
 import { useRequestStore } from '../stores/dataStore';
@@ -75,7 +76,7 @@ const formatJoinDate = (iso: string | undefined, lang: 'ru' | 'uz'): string => {
   return lang === 'ru' ? `с ${month} ${year}` : `${month} ${year} dan`;
 };
 
-const maskPhone = (raw: string | null | undefined): string => {
+const maskPhone = (raw: string | undefined): string => {
   const pretty = formatPhone(raw || '');
   if (!pretty) return '';
   // formatPhone → "+998 90 100 00 11" → "+998 (90) ··· 00 11"
@@ -102,10 +103,7 @@ export function ResidentProfilePage() {
   // check — the toggle that drives it lives in the "Приложение"
   // settings section below.
   const { language, setLanguage } = useLanguageStore();
-  // Привязка Telegram: состояние и действия. Хук сам опрашивает
-  // /status после открытия ссылки — браузер иначе не узнает, что
-  // человек нажал «Запустить» в Telegram.
-  const tg = useTelegramLink();
+  const telegram = useTelegramLink();
   const addToast = useToastStore(s => s.addToast);
   const getRequestsByResident = useRequestStore(s => s.getRequestsByResident);
   // УК (управляющая компания) identity for the new "Управляющая
@@ -140,6 +138,23 @@ export function ResidentProfilePage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  // Email-delivered login code (2FA). Optimistic toggle with rollback.
+  const [email2fa, setEmail2fa] = useState<boolean>(!!user?.email_2fa_enabled);
+  const [email2faSaving, setEmail2faSaving] = useState(false);
+  const toggleEmail2fa = async () => {
+    if (email2faSaving) return;
+    const next = !email2fa;
+    setEmail2fa(next);
+    setEmail2faSaving(true);
+    try {
+      await authApi.setEmail2fa(next);
+      await refreshUser?.();
+    } catch {
+      setEmail2fa(!next);
+    } finally {
+      setEmail2faSaving(false);
+    }
+  };
   const [qrUrl, setQrUrl] = useState('');
   // Hero pencil drives this — opens an edit-profile sheet with name + phone
   // fields wired to authStore.updateProfile. The old behavior (silently
@@ -865,47 +880,49 @@ export function ResidentProfilePage() {
             value={t.notifValue}
             chevron
           />
-          {/* Привязка Telegram (§16 ТЗ). Даёт бесплатные уведомления и
-              коды подтверждения для голосования на собраниях — в
-              отличие от SMS, за которые платит УК. Строка ведёт себя
-              как переключатель состояния, поэтому value меняется, а не
-              появляется отдельная кнопка. */}
           <SettingsRow
             icon={<Send size={17} />}
             label="Telegram"
-            value={
-              tg.loading
-                ? '…'
-                : tg.linked
-                  ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
-                  : tg.awaiting
-                    ? (language === 'ru' ? 'Ожидание…' : 'Kutilmoqda…')
-                    : (language === 'ru' ? 'Не привязан' : 'Ulanmagan')
-            }
-            chevron={!tg.linked}
+            value={telegram.loading
+              ? '…'
+              : telegram.linked
+                ? (telegram.username ? `@${telegram.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
+                : telegram.awaiting
+                  ? (language === 'ru' ? 'Ожидание…' : 'Kutilmoqda…')
+                  : (language === 'ru' ? 'Не привязан' : 'Ulanmagan')}
+            chevron={!telegram.linked}
             onClick={() => {
-              if (tg.loading || tg.awaiting) return;
-              if (tg.linked) {
-                const ok = window.confirm(language === 'ru'
-                  ? 'Отвязать Telegram? Уведомления и коды подтверждения перестанут туда приходить.'
-                  : 'Telegram uzilsinmi? Bildirishnomalar va tasdiqlash kodlari u yerga kelmaydi.');
-                if (ok) void tg.unlink();
-              } else {
-                void tg.link();
+              if (telegram.loading || telegram.awaiting) return;
+              if (!telegram.linked) {
+                void telegram.connect();
+                return;
               }
+              const confirmed = window.confirm(language === 'ru'
+                ? 'Отвязать Telegram? Уведомления перестанут туда приходить.'
+                : 'Telegram uzilsinmi? Bildirishnomalar u yerga kelmaydi.');
+              if (confirmed) void telegram.unlink();
             }}
           />
-          {/* Второй фактор (ТЗ §17) — строка появляется только после
-              привязки: без Telegram подтверждать вход негде. */}
-          {tg.linked && (
+          {telegram.linked && (
             <SettingsRow
               icon={<Shield size={17} />}
               label={language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
-              value={tg.securityEnabled
+              value={telegram.securityEnabled
                 ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
                 : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
               chevron
-              onClick={() => void tg.setPreference('security', !tg.securityEnabled)}
+              onClick={() => void telegram.setPreference('security', !telegram.securityEnabled)}
+            />
+          )}
+          {user?.email && (
+            <SettingsRow
+              icon={<Mail size={17} />}
+              label={language === 'ru' ? 'Вход по коду на почту' : 'Pochta orqali kirish kodi'}
+              value={email2fa
+                ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
+                : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
+              chevron
+              onClick={toggleEmail2fa}
             />
           )}
           <SettingsRow
