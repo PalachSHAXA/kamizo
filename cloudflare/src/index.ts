@@ -119,6 +119,7 @@ async function runMigrations(env: Env) {
           'entrance', 'floor', 'branch', 'building', 'language', 'is_active', 'qr_code',
           'contract_signed_at', 'agreed_to_terms_at', 'contract_number', 'contract_start_date',
           'contract_end_date', 'contract_type', 'total_area', 'password_changed_at', 'auth_revoked_at',
+          'telegram_activation_required', 'telegram_activated_at',
           'account_type', 'status', 'tenant_id', 'created_at', 'updated_at'
         ];
 
@@ -159,6 +160,8 @@ async function runMigrations(env: Env) {
             total_area REAL,
             password_changed_at TEXT,
             auth_revoked_at TEXT,
+            telegram_activation_required INTEGER NOT NULL DEFAULT 0,
+            telegram_activated_at TEXT,
             account_type TEXT DEFAULT 'standard',
             status TEXT DEFAULT 'available',
             tenant_id TEXT,

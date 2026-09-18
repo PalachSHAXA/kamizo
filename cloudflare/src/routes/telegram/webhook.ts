@@ -43,6 +43,9 @@ import {
 import { resolveLoginRequest } from './login-approval';
 import { handleGroupMessage, handleSuggestionCallback } from './dispatcher';
 import { offerPhoneShare, handleContactShared, handlePhoneCallback } from './phone';
+import {
+  handleActivationCallback, handleActivationContact, handleActivationStart,
+} from './activation';
 
 // Тексты бота. i18n тем же паттерном, что во всём проекте:
 // language === 'ru' ? ... : ... (CLAUDE.md). Язык берём из
@@ -69,6 +72,10 @@ const T = {
   notLinked: (ru: boolean) => ru
     ? 'Этот чат пока не связан с аккаунтом Kamizo. Если хотите подключить его, откройте Kamizo → Настройки → «Привязать Telegram».'
     : 'Bu chat hozircha Kamizo hisobiga ulanmagan. Uni ulash uchun Kamizo → Sozlamalar → «Telegramni ulash» bo‘limini oching.',
+
+  privateFallback: (ru: boolean) => ru
+    ? 'Здравствуйте! В личном чате я помогаю подключить Telegram и защитить вход в Kamizo.\n\nИспользуйте /help, чтобы посмотреть доступные команды.'
+    : 'Assalomu alaykum! Shaxsiy chatda Telegramni ulash va Kamizoga kirishni himoyalashga yordam beraman.\n\nMavjud buyruqlarni ko‘rish uchun /help ni yuboring.',
 
   help: (ru: boolean, group = false) => ru
     ? `Здравствуйте! Я помогу быстро перейти к нужной функции Kamizo:\n\n• оформить заявку по дому\n• сдать или найти квартиру\n• найти услугу или товар\n• оформить гостевой пропуск\n• проверить QR-код\n• найти владельца автомобиля${group ? '\n\nПросто опишите, что вам нужно, и я постараюсь подсказать подходящий раздел.' : '\n\nКоманды:\n/start — узнать, как подключить аккаунт\n/phone — добавить или изменить номер\n/unlink — отключить Telegram\n/help — показать эту справку'}`
@@ -180,6 +187,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       await resolveLoginRequest(e, update.callback_query, log);
       await handleSuggestionCallback(e, update.callback_query, log);
       await handlePhoneCallback(e, update.callback_query, log);
+      await handleActivationCallback(e, update.callback_query);
       return json({ ok: true });
     }
 
@@ -217,6 +225,7 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
     // Житель поделился контактом (кнопка request_contact в личке).
     // Проверка «свой контакт или чужой» — внутри обработчика.
     if (message.contact) {
+      if (await handleActivationContact(e, message)) return json({ ok: true });
       await handleContactShared(e, message, log);
       return json({ ok: true });
     }
@@ -233,6 +242,9 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
       const isGroupChat = message.chat?.type === 'group' || message.chat?.type === 'supergroup';
       if (isGroupChat && update.message) {
         await handleGroupMessage(e, message, log);
+      } else if (message.chat?.type === 'private' && update.message && text.trim()) {
+        const ru = !String(message.from?.language_code || '').startsWith('uz');
+        await sendTelegramMessage(e, chatId, T.privateFallback(ru));
       }
       return json({ ok: true });
     }
@@ -295,7 +307,13 @@ route('POST', '/api/telegram/webhook', async (request, env) => {
          WHERE token = ? AND used_at IS NULL`
       ).bind(payload).first() as any;
 
-      if (!row || new Date(row.expires_at) < new Date()) {
+      if (!row) {
+        if (await handleActivationStart(e, message, payload)) return json({ ok: true });
+        await sendTelegramMessage(e, chatId, T.badToken(ru));
+        return json({ ok: true });
+      }
+
+      if (new Date(row.expires_at) < new Date()) {
         await sendTelegramMessage(e, chatId, T.badToken(ru));
         return json({ ok: true });
       }
