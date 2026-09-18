@@ -349,28 +349,36 @@ export function SettingsPage() {
   };
 
   return (
+    // Layout.tsx:547 — на /settings для admin/director/manager isStaffSettingsFullBleed=true,
+    // поэтому глобальный .mobile-header НЕ рендерится (showMobileHeader=false).
+    // Наш strip ниже — единственный app-chrome сверху для этой страницы. Копируем
+    // логику .mobile-header (index.css:1691): background красит от 0 (включая
+    // safe-area zone под notch) до низа strip'а, потому что status-bar text
+    // читаемо ложится на blur+beige. Значит container.top=0, а inner paddingTop
+    // = env(safe-area-inset-top) + 12 (safe-area компенсируется внутри strip'а,
+    // не через offset контейнера).
     <div
       className="admin-form-controls w-full max-w-full min-w-0 fixed left-0 right-0 bottom-0 flex flex-col md:static md:h-auto md:block"
       style={{
-        top: 'var(--mobile-header-h, 68px)',
+        top: 0,
         minHeight: 0,
         marginTop: 0,
         minWidth: 0,
         maxWidth: '100%',
       }}
     >
-      <div
-        style={{
+      {/* Pinned header strip — background paints from viewport top through
+          safe-area into the strip body. flex:0 0 auto — не сжимается,
+          автоматически остаётся сверху при скролле child'а .settings-scroll. */}
+      <div style={{
         flex: '0 0 auto',
-        paddingTop: 14,
-        paddingLeft: 24, paddingRight: 24, paddingBottom: 14,
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+        paddingLeft: 16, paddingRight: 16, paddingBottom: 12,
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, #E6DFD2)',
       }}>
-        {/* Header ONE-ROW layout: back-arrow (optional) + icon-circle + title/subtitle + saved-toast.
-            Раньше back-arrow был отдельным блоком с mb-2 → header становился двухстрочным (~120px).
-            Теперь всё inline flex-row, header компактный. */}
+        {/* Header ONE-ROW layout: back-arrow (optional) + icon-circle + title/subtitle + saved-toast. */}
         <div className="flex items-center gap-3 min-w-0">
           {showBackButton && (
             <button
@@ -397,9 +405,9 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Inner scroll container (flex:1) — свой независимый scroll context.
-          На md+ auto (страница shorter, скроллится parent .main-content).
-          -webkit-overflow-scrolling:touch — momentum на iOS WKWebView. */}
+      {/* Inner scroll container — flex:1 забирает всю оставшуюся высоту после
+          pinned strip'а. Свой overflow-y:auto — иначе content не проскроллится
+          (root fixed, height не задан → child без scroll-context). */}
       <div className="settings-scroll" style={{
         flex: '1 1 0',
         minHeight: 0,
@@ -408,8 +416,6 @@ export function SettingsPage() {
         WebkitOverflowScrolling: 'touch',
         overscrollBehaviorY: 'contain',
         paddingLeft: 12, paddingRight: 12, paddingTop: 12,
-        // bottom padding увеличен: content должен заканчиваться выше BottomBar
-        // (внутренний scroll не наследует padding-bottom родительского main).
         paddingBottom: 'calc(var(--bottom-bar-h, 96px) + 32px)',
       }}>
       <div className="space-y-4 md:space-y-6">
