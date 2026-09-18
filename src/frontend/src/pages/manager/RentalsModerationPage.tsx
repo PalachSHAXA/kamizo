@@ -51,9 +51,21 @@ const STATE_BADGE_STYLE: Record<RentalState, { dot: string; ring: string; text: 
   archived: { dot: 'bg-gray-400',    ring: 'border-gray-400/25 bg-gray-400/10',       text: 'text-gray-600' },
 };
 
-function timeAgo(iso: string, language: string): string {
+export function timeAgo(iso: string | null | undefined, language: string): string {
+  // Fallback for missing/invalid input. Prevents "NaN нед. назад".
+  if (!iso) return t(language, 'недавно', 'yaqinda');
+  // rental_listings.created_at приходит в двух форматах:
+  //   - ISO-8601 с миллисекундами и Z: "2026-08-01T09:57:31.967Z" (JS-код)
+  //   - SQLite datetime('now')        : "2026-08-12 10:40:25"     (DEFAULT колонки)
+  // Прежний код делал `iso.replace(' ', 'T') + 'Z'` и добавлял вторую Z
+  // к уже-ISO-строкам ("…967Z" → "…967ZZ"), после чего WebKit/Safari
+  // парсил как Invalid Date → NaN → "NaN нед. назад" на карточках.
+  // Chrome/V8 толерантнее, поэтому в dev-tools баг раньше не увидели.
+  const normalized = iso.includes('T') ? iso : iso.replace(' ', 'T');
+  const hasTz = /Z$|[+-]\d{2}:?\d{2}$/i.test(normalized);
+  const then = new Date(hasTz ? normalized : normalized + 'Z').getTime();
+  if (Number.isNaN(then)) return t(language, 'недавно', 'yaqinda');
   const now = Date.now();
-  const then = new Date(iso.replace(' ', 'T') + 'Z').getTime();
   const days = Math.round((now - then) / (86400 * 1000));
   if (days <= 0) return t(language, 'сегодня', 'bugun');
   if (days === 1) return t(language, 'вчера', 'kecha');
