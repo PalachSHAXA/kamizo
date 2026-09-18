@@ -2,7 +2,10 @@ import type { UserRole, ExecutorSpecialization, ContractType } from './common';
 
 export interface User {
   id: string;
-  phone: string;
+  // users.phone в БД NULLABLE — backend возвращает null для аккаунтов без
+  // телефона (test-*, часть admin/director). Тип должен это отражать, иначе
+  // isUser guard в authStore и maskPhone-consumers ложно предполагают string.
+  phone: string | null;
   name: string;
   login: string;
   email?: string;
