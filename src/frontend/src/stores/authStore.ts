@@ -26,7 +26,14 @@ const isUserRole = (value: unknown): value is User['role'] =>
 const isUser = (value: unknown): value is User => {
   if (typeof value !== 'object' || value === null) return false;
   return 'id' in value && typeof value.id === 'string'
-    && 'phone' in value && typeof value.phone === 'string'
+    // phone может быть null: в БД users.phone nullable, backend возвращает
+    // null для аккаунтов без телефона (test-* и часть admin/director).
+    // До этого фикса такие пользователи не могли войти через веб-форму:
+    // isUser() возвращал false → 'Invalid user response'. Regression-тест —
+    // authStore.test.ts:113 ("regression fix/auth-nullable-phone"). Если
+    // при мерже эта строка снова затирается на strict typeof === 'string',
+    // тот тест падает.
+    && 'phone' in value && (value.phone === null || typeof value.phone === 'string')
     && 'name' in value && typeof value.name === 'string'
     && 'login' in value && typeof value.login === 'string'
     && 'role' in value && isUserRole(value.role);
