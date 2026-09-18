@@ -236,3 +236,16 @@ export function getTenantSlug(hostname: string): string | null {
 
   return null;
 }
+
+// control.kamizo.uz is a platform-only entry point (super-admin console). The
+// host is derived from Origin/Referer, mirroring auth.ts's requestPortalHost(),
+// because on the Node VPS the API is same-origin behind api.kamizo.uz and the
+// real caller host only survives in those headers.
+export function isControlRequest(request: Request): boolean {
+  const source = request.headers.get('Origin') || request.headers.get('Referer') || '';
+  try {
+    return !!source && new URL(source).hostname.toLowerCase() === 'control.kamizo.uz';
+  } catch {
+    return false;
+  }
+}
