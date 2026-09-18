@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import type { User } from '../types';
-import { preferencesStorage, writeTokenToNativeStorage } from '../services/capacitorStorage';
 import { authApi } from '../services/api/auth';
 import { markLoggedIn, registerSessionExpiredHandler, transformUser } from '../services/api/client';
 import { usersApi } from '../services/api/users';
@@ -9,6 +8,8 @@ import type { TenantPickEntry, TelegramActivation } from '../services/api/auth';
 import { useToastStore } from './toastStore';
 import { resetSessionScopedState } from './sessionReset';
 import { useTenantStore } from './tenantStore';
+import { isRoleAllowedForPlatformHost } from '../utils/platformPortal';
+import { clearNativeAuthSession, persistNativeAuthSession } from '../services/nativeAuthStorage';
 
 interface MockUserData {
   password: string;
@@ -19,17 +20,13 @@ const isUserRole = (value: unknown): value is User['role'] =>
   value === 'super_admin' || value === 'admin' || value === 'director'
   || value === 'manager' || value === 'department_head' || value === 'executor'
   || value === 'resident' || value === 'commercial_owner' || value === 'tenant'
-  || value === 'advertiser' || value === 'dispatcher' || value === 'security'
+  || value === 'advertiser' || value === 'coupon_checker' || value === 'dispatcher' || value === 'security'
   || value === 'marketplace_manager';
 
 const isUser = (value: unknown): value is User => {
   if (typeof value !== 'object' || value === null) return false;
   return 'id' in value && typeof value.id === 'string'
-    // phone может быть null: в БД users.phone nullable, backend возвращает
-    // null для аккаунтов без телефона (test-* и часть admin/director).
-    // До этого фикса такие пользователи не могли войти через веб-форму:
-    // isUser() возвращал false → 'Invalid user response'.
-    && 'phone' in value && (value.phone === null || typeof value.phone === 'string')
+    && 'phone' in value && typeof value.phone === 'string'
     && 'name' in value && typeof value.name === 'string'
     && 'login' in value && typeof value.login === 'string'
     && 'role' in value && isUserRole(value.role);
@@ -44,9 +41,6 @@ const isUser = (value: unknown): value is User => {
  *   'error'   — credentials rejected / network issue. state.error holds
  *               the message to display.
  */
-// 'approval' — пароль верен, но у аккаунта включён второй фактор через
-// Telegram (ТЗ §17). Сессии ещё нет: экран логина должен показать
-// «подтвердите вход в Telegram» и вызвать awaitLoginApproval().
 export type LoginOutcome = 'success' | 'picker' | 'error' | 'approval' | 'activation';
 
 interface AuthState {
@@ -61,27 +55,19 @@ interface AuthState {
    * clearPicker().
    */
   pickerTenants: TenantPickEntry[] | null;
+  pendingApproval: { requestId: string; expiresAt: string; channel?: 'email' | 'telegram'; availableChannels?: ('email' | 'telegram')[]; maskedEmail?: string } | null;
+  pendingActivation: TelegramActivation | null;
   // Legacy compatibility - to be removed after full migration
   additionalUsers: Record<string, MockUserData>;
-  /**
-   * Ожидающее подтверждение входа через Telegram (ТЗ §17). Непусто
-   * ровно между ответом login() = 'approval' и решением пользователя.
-   */
-  pendingApproval: { requestId: string; expiresAt: string } | null;
-  pendingActivation: TelegramActivation | null;
-  /**
-   * Опрашивает статус подтверждения, пока человек не нажмёт кнопку в
-   * боте. При 'approved' сам ставит сессию и возвращает 'success'.
-   */
+  login: (loginStr: string, password: string, tenantSlug?: string, channel?: 'email' | 'telegram') => Promise<LoginOutcome>;
+  demoLogin: (roleKey: string) => Promise<LoginOutcome>;
+  /** Dismiss the picker without resubmitting (user cancelled). */
+  clearPicker: () => void;
   awaitLoginApproval: () => Promise<'success' | 'denied' | 'expired' | 'error'>;
   clearPendingApproval: () => void;
   clearPendingActivation: () => void;
   completeTelegramActivation: (newPassword: string) => Promise<{ recoveryCodes: string[]; user: User; token: string } | null>;
   finishTelegramActivation: (user: User, token: string) => void;
-  login: (loginStr: string, password: string, tenantSlug?: string) => Promise<LoginOutcome>;
-  demoLogin: (roleKey: string) => Promise<LoginOutcome>;
-  /** Dismiss the picker without resubmitting (user cancelled). */
-  clearPicker: () => void;
   logout: () => void;
   register: (userData: {
     login: string;
@@ -135,9 +121,7 @@ const installSession = (
 ) => {
   resetSessionScopedState();
   localStorage.setItem('auth_token', token);
-  // fix/mobile-token-persistence: зеркалим в Preferences (Keychain на iOS,
-  // EncryptedSharedPreferences на Android). Fire-and-forget — не блокируем.
-  void writeTokenToNativeStorage(token);
+  void persistNativeAuthSession(user, token);
   markLoggedIn();
   set({ user, token, isLoading: false, error: null, pickerTenants: null });
   void useTenantStore.getState().fetchConfig().catch(() => { /* non-critical */ });
@@ -158,17 +142,17 @@ export const useAuthStore = create<AuthState>()(
       pendingActivation: null,
       additionalUsers: {},
 
-      login: async (loginStr: string, password: string, tenantSlug?: string) => {
+      login: async (loginStr: string, password: string, tenantSlug?: string, channel?: 'email' | 'telegram') => {
         if (get().isLoading) return 'error';
         const normalizedLogin = loginStr.trim();
         const normalizedPassword = password.trim();
         // Clear any leftover picker state from a previous attempt so the
         // UI doesn't briefly show stale options if this call comes back
         // 'success' or 'error' instead of 'picker'.
-        set({ isLoading: true, error: null, pickerTenants: null });
+        set({ isLoading: true, error: null, pickerTenants: null, pendingApproval: null });
 
         try {
-          const result = await authApi.login(normalizedLogin, normalizedPassword, tenantSlug);
+          const result = await authApi.login(normalizedLogin, normalizedPassword, tenantSlug, channel);
 
           if (result.kind === 'picker') {
             // Backend confirmed credentials are valid for 2+ tenants and is
@@ -184,30 +168,31 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (result.kind === 'approval') {
-            // Пароль верен, но JWT не выдан: ждём нажатия в Telegram.
-            // user/token не трогаем — сессии пока нет.
             set({
               isLoading: false,
               error: null,
               pendingApproval: {
                 requestId: result.requestId,
                 expiresAt: result.expiresAt,
+                channel: result.channel,
+                availableChannels: result.availableChannels,
+                maskedEmail: result.maskedEmail,
               },
             });
             return 'approval';
           }
 
           if (result.kind === 'activation') {
-            set({
-              isLoading: false,
-              error: null,
-              pendingActivation: result.activation,
-            });
+            set({ isLoading: false, error: null, pendingActivation: result.activation });
             return 'activation';
           }
 
           if (!isUser(result.user)) {
             throw new Error('Invalid user response');
+          }
+
+          if (!isRoleAllowedForPlatformHost(window.location.hostname, result.user.role)) {
+            throw new Error('Этот портал недоступен для вашей роли');
           }
 
           installSession(set, result.user, result.token);
@@ -240,13 +225,9 @@ export const useAuthStore = create<AuthState>()(
         set({ pickerTenants: null });
       },
 
-      clearPendingApproval: () => {
-        set({ pendingApproval: null });
-      },
+      clearPendingApproval: () => set({ pendingApproval: null }),
 
-      clearPendingActivation: () => {
-        set({ pendingActivation: null });
-      },
+      clearPendingActivation: () => set({ pendingActivation: null }),
 
       completeTelegramActivation: async (newPassword) => {
         const pending = get().pendingActivation;
@@ -260,16 +241,7 @@ export const useAuthStore = create<AuthState>()(
           );
           const user = transformUser(result.user);
           if (!isUser(user)) throw new Error('Invalid user response');
-          // Persist the completed session before showing one-time recovery
-          // codes. If the app is killed on that screen, the next launch still
-          // restores the authenticated session; plaintext codes are never
-          // written to storage.
-          localStorage.setItem('auth_token', result.token);
-          await writeTokenToNativeStorage(result.token);
-          await preferencesStorage.setItem('uk-auth-storage', JSON.stringify({
-            state: { user, token: result.token },
-            version: 4,
-          }));
+          await persistNativeAuthSession(user, result.token);
           return { recoveryCodes: result.recoveryCodes, user, token: result.token };
         } catch (activationError: unknown) {
           set({ error: loginErrorMessage(activationError) });
@@ -282,52 +254,36 @@ export const useAuthStore = create<AuthState>()(
         installSession(set, user, token);
       },
 
-      // Опрос подтверждения входа (ТЗ §17).
-      //
-      // Раз в 2 секунды, максимум 65 попыток — чуть больше, чем окно
-      // в 2 минуты, чтобы последняя проверка попала уже на истёкший
-      // запрос и мы честно показали 'expired', а не бросили опрос
-      // молча.
-      //
-      // Токен приходит РОВНО ОДИН РАЗ: сервер помечает запрос
-      // использованным до выдачи, поэтому installSession вызывается
-      // немедленно при первом же 'approved'.
       awaitLoginApproval: async () => {
         const pending = get().pendingApproval;
         if (!pending) return 'error';
 
-        const POLL_MS = 2000;
-        const MAX_ATTEMPTS = 65;
-
-        for (let i = 0; i < MAX_ATTEMPTS; i++) {
-          // Пользователь мог нажать «Отмена» — прекращаем опрос, иначе
-          // сессия установится уже после ухода с экрана логина.
+        for (let attempt = 0; attempt < 65; attempt++) {
           if (!get().pendingApproval) return 'error';
-
           try {
-            const res = await authApi.loginApprovalStatus(pending.requestId);
-
-            if (res.status === 'approved' && res.token && isUser(res.user)) {
+            const result = await authApi.loginApprovalStatus(pending.requestId);
+            if (result.status === 'approved' && result.token && isUser(result.user)) {
+              if (!isRoleAllowedForPlatformHost(window.location.hostname, result.user.role)) {
+                set({ pendingApproval: null, error: 'Этот портал недоступен для вашей роли' });
+                return 'error';
+              }
               set({ pendingApproval: null });
-              installSession(set, res.user, res.token);
+              installSession(set, result.user, result.token);
               return 'success';
             }
-            if (res.status === 'denied') {
+            if (result.status === 'denied') {
               set({ pendingApproval: null });
               return 'denied';
             }
-            if (res.status === 'expired' || res.status === 'consumed') {
+            if (result.status === 'expired' || result.status === 'consumed') {
               set({ pendingApproval: null });
               return 'expired';
             }
           } catch {
-            // Сетевой сбой на одном опросе не должен обрывать ожидание:
-            // человек в это время держит телефон в руках. Пробуем снова.
+            // A transient polling failure should not cancel an approval in progress.
           }
-
-          await new Promise(r => setTimeout(r, POLL_MS));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-
         set({ pendingApproval: null });
         return 'expired';
       },
@@ -345,8 +301,8 @@ export const useAuthStore = create<AuthState>()(
           void unregisterNativePush(jwtSnapshot);
         }).catch(() => { /* non-critical */ });
         localStorage.removeItem('auth_token');
-        void writeTokenToNativeStorage(null); // fix/mobile-token-persistence
-        set({ user: null, token: null, error: null });
+        void clearNativeAuthSession();
+        set({ user: null, token: null, error: null, pendingApproval: null, pendingActivation: null });
         resetSessionScopedState();
         authApi.logout();
       },
@@ -538,22 +494,13 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'uk-auth-storage',
       version: 4, // v4: JWT tokens — token is no longer user.id
-      // fix/mobile-token-persistence: async storage adapter.
-      // На native (Capacitor iOS/Android) читает/пишет через Preferences
-      // (Keychain / EncryptedSharedPreferences). На web — обычный
-      // localStorage. Устраняет потерю сессии на iOS из-за eviction'а
-      // WebView localStorage системой.
-      storage: createJSONStorage(() => preferencesStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         // Do NOT persist additionalUsers - all users should come from API
         // This ensures data is consistent across all browsers/devices
       }),
-      // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh).
-      // Дублируем в отдельный 'auth_token' ключ, потому что client.ts:getToken()
-      // читает именно его sync — до полного rehydrate. И зеркалим в
-      // Preferences для след. cold start'а.
+      // Sync JWT token to localStorage when store is rehydrated (e.g., page refresh)
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.error('Rehydrate error:', error); // keep console.error for critical rehydration debugging
@@ -561,19 +508,18 @@ export const useAuthStore = create<AuthState>()(
         }
         if (state?.token) {
           localStorage.setItem('auth_token', state.token);
-          void writeTokenToNativeStorage(state.token);
+          if (state.user) void persistNativeAuthSession(state.user, state.token);
         } else {
           // No token - clear stale state
           localStorage.removeItem('auth_token');
-          void writeTokenToNativeStorage(null);
         }
       },
     }
   )
 );
 
-registerSessionExpiredHandler(async () => {
+registerSessionExpiredHandler(() => {
   useAuthStore.setState({ user: null, token: null, error: null });
   resetSessionScopedState();
-  await writeTokenToNativeStorage(null);
+  void clearNativeAuthSession();
 });

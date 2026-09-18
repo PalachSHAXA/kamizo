@@ -59,6 +59,13 @@ export interface Env {
   // Resend transactional email (login codes). See utils/email.ts.
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  // Local AI listener (see utils/local-ai-listener.ts). All optional strings
+  // (env vars); absent in production.
+  AI_LISTENER_URL?: string;
+  AI_LISTENER_MODE?: string;
+  AI_LISTENER_MAX_CONCURRENCY?: string;
+  AI_LISTENER_TIMEOUT_MS?: string;
+  AI_LISTENER_PROTOTYPES?: string;
 }
 
 export interface User {

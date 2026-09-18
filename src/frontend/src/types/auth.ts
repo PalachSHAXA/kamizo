@@ -2,12 +2,11 @@ import type { UserRole, ExecutorSpecialization, ContractType } from './common';
 
 export interface User {
   id: string;
-  // Может быть null: в БД users.phone nullable, backend возвращает null
-  // для аккаунтов без телефона (типичный кейс тест/admin-юзеров).
-  phone: string | null;
+  phone: string;
   name: string;
   login: string;
   email?: string;
+  email_2fa_enabled?: number; // 1 = login codes are emailed (2FA), 0/undefined = off
   role: UserRole;
   specialization?: ExecutorSpecialization;
   avatar?: string;

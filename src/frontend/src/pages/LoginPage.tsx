@@ -250,6 +250,27 @@ export function LoginPage() {
     }
   };
 
+  // Re-request a fresh code on the other enabled channel (Telegram ⇄ email).
+  // clearPendingApproval stops the previous poll (it returns 'error', which
+  // finishTelegramApproval ignores); the re-login sends a new code and sets a
+  // new pending request, then we start a poll for it.
+  const [switchingChannel, setSwitchingChannel] = useState<'email' | 'telegram' | null>(null);
+  const switchApprovalChannel = async (ch: 'email' | 'telegram') => {
+    if (switchingChannel) return;
+    setSwitchingChannel(ch);
+    setApprovalCode('');
+    setApprovalCodeError('');
+    setError('');
+    clearPendingApproval();
+    try {
+      const outcome = await login(loginValue, password, undefined, ch);
+      if (outcome === 'approval') void finishTelegramApproval();
+      else if (outcome === 'success') navigateAfterLogin();
+    } finally {
+      setSwitchingChannel(null);
+    }
+  };
+
   const handleVerifyApprovalCode = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!pendingApproval || !/^\d{6}$/.test(approvalCode) || isVerifyingApprovalCode) return;
@@ -791,9 +812,13 @@ export function LoginPage() {
               {language === 'ru' ? 'Подтвердите вход' : 'Kirishni tasdiqlang'}
             </h2>
             <p className="mb-6 text-sm text-gray-500">
-              {language === 'ru'
-                ? 'Введите код из Telegram или нажмите «Это я» в сообщении бота.'
-                : 'Telegramdagi kodni kiriting yoki bot xabaridagi «Bu men» tugmasini bosing.'}
+              {pendingApproval.channel === 'email'
+                ? (language === 'ru'
+                    ? `Введите код, отправленный на ${pendingApproval.maskedEmail || 'вашу почту'}.`
+                    : `${pendingApproval.maskedEmail || 'pochtangizga'} yuborilgan kodni kiriting.`)
+                : (language === 'ru'
+                    ? 'Введите код из Telegram или нажмите «Это я» в сообщении бота.'
+                    : 'Telegramdagi kodni kiriting yoki bot xabaridagi «Bu men» tugmasini bosing.')}
             </p>
             <form onSubmit={handleVerifyApprovalCode} className="mb-4 space-y-3">
               <input
@@ -823,6 +848,30 @@ export function LoginPage() {
                   : (language === 'ru' ? 'Подтвердить код' : 'Kodni tasdiqlash')}
               </button>
             </form>
+            {pendingApproval.availableChannels && pendingApproval.availableChannels.length > 1 && (
+              <div className="mb-4 flex items-center justify-center gap-2 text-sm">
+                <span className="text-gray-400">{language === 'ru' ? 'Код:' : 'Kod:'}</span>
+                {pendingApproval.availableChannels.map((ch) => {
+                  const active = pendingApproval.channel === ch;
+                  const label = ch === 'email'
+                    ? (language === 'ru' ? 'на почту' : 'pochtaga')
+                    : 'Telegram';
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      disabled={active || !!switchingChannel}
+                      onClick={() => switchApprovalChannel(ch)}
+                      className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                        active ? 'bg-primary-100 text-primary-700' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                      } disabled:opacity-60`}
+                    >
+                      {switchingChannel === ch ? '…' : label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => { clearPendingApproval(); setError(''); setApprovalCode(''); }}
