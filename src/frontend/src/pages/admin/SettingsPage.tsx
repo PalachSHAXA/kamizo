@@ -432,8 +432,21 @@ export function SettingsPage() {
           have reached the parent .settings-scroll, and dropped them
           because it can't scroll vertically — visible as "scroll
           stalls in the upper part". Same discipline as v258 chips
-          bar in ResidentChatView. */}
-      <div className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar" style={{ touchAction: 'pan-x' }}>
+          bar in ResidentChatView.
+          D-2 fix: добавлен fade-mask справа как visual scroll-indicator
+          (тот же паттерн что применяли в RentalsModerationPage C-C3) +
+          scroll-snap для более предсказуемого поведения на touch. Также
+          уменьшены px-3 → px-2.5 на mobile чтобы больше табов вмещалось
+          без скролла. Fade-mask применяется всегда — на десктопе просто
+          не мешает, т.к. overflow тогда 0 и хвост пуст. */}
+      <div
+        className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar snap-x snap-mandatory"
+        style={{
+          touchAction: 'pan-x',
+          WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+          maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+        }}
+      >
         <div
           role="tablist"
           aria-label={language === 'ru' ? 'Разделы настроек' : 'Sozlamalar bo\'limlari'}
@@ -449,7 +462,7 @@ export function SettingsPage() {
               tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
-              className={`min-h-[44px] px-3 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
+              className={`snap-start min-h-[44px] px-2.5 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
                 activeTab === tab.id
                   ? 'bg-primary-500 text-gray-900'
                   : 'hover:bg-white/30 text-gray-600 active:bg-white/40'
