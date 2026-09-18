@@ -351,35 +351,45 @@ export function SettingsPage() {
   };
 
   return (
-    // Layout's .main-content is the single mobile/tablet scroll owner.
-    // Settings only consumes the available width/height and keeps its
-    // notch-aware header; it must not create a second viewport scroller.
-    <div className="admin-form-controls w-full max-w-full min-w-0" style={{
-      minHeight: 0,
-      marginTop: 0,
-      width: '100%',
-      minWidth: 0,
-      maxWidth: '100%',
-    }}>
-      {/* Sticky header — прилипает к верху .main-content scroll-viewport.
-          На мобилке (< md) main-content имеет `px-3 py-3` padding — extend'им
-          header horizontally + вверх на -12px (-mx-3 -mt-3), чтобы он занял
-          всю ширину и прилегал к самому верху scroll-container'a. На md+ main
-          получает p-6, страница shorter — sticky не нужен, возвращаем static
-          поведение (md:static md:mx-0 md:mt-0).
-          background + backdropBlur уже непрозрачные — контент под ним читаемо
-          скроллится. z-30 держит его выше карточек и табов, но ниже modal-overlay
-          (у Modal.tsx z-10100) и Sidebar-drawer. */}
+    // Inner-scroller pattern (per index.css:1008-1025 doctrine):
+    //   fixed-position overlay покрывает viewport НИЖЕ mobile-header;
+    //   flex-column child'ы — header (flex:0 0 auto — pinned) + content
+    //   (flex:1 1 0; overflow-y:auto — свой scroll context).
+    // Раньше пробовали `position: sticky` — на native WKWebView не работал
+    // (пред. sticky-check показывал stickyTop=const в playwright, но пользователь
+    // сообщал уезжающий заголовок на симуляторе iPhone 16 Pro Max). Причина в
+    // том, что этот codebase уже перевёл Home/Vehicles/Meetings/UsefulContacts
+    // на inner-scroller pattern — sticky внутри .main-content там больше не
+    // гарантированно работает. Переехали на тот же паттерн, что уже надёжно
+    // работает в NotificationsPage.tsx.
+    // На md+ (десктоп) — возвращаем документ-flow (relative), там страница
+    // shorter и inner-scroll не нужен.
+    <div
+      className="admin-form-controls w-full max-w-full min-w-0 fixed left-0 right-0 bottom-0 flex flex-col md:static md:h-auto md:block"
+      style={{
+        // top = высота app-bar «My Helper» (сам fixed, z-10 сверху);
+        // на md+ переопределяется через md:static выше.
+        top: 'var(--mobile-header-h, 68px)',
+        minHeight: 0,
+        marginTop: 0,
+        minWidth: 0,
+        maxWidth: '100%',
+      }}
+    >
+      {/* Pinned header — flex:0 0 auto, первая flex-строка, автоматически
+          остаётся сверху при скролле child'а .settings-scroll (свой overflow).
+          padding-left выровнен с карточками контента ниже (16px = px-4). */}
       <div
-        className="sticky top-0 z-30 -mx-3 -mt-3 md:static md:mx-0 md:mt-0"
         style={{
         flex: '0 0 auto',
-        // env(safe-area-inset-top) убран: он уже учтён в .mobile-header выше
-        // (padding-top: safe-area + 12px), а sticky-header страницы находится
-        // НИЖЕ app-bar. Дублирование давало лишние 40-60px отступа на iPhone
-        // с notch (регресс sticky-фикса, замечено 2026-09-18).
+        // env(safe-area-inset-top) не нужен — safe-area уже учтён в
+        // .mobile-header, а мы стоим top: var(--mobile-header-h).
         paddingTop: 14,
-        paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
+        // paddingLeft/Right 24 — выровнены с левым краем content'а карточек
+        // ниже (settings-scroll paddingLeft:12 + glass-card p-3 внутренний
+        // padding = 24). Раньше 16 — icon+text «прилегали впритую» к краю
+        // относительно cards.
+        paddingLeft: 24, paddingRight: 24, paddingBottom: 14,
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, #E6DFD2)',
@@ -416,12 +426,20 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Content flows through the parent .main-content scroller. */}
+      {/* Inner scroll container (flex:1) — свой независимый scroll context.
+          На md+ auto (страница shorter, скроллится parent .main-content).
+          -webkit-overflow-scrolling:touch — momentum на iOS WKWebView. */}
       <div className="settings-scroll" style={{
+        flex: '1 1 0',
         minHeight: 0,
         minWidth: 0,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehaviorY: 'contain',
         paddingLeft: 12, paddingRight: 12, paddingTop: 12,
-        paddingBottom: 24,
+        // bottom padding увеличен: content должен заканчиваться выше BottomBar
+        // (внутренний scroll не наследует padding-bottom родительского main).
+        paddingBottom: 'calc(var(--bottom-bar-h, 96px) + 32px)',
       }}>
       <div className="space-y-4 md:space-y-6">
 
