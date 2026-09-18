@@ -21,6 +21,7 @@ import { createRequestLogger } from '../../utils/logger';
 import {
   sendTelegramMessage, editTelegramMessage, answerCallbackQuery, escapeHtml,
 } from '../../utils/telegram';
+import { sendEmail, renderLoginCodeEmail } from '../../utils/email';
 
 // §17: «срок действия около двух минут».
 //
@@ -30,10 +31,6 @@ import {
 const APPROVAL_TTL_SECONDS = 120;
 const OTP_MAX_ATTEMPTS = 5;
 
-function isRussian(language: unknown): boolean {
-  return !String(language || '').toLowerCase().startsWith('uz');
-}
-
 // Опрос статуса — раз в 2 секунды на клиенте, окно 2 минуты, то есть
 // около 60 обращений на одну попытку входа. Лимит с запасом, но не
 // безграничный: перебор request_id он всё равно ограничивает.
@@ -42,13 +39,6 @@ export const LOGIN_APPROVAL_POLL_LIMIT = 120;
 export interface PendingApproval {
   requestId: string;
   expiresAt: string;
-}
-
-export class TelegramApprovalUnavailableError extends Error {
-  constructor() {
-    super('Telegram approval is temporarily unavailable');
-    this.name = 'TelegramApprovalUnavailableError';
-  }
 }
 
 export function generateLoginApprovalCode(): string {
@@ -113,16 +103,15 @@ export async function createLoginApproval(
   let link: any = null;
   try {
     link = await env.DB.prepare(
-      `SELECT t.telegram_chat_id, t.security_enabled, u.language
-       FROM telegram_users t
-       JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
-       WHERE t.user_id = ? AND t.tenant_id = ? AND t.revoked_at IS NULL`
+      `SELECT telegram_chat_id, security_enabled
+       FROM telegram_users
+       WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
     ).bind(user.id, user.tenant_id || '').first();
   } catch (err) {
     log.warn('login_approval_lookup_failed', {
       reason: String((err as Error)?.message || err),
     });
-    throw new TelegramApprovalUnavailableError();
+    return null;
   }
 
   if (!link?.telegram_chat_id || link.security_enabled !== 1) return null;
@@ -144,37 +133,23 @@ export async function createLoginApproval(
   ).run();
 
   const when = new Date().toISOString().replace('T', ' ').slice(0, 16);
-  const ru = isRussian(link.language);
-  const lines = (ru ? [
-    '🔐 <b>Подтвердите вход в Kamizo</b>',
+  const lines = [
+    '🔐 <b>Новый вход в Kamizo</b>',
     '',
-    'Мы получили попытку входа в ваш аккаунт.',
     meta.device ? `Устройство: ${escapeHtml(meta.device)}` : null,
-    meta.ip ? `IP-адрес: ${escapeHtml(meta.ip)}` : null,
+    meta.ip ? `IP: ${escapeHtml(meta.ip)}` : null,
     `Время: ${when} UTC`,
     '',
-    `Ваш код: <code>${otpCode}</code>`,
-    'Код действует 2 минуты. Введите его в приложении или нажмите «Да, это я».',
+    `Код входа / Kirish kodi: <code>${otpCode}</code>`,
+    'Код действует 2 минуты. Введите его на экране входа или нажмите «Это я».',
     '',
-    'Если вход выполняете не вы, пожалуйста, запретите его и смените пароль.',
-  ] : [
-    '🔐 <b>Kamizoga kirishni tasdiqlang</b>',
-    '',
-    'Hisobingizga kirishga urinish aniqlandi.',
-    meta.device ? `Qurilma: ${escapeHtml(meta.device)}` : null,
-    meta.ip ? `IP-manzil: ${escapeHtml(meta.ip)}` : null,
-    `Vaqt: ${when} UTC`,
-    '',
-    `Kirish kodi: <code>${otpCode}</code>`,
-    'Kod 2 daqiqa amal qiladi. Uni ilovaga kiriting yoki «Ha, bu men» tugmasini bosing.',
-    '',
-    'Agar bu siz bo‘lmasangiz, kirishni rad eting va parolingizni almashtiring.',
-  ]).filter(Boolean) as string[];
+    'Если это не вы — нажмите «Запретить вход» и смените пароль.',
+  ].filter(Boolean) as string[];
 
   const sent = await sendTelegramMessage(env, link.telegram_chat_id, lines.join('\n'), {
     buttons: [
-      { text: ru ? '✅ Да, это я' : '✅ Ha, bu men', callback_data: `la:a:${id}` },
-      { text: ru ? '🚫 Это не я' : '🚫 Bu men emas', callback_data: `la:d:${id}` },
+      { text: '✅ Это я', callback_data: `la:a:${id}` },
+      { text: '🚫 Запретить вход', callback_data: `la:d:${id}` },
     ],
   });
 
@@ -186,7 +161,7 @@ export async function createLoginApproval(
        resolved_at = datetime('now') WHERE id = ? AND tenant_id = ?`
     ).bind(id, user.tenant_id || '').run();
     log.warn('login_approval_send_failed', { reason: sent.reason });
-    throw new TelegramApprovalUnavailableError();
+    return null;
   }
 
   await env.DB.prepare(
@@ -195,6 +170,68 @@ export async function createLoginApproval(
   ).bind(String(sent.result?.message_id ?? ''), id, user.tenant_id || '').run();
 
   log.info('login_approval_sent', { userId: user.id, requestId: id });
+  return { requestId: id, expiresAt: expiresAt.toISOString() };
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Email-delivered login code. Same lifecycle as the Telegram approval above
+// (6-digit code, SHA-256(id:code:secret) hash, 2-minute TTL, 5 attempts) but
+// the code is emailed instead of sent to Telegram, and the SAME
+// telegram_login_requests table / verify-code / status endpoints handle the
+// rest — those paths only ever look at otp_hash / status / expires_at, never at
+// the channel.
+//
+// Fail-open, exactly like the Telegram path: no email on the account, Resend
+// not configured, or a delivery failure all return null so the caller issues a
+// JWT the normal way instead of locking the user out.
+export async function createEmailLoginApproval(
+  env: Env,
+  user: { id: string; name?: string; tenant_id?: string | null; email?: string | null },
+  meta: { device?: string | null; ip?: string | null },
+  log: ReturnType<typeof createRequestLogger>
+): Promise<PendingApproval | null> {
+  const email = (user.email || '').trim();
+  if (!email) return null;
+
+  const id = generateId();
+  const expiresAt = new Date(Date.now() + APPROVAL_TTL_SECONDS * 1000);
+  const otpCode = generateLoginApprovalCode();
+  const otpHash = await hashLoginApprovalCode(id, otpCode, env.JWT_SECRET);
+
+  try {
+    // telegram_chat_id is NOT NULL; email rows store '' and rely on channel.
+    await env.DB.prepare(`
+      INSERT INTO telegram_login_requests
+        (id, tenant_id, user_id, telegram_chat_id, channel, email, device,
+         ip_address, expires_at, otp_hash, otp_max_attempts)
+      VALUES (?, ?, ?, '', 'email', ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, user.tenant_id || '', user.id, email,
+      meta.device || null, meta.ip || null, expiresAt.toISOString(),
+      otpHash, OTP_MAX_ATTEMPTS
+    ).run();
+  } catch (err) {
+    // Missing migration 084 / locked DB — treat as "no second factor" so login
+    // is never a hard dependency on the deploy order (same rationale as above).
+    log.warn('email_login_approval_insert_failed', {
+      reason: String((err as Error)?.message || err),
+    });
+    return null;
+  }
+
+  const mail = renderLoginCodeEmail(otpCode, meta);
+  const sent = await sendEmail(env, { to: email, subject: mail.subject, html: mail.html, text: mail.text });
+
+  if (!sent.ok) {
+    await env.DB.prepare(
+      `UPDATE telegram_login_requests SET status = 'expired',
+       resolved_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+    ).bind(id, user.tenant_id || '').run();
+    log.warn('email_login_approval_send_failed', { reason: sent.reason });
+    return null;
+  }
+
+  log.info('email_login_approval_sent', { userId: user.id, requestId: id });
   return { requestId: id, expiresAt: expiresAt.toISOString() };
 }
 
@@ -222,17 +259,11 @@ export async function resolveLoginRequest(
   const chatId = callback?.message?.chat?.id;
 
   const req = await env.DB.prepare(
-    `SELECT r.*, u.language
-     FROM telegram_login_requests r
-     LEFT JOIN users u ON u.id = r.user_id AND u.tenant_id = r.tenant_id
-     WHERE r.id = ?`
+    'SELECT * FROM telegram_login_requests WHERE id = ?'
   ).bind(requestId).first() as any;
-  const ru = isRussian(req?.language || callback?.from?.language_code);
 
   if (!req || req.status !== 'pending') {
-    await answerCallbackQuery(env, callback.id, ru
-      ? 'Этот запрос уже обработан или устарел'
-      : 'Bu so‘rov allaqachon ko‘rib chiqilgan yoki eskirgan');
+    await answerCallbackQuery(env, callback.id, 'Запрос уже обработан или устарел');
     return;
   }
 
@@ -242,12 +273,10 @@ export async function resolveLoginRequest(
        resolved_at = datetime('now')
        WHERE id = ? AND tenant_id = ? AND status = 'pending'`
     ).bind(requestId, req.tenant_id).run();
-    await answerCallbackQuery(env, callback.id, ru ? 'Время подтверждения истекло' : 'Tasdiqlash vaqti tugadi');
+    await answerCallbackQuery(env, callback.id, 'Срок запроса истёк');
     if (chatId && req.telegram_message_id) {
       await editTelegramMessage(env, chatId, req.telegram_message_id,
-        ru
-          ? '⌛ <b>Время подтверждения истекло</b>\n\nПожалуйста, попробуйте войти ещё раз.'
-          : '⌛ <b>Tasdiqlash vaqti tugadi</b>\n\nIltimos, qayta kirib ko‘ring.');
+        '⌛ <b>Запрос входа истёк</b>\n\nПопробуйте войти заново.');
     }
     return;
   }
@@ -259,9 +288,7 @@ export async function resolveLoginRequest(
   ).bind(req.user_id, req.tenant_id).first() as any;
 
   if (!owner || String(owner.telegram_user_id) !== fromId) {
-    await answerCallbackQuery(env, callback.id, ru
-      ? 'Подтвердить вход может только владелец аккаунта'
-      : 'Kirishni faqat hisob egasi tasdiqlashi mumkin');
+    await answerCallbackQuery(env, callback.id, 'Недостаточно прав');
     log.warn('login_approval_foreign_press', { requestId, fromId });
     return;
   }
@@ -278,22 +305,16 @@ export async function resolveLoginRequest(
   ).bind(next, requestId, req.tenant_id).run();
 
   if (!upd.meta?.changes) {
-    await answerCallbackQuery(env, callback.id, ru ? 'Этот запрос уже обработан' : 'Bu so‘rov allaqachon ko‘rib chiqilgan');
+    await answerCallbackQuery(env, callback.id, 'Запрос уже обработан');
     return;
   }
 
-  await answerCallbackQuery(env, callback.id, approved
-    ? (ru ? 'Спасибо, вход подтверждён' : 'Rahmat, kirish tasdiqlandi')
-    : (ru ? 'Вход отклонён' : 'Kirish rad etildi'));
+  await answerCallbackQuery(env, callback.id, approved ? 'Вход подтверждён' : 'Вход запрещён');
 
   if (chatId && req.telegram_message_id) {
     await editTelegramMessage(env, chatId, req.telegram_message_id, approved
-      ? (ru
-          ? '✅ <b>Спасибо, вход подтверждён</b>\n\nТеперь можно вернуться в приложение.'
-          : '✅ <b>Rahmat, kirish tasdiqlandi</b>\n\nEndi ilovaga qaytishingiz mumkin.')
-      : (ru
-          ? '🚫 <b>Вход отклонён</b>\n\nВаш аккаунт остаётся защищён. Если пароль мог узнать кто-то ещё, смените его в Kamizo.'
-          : '🚫 <b>Kirish rad etildi</b>\n\nHisobingiz himoyalangan. Agar parolingizni boshqa birov bilishi mumkin bo‘lsa, uni Kamizoda almashtiring.'));
+      ? '✅ <b>Вход подтверждён</b>\n\nМожете вернуться в приложение.'
+      : '🚫 <b>Вход запрещён</b>\n\nЕсли это были не вы — смените пароль в Kamizo.');
   }
 
   log.info('login_approval_resolved', { requestId, status: next });
@@ -315,10 +336,7 @@ route('POST', '/api/auth/login-approval/verify-code', async (request, env) => {
   }
 
   const req = await env.DB.prepare(
-    `SELECT r.*, u.language
-     FROM telegram_login_requests r
-     LEFT JOIN users u ON u.id = r.user_id AND u.tenant_id = r.tenant_id
-     WHERE r.id = ?`
+    'SELECT * FROM telegram_login_requests WHERE id = ?'
   ).bind(requestId).first() as any;
   if (!req) return error('Request not found', 404);
   if (req.status !== 'pending') return json({ verified: false, status: req.status, remainingAttempts: 0 });
@@ -365,9 +383,7 @@ route('POST', '/api/auth/login-approval/verify-code', async (request, env) => {
       env,
       req.telegram_chat_id,
       req.telegram_message_id,
-      isRussian(req.language)
-        ? '✅ <b>Спасибо, код принят</b>\n\nВход подтверждён, можно вернуться в приложение.'
-        : '✅ <b>Rahmat, kod qabul qilindi</b>\n\nKirish tasdiqlandi, ilovaga qaytishingiz mumkin.'
+      '✅ <b>Код принят, вход подтверждён</b>\n\nМожете вернуться в приложение.'
     );
   }
   createRequestLogger(request).info('login_approval_code_verified', { requestId, userId: req.user_id });

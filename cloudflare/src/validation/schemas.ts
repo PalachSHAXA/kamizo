@@ -26,6 +26,10 @@ export const loginSchema: Schema = {
   // [a-z0-9-]. Ignored when the request already resolves a tenant from
   // hostname/Origin.
   tenantSlug: { type: 'string', minLength: 1, maxLength: 64, pattern: /^[a-z0-9-]+$/, label: 'tenantSlug' },
+  // Preferred second-factor delivery channel when the account has 2FA on:
+  // 'email' forces the login code to the user's email; 'telegram' (default)
+  // uses the linked bot. Ignored when the account has no matching channel.
+  channel: { type: 'string', minLength: 1, maxLength: 16, pattern: /^[a-z]+$/, label: 'channel' },
 };
 
 // ── Requests ──────────────────────────────────────────

@@ -50,55 +50,15 @@ export interface Env {
   APNS_KEY_PATH?: string;
   APNS_TOPIC?: string;
   APNS_ENVIRONMENT?: 'production' | 'sandbox';
-
-  // Telegram-бот. Все три живут в /opt/kamizo/app/.env, в git не
-  // попадают. Без TELEGRAM_BOT_TOKEN клиент в utils/telegram.ts
-  // возвращает ok=false с причиной 'not configured' и НЕ бросает — тот
-  // же контракт, что у APNs выше: не настроенный канал уведомлений не
-  // должен ронять бизнес-операцию, которая его дёрнула.
-  //
-  // TELEGRAM_BOT_TOKEN      — от @BotFather. Секрет-эквивалент: даёт
-  //                           полный контроль над ботом, включая чтение
-  //                           всех входящих сообщений.
-  // TELEGRAM_WEBHOOK_SECRET — общий секрет, передаётся в setWebhook как
-  //                           secret_token и возвращается в заголовке
-  //                           X-Telegram-Bot-Api-Secret-Token. Это
-  //                           ЕДИНСТВЕННОЕ, что отличает настоящий
-  //                           апдейт от подделки: без проверки любой,
-  //                           кто знает URL вебхука, привяжет свой
-  //                           Telegram к чужому аккаунту Kamizo.
-  // TELEGRAM_BOT_USERNAME   — без @. Нужен только чтобы собрать
-  //                           deep-link https://t.me/<username>?start=…
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
   TELEGRAM_BOT_USERNAME?: string;
-
-  // Антиспам умного диспетчера (ТЗ §14: «Конкретное значение должно быть
-  // настраиваемым»). Обе величины подбираются по живым чатам, поэтому
-  // читаются из окружения, а не зашиты в код.
-  //
-  // TELEGRAM_COOLDOWN_HOURS  — не чаще одного предложения человеку в
-  //                            одной группе за это время. Умолчание 2.
-  // TELEGRAM_DEDUPE_MINUTES  — не повторять предложение по той же
-  //                            категории в той же группе. Умолчание 30.
-  //
-  // 0 отключает соответствующую проверку — удобно для тестов, но в
-  // проде означает, что бот ответит на каждое подходящее сообщение.
   TELEGRAM_COOLDOWN_HOURS?: string;
   TELEGRAM_DEDUPE_MINUTES?: string;
-  // TELEGRAM_DRAFT_OPEN_PAGE — '1' включает промежуточную страницу
-  // /open, которая пробует открыть мобильное приложение. Флаг нужен
-  // только на время рассинхрона: бэкенд выкатывается на VPS напрямую,
-  // а страница едет с фронтом, и без флага кнопка бота вела бы на 404.
-  // Включить сразу после выката фронта и убрать вместе с флагом.
   TELEGRAM_DRAFT_OPEN_PAGE?: string;
-
-  // Локальный AI fallback для Telegram listener. Текст отправляется только
-  // на loopback URL VPS и никогда не сохраняется приложением.
-  AI_LISTENER_MODE?: 'off' | 'shadow' | 'active';
-  AI_LISTENER_URL?: string;
-  AI_LISTENER_TIMEOUT_MS?: string;
-  AI_LISTENER_MAX_CONCURRENCY?: string;
+  // Resend transactional email (login codes). See utils/email.ts.
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
 }
 
 export interface User {
