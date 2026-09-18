@@ -8925,7 +8925,7 @@
 // every device transitions seamlessly to the new version.
 
 const SW_VERSION = '3.10.1';
-const STATIC_CACHE = 'kamizo-static-v335';
+const STATIC_CACHE = 'kamizo-static-v336';
 const ASSET_CACHE = 'kamizo-assets-v314';
 const DYNAMIC_CACHE = 'kamizo-dynamic-v314';
 const MAX_DYNAMIC_CACHE_SIZE = 50;

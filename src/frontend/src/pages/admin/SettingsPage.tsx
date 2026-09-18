@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText, ShieldAlert } from 'lucide-react';
+import { Building2, Settings, Bell, Users, CheckCircle, User, Globe, Trash2, AlertTriangle, Loader2, Smartphone, Send, RefreshCw, Eye, EyeOff, ArrowLeft, ToggleRight, ShoppingBag, MessageCircle, Vote, Megaphone, QrCode, Car, BookOpen, Phone, StickyNote, CreditCard, Moon, FileText } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useSettingsStore } from '../../stores/dataStore';
@@ -8,7 +8,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 import { useTenantStore } from '../../stores/tenantStore';
 import { Modal, ThemeToggle } from '../../components/common';
 import { Switch } from '../../components/ui';
-import { apiRequest, usersApi } from '../../services/api';
+import { apiRequest, usersApi, authApi } from '../../services/api';
 import { pushNotifications as pushService } from '../../services/pushNotifications';
 import { ContractUploader } from '../../components/contracts/ContractUploader';
 import { DemoReadOnlyBanner } from '../../components/demo/DemoReadOnlyBanner';
@@ -24,35 +24,35 @@ export function SettingsPage() {
   const showBackButton = location.pathname === '/settings';
   const settings = useSettingsStore(s => s.settings);
   const updateSettings = useSettingsStore(s => s.updateSettings);
-  const { user, updateUserProfile } = useAuthStore();
+  const { user, updateUserProfile, refreshUser } = useAuthStore();
+  const [email2fa, setEmail2fa] = useState<boolean>(!!user?.email_2fa_enabled);
+  const [email2faSaving, setEmail2faSaving] = useState(false);
+  const toggleEmail2fa = async (next: boolean) => {
+    if (email2faSaving) return;
+    setEmail2fa(next);
+    setEmail2faSaving(true);
+    try {
+      await authApi.setEmail2fa(next);
+      await refreshUser?.();
+    } catch {
+      setEmail2fa(!next);
+    } finally {
+      setEmail2faSaving(false);
+    }
+  };
   const { language, setLanguage } = useLanguageStore();
   const { hasFeature, fetchConfig } = useTenantStore();
   const tenantContract = useTenantStore(s => s.config?.tenant?.contract);
-  const tg = useTelegramLink();
   const isDemoSession = user?.demoSession === true;
   const [togglingFeature, setTogglingFeature] = useState<string | null>(null);
-  const [moduleMessage, setModuleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const isAdmin = user?.role === 'admin';
-  // Вкладка «Модули» видна и менеджеру, но менять состав модулей может
-  // только владельческая роль — та же проверка, что isAdminLevel в
-  // PATCH /api/tenant/features. Без этого менеджер жал тумблер и получал
-  // 403 вместо понятного «нельзя».
-  const canManageModules = user?.role === 'admin' || user?.role === 'director';
+  const canManageIntegrations = ['admin', 'director', 'manager', 'department_head'].includes(user?.role || '');
+  const telegramLink = useTelegramLink();
   // Who may attach/replace the management contract — keep in sync with the
   // backend SELF_UPLOAD_ROLES (contracts.ts). The "Договор" tab only shows
   // once a contract exists; it's added from the dashboard overview, then
   // managed here.
   const canManageContract = ['director', 'admin', 'manager'].includes(user?.role || '');
-  // Вкладка «Интеграции» была за `role === 'admin'`, хотя бэкенд для
-  // подключения Telegram-групп требует лишь isManagement (admin,
-  // director, manager, super_admin — utils/helpers.ts). Фронт оказался
-  // строже сервера: менеджер, которому подключение домовых чатов и
-  // поручено, просто не видел раздела.
-  //
-  // Список ровно повторяет isManagement, чтобы гейты не разъезжались.
-  // Прочие карточки вкладки (MENING UYIM, платежи, 1С) — справочные, без
-  // органов управления, так что их показ менеджеру ничего не открывает.
-  const canManageIntegrations = ['director', 'admin', 'manager'].includes(user?.role || '');
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'modules' | 'notifications' | 'integrations' | 'users' | 'contract'>('profile');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [saved, setSaved] = useState(false);
@@ -329,8 +329,6 @@ export function SettingsPage() {
         { id: 'profile' as const, label: language === 'ru' ? 'Профиль' : 'Profil', icon: User },
         { id: 'modules' as const, label: language === 'ru' ? 'Модули' : 'Modullar', icon: ToggleRight },
         { id: 'notifications' as const, label: language === 'ru' ? 'Уведомления' : 'Bildirishnomalar', icon: Bell },
-        // Директору и менеджеру — «Интеграции»: подключение домовых
-        // Telegram-групп бэкенд им уже разрешает (isManagement).
         ...(canManageIntegrations
           ? [{ id: 'integrations' as const, label: language === 'ru' ? 'Интеграции' : 'Integratsiyalar', icon: Globe }]
           : []),
@@ -361,24 +359,10 @@ export function SettingsPage() {
       minWidth: 0,
       maxWidth: '100%',
     }}>
-      {/* Sticky header — прилипает к верху .main-content scroll-viewport.
-          На мобилке (< md) main-content имеет `px-3 py-3` padding — extend'им
-          header horizontally + вверх на -12px (-mx-3 -mt-3), чтобы он занял
-          всю ширину и прилегал к самому верху scroll-container'a. На md+ main
-          получает p-6, страница shorter — sticky не нужен, возвращаем static
-          поведение (md:static md:mx-0 md:mt-0).
-          background + backdropBlur уже непрозрачные — контент под ним читаемо
-          скроллится. z-30 держит его выше карточек и табов, но ниже modal-overlay
-          (у Modal.tsx z-10100) и Sidebar-drawer. */}
-      <div
-        className="sticky top-0 z-30 -mx-3 -mt-3 md:static md:mx-0 md:mt-0"
-        style={{
+      {/* Pinned header — flex:0 0 auto, safe-area top */}
+      <div style={{
         flex: '0 0 auto',
-        // env(safe-area-inset-top) убран: он уже учтён в .mobile-header выше
-        // (padding-top: safe-area + 12px), а sticky-header страницы находится
-        // НИЖЕ app-bar. Дублирование давало лишние 40-60px отступа на iPhone
-        // с notch (регресс sticky-фикса, замечено 2026-09-18).
-        paddingTop: 14,
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
         paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
         background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
@@ -436,21 +420,8 @@ export function SettingsPage() {
           have reached the parent .settings-scroll, and dropped them
           because it can't scroll vertically — visible as "scroll
           stalls in the upper part". Same discipline as v258 chips
-          bar in ResidentChatView.
-          D-2 fix: добавлен fade-mask справа как visual scroll-indicator
-          (тот же паттерн что применяли в RentalsModerationPage C-C3) +
-          scroll-snap для более предсказуемого поведения на touch. Также
-          уменьшены px-3 → px-2.5 на mobile чтобы больше табов вмещалось
-          без скролла. Fade-mask применяется всегда — на десктопе просто
-          не мешает, т.к. overflow тогда 0 и хвост пуст. */}
-      <div
-        className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar snap-x snap-mandatory"
-        style={{
-          touchAction: 'pan-x',
-          WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
-          maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
-        }}
-      >
+          bar in ResidentChatView. */}
+      <div className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar" style={{ touchAction: 'pan-x' }}>
         <div
           role="tablist"
           aria-label={language === 'ru' ? 'Разделы настроек' : 'Sozlamalar bo\'limlari'}
@@ -466,7 +437,7 @@ export function SettingsPage() {
               tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
-              className={`snap-start min-h-[44px] px-2.5 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
+              className={`min-h-[44px] px-3 py-2 md:px-4 rounded-xl font-medium transition-colors text-sm md:text-base whitespace-nowrap touch-manipulation ${
                 activeTab === tab.id
                   ? 'bg-primary-500 text-gray-900'
                   : 'hover:bg-white/30 text-gray-600 active:bg-white/40'
@@ -900,26 +871,9 @@ export function SettingsPage() {
               <ToggleRight className="w-5 h-5 text-gray-400" />
               {language === 'ru' ? 'Модули платформы' : 'Platforma modullari'}
             </h2>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs text-gray-500 mb-4">
               {language === 'ru' ? 'Включайте модули по мере готовности вашей компании' : 'Kompaniyangiz tayyor bo\'lganda modullarni yoqing'}
             </p>
-            <p className="text-xs text-gray-400 mb-3">
-              {language === 'ru'
-                ? 'Выключенный модуль прячет свой раздел за замок в меню — открыть его не получится, пока модуль не включён.'
-                : 'O\'chirilgan modul o\'z bo\'limini menyuda qulf ortiga yashiradi — modul yoqilmaguncha uni ochib bo\'lmaydi.'}
-            </p>
-            {!canManageModules && (
-              <p className="text-xs text-amber-600 mb-3">
-                {language === 'ru'
-                  ? 'Менять модули может только администратор или директор УК.'
-                  : 'Modullarni faqat boshqaruv kompaniyasi administratori yoki direktori o\'zgartira oladi.'}
-              </p>
-            )}
-            {moduleMessage && (
-              <p className={`text-xs mb-3 ${moduleMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
-                {moduleMessage.text}
-              </p>
-            )}
             <div className="space-y-2">
               {[
                 { key: 'marketplace', icon: ShoppingBag, label: { ru: 'Маркетплейс', uz: 'Marketplace' }, desc: { ru: 'Магазин товаров для жителей', uz: 'Aholisi uchun do\'kon' }, color: 'text-purple-500 bg-purple-50' },
@@ -932,11 +886,6 @@ export function SettingsPage() {
                 { key: 'useful-contacts', icon: Phone, label: { ru: 'Полезные контакты', uz: 'Foydali kontaktlar' }, desc: { ru: 'Партнёры и специалисты', uz: 'Hamkorlar va mutaxassislar' }, color: 'text-red-500 bg-red-50' },
                 { key: 'notepad', icon: StickyNote, label: { ru: 'Заметки', uz: 'Eslatmalar' }, desc: { ru: 'Блокнот менеджера', uz: 'Menejer bloknoti' }, color: 'text-yellow-500 bg-yellow-50' },
                 { key: 'communal', icon: CreditCard, label: { ru: 'Коммунальные', uz: 'Kommunal' }, desc: { ru: 'Платежи и начисления', uz: 'To\'lovlar va hisob-kitoblar' }, color: 'text-emerald-500 bg-emerald-50' },
-                // Модерация объявлений об аренде: пункт меню
-                // «Модерация объявлений» гейтится этим ключом, а тумблера
-                // для него здесь не было — включить раздел из кабинета УК
-                // было нечем.
-                { key: 'rental_listings', icon: ShieldAlert, label: { ru: 'Модерация объявлений', uz: 'E\'lonlarni moderatsiya' }, desc: { ru: 'Проверка объявлений об аренде от жильцов', uz: 'Aholi ijara e\'lonlarini tekshirish' }, color: 'text-rose-500 bg-rose-50' },
               ].map(mod => {
                 const enabled = hasFeature(mod.key);
                 const ModIcon = mod.icon;
@@ -954,33 +903,14 @@ export function SettingsPage() {
                     ) : (
                       <Switch
                         checked={enabled}
-                        disabled={isDemoSession || !canManageModules || togglingFeature === mod.key}
+                        disabled={isDemoSession || togglingFeature === mod.key}
                         ariaLabel={language === 'ru' ? `${mod.label.ru}: ${enabled ? 'включён' : 'выключен'}` : `${mod.label.uz}: ${enabled ? 'yoqilgan' : 'oʻchirilgan'}`}
                         onChange={async () => {
                           setTogglingFeature(mod.key);
-                          setModuleMessage(null);
                           try {
                             await apiRequest('/api/tenant/features', { method: 'PATCH', body: JSON.stringify({ feature: mod.key, enabled: !enabled }) });
                             await fetchConfig();
-                            setModuleMessage({
-                              type: 'success',
-                              text: language === 'ru'
-                                ? `Модуль «${mod.label.ru}» ${!enabled ? 'включён' : 'выключен'}`
-                                : `«${mod.label.uz}» moduli ${!enabled ? 'yoqildi' : 'o\'chirildi'}`,
-                            });
-                          } catch (err) {
-                            // Раньше здесь стоял пустой catch. Эндпоинта
-                            // /api/tenant/features на бэке не существовало —
-                            // запрос уходил в 404, ошибка гасилась, тумблер
-                            // отщёлкивал назад, и выглядело это как «настройка
-                            // не нажимается». Показываем причину.
-                            setModuleMessage({
-                              type: 'error',
-                              text: err instanceof Error && err.message
-                                ? err.message
-                                : (language === 'ru' ? 'Не удалось изменить модуль' : 'Modulni o\'zgartirib bo\'lmadi'),
-                            });
-                          }
+                          } catch { /* toggle may fail */ }
                           setTogglingFeature(null);
                         }}
                       />
@@ -1039,61 +969,52 @@ export function SettingsPage() {
                   ariaLabel={language === 'ru' ? 'Email-уведомления' : 'Email-bildirishnomalar'}
                 />
               </div>
-              {/* Личная привязка Telegram (§16 ТЗ). Раньше здесь стоял
-                  Switch с пустым onChange («wiring TBD») — он ничего не
-                  делал, но выглядел рабочим. Теперь это кнопка: привязка
-                  не булев флаг, она требует перехода в Telegram и
-                  нажатия «Запустить», потому что бот не может написать
-                  пользователю первым. */}
               <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                 <div className="flex-1 min-w-0 mr-3">
-                  <div className="font-medium text-sm md:text-base">Telegram</div>
+                  <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}</div>
                   <div className="text-xs md:text-sm text-gray-500">
-                    {tg.awaiting
-                      ? (language === 'ru' ? 'Нажмите «Запустить» в Telegram…' : 'Telegramda «Ishga tushirish» ni bosing…')
-                      : tg.linked
-                        ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
-                        : (language === 'ru' ? 'Уведомления и коды подтверждения' : 'Bildirishnomalar va tasdiqlash kodlari')}
+                    {telegramLink.awaiting
+                      ? (language === 'ru' ? 'Ожидаем подтверждение в Telegram' : 'Telegram tasdig‘i kutilmoqda')
+                      : telegramLink.linked
+                        ? `@${telegramLink.username || (language === 'ru' ? 'подключён' : 'ulangan')}`
+                        : (language === 'ru' ? 'Нажмите, чтобы подключить' : 'Ulash uchun bosing')}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    if (tg.loading || tg.awaiting) return;
-                    if (tg.linked) { void tg.unlink(); } else { void tg.link(); }
-                  }}
-                  disabled={isDemoSession || tg.loading || tg.awaiting}
-                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium flex-shrink-0 disabled:opacity-50 ${
-                    tg.linked ? 'border border-gray-200 text-gray-600' : 'bg-primary-600 text-white'
-                  }`}
-                >
-                  {tg.linked
-                    ? (language === 'ru' ? 'Отвязать' : 'Uzish')
-                    : (language === 'ru' ? 'Привязать' : 'Ulash')}
-                </button>
+                <Switch
+                  checked={telegramLink.linked}
+                  disabled={isDemoSession || telegramLink.loading || telegramLink.awaiting}
+                  onChange={(enabled) => void (enabled ? telegramLink.connect() : telegramLink.unlink())}
+                  ariaLabel={language === 'ru' ? 'Telegram-бот' : 'Telegram-bot'}
+                />
               </div>
-
-              {/* Второй фактор (ТЗ §17). Показывается только после
-                  привязки: включать подтверждение входа некуда, пока
-                  Telegram не подключён. Отдельно от уведомлений —
-                  согласие получать сообщения о заявках не означает
-                  согласия сделать мессенджер ключом от аккаунта. */}
-              {tg.linked && (
+              {telegramLink.error && (
+                <div className="px-3 text-xs text-red-600">{telegramLink.error}</div>
+              )}
+              {telegramLink.linked && (
                 <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
                   <div className="flex-1 min-w-0 mr-3">
-                    <div className="font-medium text-sm md:text-base">
-                      {language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
-                    </div>
-                    <div className="text-xs md:text-sm text-gray-500">
-                      {language === 'ru'
-                        ? 'Запрашивать подтверждение в Telegram при входе'
-                        : 'Kirishda Telegramda tasdiqlash so‘ralsin'}
-                    </div>
+                    <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Подтверждать вход через Telegram' : 'Kirishni Telegram orqali tasdiqlash'}</div>
+                    <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Дополнительная защита аккаунта' : 'Hisob uchun qo‘shimcha himoya'}</div>
                   </div>
                   <Switch
-                    checked={tg.securityEnabled}
+                    checked={telegramLink.securityEnabled}
                     disabled={isDemoSession}
-                    onChange={(v: boolean) => void tg.setPreference('security', v)}
+                    onChange={(enabled) => void telegramLink.setPreference('security', enabled)}
                     ariaLabel={language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
+                  />
+                </div>
+              )}
+              {user?.email && (
+                <div className="flex items-center justify-between p-3 md:p-4 bg-white/30 rounded-xl">
+                  <div className="flex-1 min-w-0 mr-3">
+                    <div className="font-medium text-sm md:text-base">{language === 'ru' ? 'Вход по коду на почту' : 'Pochta orqali kirish kodi'}</div>
+                    <div className="text-xs md:text-sm text-gray-500">{language === 'ru' ? 'Код входа приходит на email' : 'Kirish kodi emailga keladi'}</div>
+                  </div>
+                  <Switch
+                    checked={email2fa}
+                    disabled={isDemoSession || email2faSaving}
+                    onChange={(enabled) => void toggleEmail2fa(enabled)}
+                    ariaLabel={language === 'ru' ? 'Вход по коду на почту' : 'Pochta orqali kirish kodi'}
                   />
                 </div>
               )}
@@ -1291,6 +1212,7 @@ export function SettingsPage() {
       {/* Integrations */}
       {activeTab === 'integrations' && canManageIntegrations && (
         <div className="space-y-4 md:space-y-6">
+          {hasFeature('telegram') && <TelegramIntegration />}
           <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl">
             <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4">{language === 'ru' ? 'Интеграции' : 'Integratsiyalar'}</h2>
             <div className="space-y-3">
@@ -1339,15 +1261,21 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              {!hasFeature('telegram') && (
+                <div className="p-3 md:p-4 bg-white/30 rounded-xl opacity-60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Send className="w-5 h-5 text-primary-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm md:text-base">Telegram Bot</div>
+                      <div className="text-xs text-gray-400 mt-1">{language === 'ru' ? 'Подключается суперадминистратором Kamizo' : 'Kamizo super-administratori tomonidan ulanadi'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Telegram — заменяет прежнюю заглушку «Скоро».
-              Карточка появляется только у тенантов, которым суперадмин
-              включил фичу 'telegram' (ТЗ §5): интеграция требует
-              согласия УК и подключённых групп, показывать её всем
-              подряд незачем. */}
-          {hasFeature('telegram') && <TelegramIntegration />}
         </div>
       )}
 

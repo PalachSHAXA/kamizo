@@ -34,7 +34,7 @@ export type LoginResult =
   | { kind: 'success'; user: unknown; token: string }
   | { kind: 'picker'; tenants: TenantPickEntry[] }
   | { kind: 'activation'; activation: TelegramActivation }
-  | { kind: 'approval'; requestId: string; expiresAt: string };
+  | { kind: 'approval'; requestId: string; expiresAt: string; channel?: 'email' | 'telegram'; availableChannels?: ('email' | 'telegram')[]; maskedEmail?: string };
 
 export interface TelegramActivation {
   requestId: string;
@@ -61,6 +61,9 @@ interface LoginApprovalResponse {
   requiresApproval: true;
   requestId: string;
   expiresAt: string;
+  channel?: 'email' | 'telegram';
+  availableChannels?: ('email' | 'telegram')[];
+  maskedEmail?: string;
 }
 
 interface LoginActivationResponse extends TelegramActivation {
@@ -177,12 +180,14 @@ export const authApi = {
     login: string,
     password: string,
     tenantSlug?: string,
+    channel?: 'email' | 'telegram',
   ): Promise<LoginResult> => {
-    const body: { login: string; password: string; tenantSlug?: string } = {
+    const body: { login: string; password: string; tenantSlug?: string; channel?: 'email' | 'telegram' } = {
       login,
       password,
     };
     if (tenantSlug) body.tenantSlug = tenantSlug;
+    if (channel) body.channel = channel;
 
     const data = await apiRequest<LoginResponse>('/api/auth/login', {
       method: 'POST',
@@ -194,7 +199,14 @@ export const authApi = {
     }
 
     if (isApprovalResponse(data)) {
-      return { kind: 'approval', requestId: data.requestId, expiresAt: data.expiresAt };
+      return {
+        kind: 'approval',
+        requestId: data.requestId,
+        expiresAt: data.expiresAt,
+        channel: data.channel,
+        availableChannels: data.availableChannels,
+        maskedEmail: data.maskedEmail,
+      };
     }
 
     if (isActivationResponse(data)) {

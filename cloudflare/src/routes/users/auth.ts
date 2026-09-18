@@ -500,29 +500,54 @@ route('POST', '/api/auth/login', async (request, env) => {
     ip: request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For'),
   };
   const log = createRequestLogger(request);
-  const wantsEmail =
-    (preferredChannel === 'email' || user.email_2fa_enabled === 1) && !!user.email;
+
+  // Which second-factor channels this account has ENABLED and can deliver a
+  // code on. The user chooses between them on the login screen:
+  //   • email    — has an address AND email_2fa_enabled = 1
+  //   • telegram — linked AND telegram_users.security_enabled = 1
+  const emailAvailable = !!user.email && user.email_2fa_enabled === 1;
+  let telegramAvailable = false;
+  try {
+    const tg = await env.DB.prepare(
+      `SELECT security_enabled FROM telegram_users
+       WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+    ).bind(user.id, user.tenant_id || '').first() as { security_enabled?: number } | null;
+    telegramAvailable = !!tg && tg.security_enabled === 1;
+  } catch {
+    // Missing/locked telegram_users — treat as unavailable (fail-open, same as
+    // createLoginApproval); email or plain login still works.
+  }
+
+  const availableChannels: ('email' | 'telegram')[] = [];
+  if (telegramAvailable) availableChannels.push('telegram');
+  if (emailAvailable) availableChannels.push('email');
+
+  // Explicit client choice wins when that channel is actually available;
+  // otherwise default to email (if enabled) then telegram. A channel the user
+  // never enabled can't be picked, so a bad `channel` param can't bypass 2FA.
+  let channel: 'email' | 'telegram' | null = null;
+  if (preferredChannel === 'email' && emailAvailable) channel = 'email';
+  else if (preferredChannel === 'telegram' && telegramAvailable) channel = 'telegram';
+  else if (emailAvailable) channel = 'email';
+  else if (telegramAvailable) channel = 'telegram';
 
   let approval = null;
-  let usedChannel: 'email' | 'telegram' = 'telegram';
-  if (wantsEmail) {
+  if (channel === 'email') {
     approval = await createEmailLoginApproval(
       env,
       { id: user.id, name: user.name, tenant_id: user.tenant_id, email: user.email },
       approvalMeta,
       log
     );
-    if (approval) usedChannel = 'email';
-  }
-  if (!approval) {
+  } else if (channel === 'telegram') {
     approval = await createLoginApproval(
       env,
       { id: user.id, name: user.name, tenant_id: user.tenant_id },
       approvalMeta,
       log
     );
-    if (approval) usedChannel = 'telegram';
   }
+
   if (approval) {
     // Mask the email so the UI can say "код отправлен на j***@gmail.com"
     // without echoing the full address on a pre-auth response.
@@ -536,8 +561,9 @@ route('POST', '/api/auth/login', async (request, env) => {
       requiresApproval: true,
       requestId: approval.requestId,
       expiresAt: approval.expiresAt,
-      channel: usedChannel,
-      ...(usedChannel === 'email' && user.email ? { maskedEmail: maskEmail(String(user.email)) } : {}),
+      channel,
+      availableChannels,
+      ...(channel === 'email' && user.email ? { maskedEmail: maskEmail(String(user.email)) } : {}),
     }), { status: 200, headers });
   }
 

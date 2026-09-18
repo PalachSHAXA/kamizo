@@ -5,6 +5,7 @@ import {
   User as UserIcon, Wrench, Briefcase, ShieldCheck, Radio, Store, Megaphone, Crown, CheckCircle
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { authApi } from '../services/api/auth';
 import { useLanguageStore } from '../stores/languageStore';
 import { InstallAppSection } from '../components/InstallAppSection';
 import { ThemeToggle } from '../components/common';
@@ -17,6 +18,7 @@ const ROLE_CONFIG: Record<string, { labelRu: string; labelUz: string; icon: Comp
   dispatcher: { labelRu: 'Диспетчер', labelUz: 'Dispetcher', icon: Radio, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   marketplace_manager: { labelRu: 'Менеджер магазина', labelUz: 'Do\'kon menejeri', icon: Store, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
   advertiser: { labelRu: 'Рекламодатель', labelUz: 'Reklamachi', icon: Megaphone, color: 'text-pink-600', bgColor: 'bg-pink-50' },
+  coupon_checker: { labelRu: 'Проверяющий купонов', labelUz: 'Kupon tekshiruvchisi', icon: CheckCircle, color: 'text-orange-600', bgColor: 'bg-orange-50' },
   department_head: { labelRu: 'Глава отдела', labelUz: 'Bo\'lim boshlig\'i', icon: Crown, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   admin: { labelRu: 'Администратор', labelUz: 'Administrator', icon: Shield, color: 'text-red-600', bgColor: 'bg-red-50' },
   manager: { labelRu: 'Менеджер', labelUz: 'Menejer', icon: Briefcase, color: 'text-blue-600', bgColor: 'bg-blue-50' },
@@ -39,9 +41,25 @@ const SPECIALIZATION_LABELS: Record<string, { ru: string; uz: string }> = {
 };
 
 export function StaffProfilePage() {
-  const { user, changePassword, updateProfile } = useAuthStore();
+  const { user, changePassword, updateProfile, refreshUser } = useAuthStore();
+  const [email2fa, setEmail2fa] = useState<boolean>(!!user?.email_2fa_enabled);
+  const [email2faSaving, setEmail2faSaving] = useState(false);
+  const toggleEmail2fa = async () => {
+    if (email2faSaving) return;
+    const next = !email2fa;
+    setEmail2fa(next);
+    setEmail2faSaving(true);
+    try {
+      await authApi.setEmail2fa(next);
+      await refreshUser?.();
+    } catch {
+      setEmail2fa(!next);
+    } finally {
+      setEmail2faSaving(false);
+    }
+  };
   const { language, setLanguage } = useLanguageStore();
-  const tg = useTelegramLink();
+  const telegram = useTelegramLink();
 
   const [editingPhone, setEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState(user?.phone || '');
@@ -315,10 +333,6 @@ export function StaffProfilePage() {
           </div>
         </div>
 
-        {/* Telegram (§16 ТЗ) — бесплатный канал уведомлений и кодов
-            подтверждения. Бот не может написать первым, поэтому
-            привязка идёт через одноразовую ссылку, а состояние
-            подтягивается опросом /status после её открытия. */}
         <div className="bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] overflow-hidden">
           <div className="px-4 pt-4 pb-3">
             <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
@@ -329,54 +343,68 @@ export function StaffProfilePage() {
           <div className="px-4 pb-4 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="text-[14px] font-medium text-gray-900">
-                {tg.linked
-                  ? (tg.username ? `@${tg.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
+                {telegram.linked
+                  ? (telegram.username ? `@${telegram.username}` : (language === 'ru' ? 'Привязан' : 'Ulangan'))
                   : (language === 'ru' ? 'Не привязан' : 'Ulanmagan')}
               </div>
               <div className="text-[12px] text-gray-500 mt-0.5">
-                {tg.awaiting
-                  ? (language === 'ru' ? 'Нажмите «Запустить» в Telegram…' : 'Telegramda «Ishga tushirish» ni bosing…')
-                  : (language === 'ru'
-                      ? 'Уведомления и коды подтверждения в Telegram'
-                      : 'Telegramda bildirishnomalar va tasdiqlash kodlari')}
+                {telegram.awaiting
+                  ? (language === 'ru' ? 'Подтвердите запуск в Telegram' : 'Telegramda ishga tushirishni tasdiqlang')
+                  : (language === 'ru' ? 'Уведомления и защита входа' : 'Bildirishnomalar va kirish himoyasi')}
               </div>
             </div>
             <button
-              onClick={() => {
-                if (tg.loading || tg.awaiting) return;
-                if (tg.linked) { void tg.unlink(); } else { void tg.link(); }
-              }}
-              disabled={tg.loading || tg.awaiting}
+              onClick={() => void (telegram.linked ? telegram.unlink() : telegram.connect())}
+              disabled={telegram.loading || telegram.awaiting}
               className={`px-3 py-1.5 rounded-lg text-[13px] font-medium flex-shrink-0 disabled:opacity-50 ${
-                tg.linked ? 'border border-gray-200 text-gray-600' : 'bg-primary-600 text-white'
+                telegram.linked ? 'border border-gray-200 text-gray-600' : 'bg-primary-600 text-white'
               }`}
             >
-              {tg.linked
+              {telegram.linked
                 ? (language === 'ru' ? 'Отвязать' : 'Uzish')
                 : (language === 'ru' ? 'Привязать' : 'Ulash')}
             </button>
           </div>
-
-          {/* Второй фактор (ТЗ §17) — только после привязки. */}
-          {tg.linked && (
+          {telegram.linked && (
             <div className="px-4 pb-4 pt-3 border-t border-gray-100 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] font-medium text-gray-900">
                   {language === 'ru' ? 'Подтверждение входа' : 'Kirishni tasdiqlash'}
                 </div>
                 <div className="text-[12px] text-gray-500 mt-0.5">
-                  {language === 'ru'
-                    ? 'Спрашивать в Telegram при входе в аккаунт'
-                    : 'Hisobga kirishda Telegramda so‘ralsin'}
+                  {language === 'ru' ? 'Запрашивать подтверждение в Telegram' : 'Telegram orqali tasdiqlashni so‘rash'}
                 </div>
               </div>
               <button
-                onClick={() => void tg.setPreference('security', !tg.securityEnabled)}
+                onClick={() => void telegram.setPreference('security', !telegram.securityEnabled)}
                 className={`px-3 py-1.5 rounded-lg text-[13px] font-medium flex-shrink-0 ${
-                  tg.securityEnabled ? 'bg-primary-600 text-white' : 'border border-gray-200 text-gray-600'
+                  telegram.securityEnabled ? 'bg-primary-600 text-white' : 'border border-gray-200 text-gray-600'
                 }`}
               >
-                {tg.securityEnabled
+                {telegram.securityEnabled
+                  ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
+                  : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
+              </button>
+            </div>
+          )}
+          {user?.email && (
+            <div className="px-4 pb-4 pt-3 border-t border-gray-100 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-medium text-gray-900">
+                  {language === 'ru' ? 'Вход по коду на почту' : 'Pochta orqali kirish kodi'}
+                </div>
+                <div className="text-[12px] text-gray-500 mt-0.5">
+                  {language === 'ru' ? 'Код входа приходит на email' : 'Kirish kodi emailga keladi'}
+                </div>
+              </div>
+              <button
+                onClick={toggleEmail2fa}
+                disabled={email2faSaving}
+                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium flex-shrink-0 disabled:opacity-60 ${
+                  email2fa ? 'bg-primary-600 text-white' : 'border border-gray-200 text-gray-600'
+                }`}
+              >
+                {email2fa
                   ? (language === 'ru' ? 'Включено' : 'Yoqilgan')
                   : (language === 'ru' ? 'Выключено' : 'O‘chirilgan')}
               </button>
