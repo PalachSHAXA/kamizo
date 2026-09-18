@@ -1,7 +1,7 @@
 // Auth routes: login, register
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { getTenantId, setTenantForRequest, getTenantSlug } from '../../middleware/tenant';
+import { getTenantId, setTenantForRequest, getTenantSlug, isControlRequest } from '../../middleware/tenant';
 import { checkRateLimit, getClientIdentifier } from '../../middleware/rateLimit';
 import { getCurrentCorsOrigin } from '../../middleware/cors';
 import { json, error, bilingualError, generateId, isAdminLevel } from '../../utils/helpers';
@@ -11,8 +11,7 @@ import { createRequestLogger } from '../../utils/logger';
 import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
-import { createLoginApproval, TelegramApprovalUnavailableError } from '../telegram/login-approval';
-import { createFirstLoginActivation, normalizeActivationPhone } from '../telegram/activation';
+import { createLoginApproval, createEmailLoginApproval } from '../telegram/login-approval';
 
 const NATIVE_APP_ORIGINS = new Set([
   'https://localhost',
@@ -20,6 +19,11 @@ const NATIVE_APP_ORIGINS = new Set([
   'ionic://localhost',
   'http://localhost',
 ]);
+
+function requestPortalHost(request: Request): string {
+  const source = request.headers.get('Origin') || request.headers.get('Referer') || '';
+  try { return source ? new URL(source).hostname.toLowerCase() : ''; } catch { return ''; }
+}
 
 export function registerAuthRoutes() {
 
@@ -46,9 +50,9 @@ route('POST', '/api/auth/login', async (request, env) => {
     });
   }
 
-  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string; tenantSlug?: string }>(request, loginSchema);
+  const { data: body, errors: validationErrors } = await validateBody<{ login: string; password: string; tenantSlug?: string; channel?: string }>(request, loginSchema);
   if (validationErrors) return error(validationErrors, 400);
-  const { login, password, tenantSlug: bodyTenantSlug } = body;
+  const { login, password, tenantSlug: bodyTenantSlug, channel: preferredChannel } = body;
 
   // Trim password to match frontend behavior (prevents whitespace mismatch)
   const trimmedPassword = password.trim();
@@ -67,7 +71,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   // no apartment (directors, managers, super-admins, advertisers).
   // Tenant isolation is enforced by `tenant_id = users.tenant_id` —
   // super-admin or empty-tenant users get NULL.
-  const userFields = `id, login, phone, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, auth_revoked_at, telegram_activation_required, telegram_activated_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
+  const userFields = `id, login, phone, email, email_2fa_enabled, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
 
   // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
   // then verify against each candidate" code leaked timing because the
@@ -353,6 +357,20 @@ route('POST', '/api/auth/login', async (request, env) => {
   }
   void tenantResolvedFromBody; // reserved for future audit logging
 
+  // control.kamizo.uz is a platform-only entry point. Reject before any
+  // last-login or password-rehash mutation for non-superadmin accounts.
+  if (isControlRequest(request) && userWithHash.role !== 'super_admin') {
+    return bilingualError(
+      'Control доступен только супер-администратору Kamizo.',
+      'Control faqat Kamizo super-administratori uchun ochiq.',
+      403,
+    );
+  }
+  const portalHost = requestPortalHost(request);
+  if (['partners.kamizo.uz', 'market.kamizo.uz', 'check.kamizo.uz'].includes(portalHost) && userWithHash.role !== 'super_admin') {
+    return bilingualError('Доступ разрешён только сотрудникам Kamizo.', 'Kirish faqat Kamizo xodimlari uchun ruxsat etilgan.', 403);
+  }
+
   if (demoResidentAliasTenantId && demoResident) {
     const storedSpecialization = typeof userWithHash.specialization === 'string'
       ? userWithHash.specialization
@@ -447,7 +465,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   }
 
   // Check if feature-gated role is enabled for this tenant
-  const featureGatedRoles: Record<string, string> = { advertiser: 'advertiser' };
+  const featureGatedRoles: Record<string, string> = { advertiser: 'advertiser', coupon_checker: 'marketplace' };
   if (tenantId && featureGatedRoles[user.role]) {
     const tenantData = await env.DB.prepare('SELECT features FROM tenants WHERE id = ?').bind(tenantId).first() as any;
     const features: string[] = tenantData?.features ? JSON.parse(tenantData.features) : [];
@@ -464,78 +482,62 @@ route('POST', '/api/auth/login', async (request, env) => {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'X-RateLimit-Limit': '5',
     'X-RateLimit-Remaining': rateLimit.remaining.toString(),
-    'X-RateLimit-Reset': rateLimit.resetAt.toString(),
-    'Cache-Control': 'no-store',
-    'Pragma': 'no-cache',
+    'X-RateLimit-Reset': rateLimit.resetAt.toString()
   };
 
-  if (Number(user.telegram_activation_required) === 1 && !user.telegram_activated_at) {
-    const activation = await createFirstLoginActivation(env, {
-      id: user.id,
-      tenant_id: user.tenant_id,
-      phone: user.phone,
-      auth_revoked_at: user.auth_revoked_at,
-    });
-    if (!activation) {
-      return new Response(JSON.stringify({
-        error: 'Telegram activation is required. Contact your administrator to verify the phone number.',
-        activationUnavailable: true,
-      }), { status: 409, headers });
-    }
-    return new Response(JSON.stringify({
-      requiresTelegramActivation: true,
-      ...activation,
-      account: {
-        name: user.name,
-        phone: user.phone ? String(user.phone).replace(/.(?=.{4})/g, '•') : null,
-      },
-    }), { status: 200, headers });
-  }
+  // Optional second factor. Both channels are per-user opt-in and fail open if
+  // their delivery service is unavailable, so login never hard-depends on a
+  // third party unless the user explicitly enabled it.
+  //
+  // Channel choice:
+  //   • email — when the client asked for channel:'email', or the account has
+  //     email_2fa_enabled=1. Requires a non-empty users.email.
+  //   • telegram — otherwise (unchanged): gated by telegram_users.security_enabled.
+  // Email is tried first only when it applies; on any miss we fall through to
+  // the Telegram path, so existing 2FA behaviour is untouched.
+  const approvalMeta = {
+    device: request.headers.get('User-Agent'),
+    ip: request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For'),
+  };
+  const log = createRequestLogger(request);
+  const wantsEmail =
+    (preferredChannel === 'email' || user.email_2fa_enabled === 1) && !!user.email;
 
-  // Второй фактор через Telegram (ТЗ §17, Этап 4).
-  //
-  // Врезка СТРОГО аддитивна и молчалива по умолчанию: путь ниже
-  // включается только у аккаунтов с активной привязкой Telegram И
-  // security_enabled = 1. Колонка заведена в миграции 074 со значением
-  // по умолчанию 0, то есть на сегодня не затрагивает никого. Это
-  // сознательно: логин — критический путь, и изменение, способное
-  // запереть пользователей снаружи, обязано включаться поштучно.
-  //
-  // createLoginApproval возвращает null, если подтверждение не нужно
-  // ИЛИ если сообщение не удалось доставить (бот заблокирован, Telegram
-  // недоступен). Во втором случае вход проходит как обычно, а факт
-  // пишется в лог — иначе падение стороннего сервиса превращается в
-  // отказ в обслуживании для всех, кто включил защиту.
-  let approval;
-  try {
+  let approval = null;
+  let usedChannel: 'email' | 'telegram' = 'telegram';
+  if (wantsEmail) {
+    approval = await createEmailLoginApproval(
+      env,
+      { id: user.id, name: user.name, tenant_id: user.tenant_id, email: user.email },
+      approvalMeta,
+      log
+    );
+    if (approval) usedChannel = 'email';
+  }
+  if (!approval) {
     approval = await createLoginApproval(
       env,
       { id: user.id, name: user.name, tenant_id: user.tenant_id },
-      {
-        device: request.headers.get('User-Agent'),
-        ip: request.headers.get('CF-Connecting-IP')
-          || request.headers.get('X-Forwarded-For'),
-      },
-      createRequestLogger(request)
+      approvalMeta,
+      log
     );
-  } catch (approvalError) {
-    if (approvalError instanceof TelegramApprovalUnavailableError) {
-      return new Response(JSON.stringify({
-        error: 'Telegram confirmation is temporarily unavailable. Please try again later or use a recovery code.',
-        telegramApprovalUnavailable: true,
-      }), { status: 503, headers });
-    }
-    throw approvalError;
+    if (approval) usedChannel = 'telegram';
   }
-
   if (approval) {
-    // JWT здесь НЕ выдаётся. Клиент опрашивает
-    // POST /api/auth/login-approval/status и получает токен только
-    // после нажатия «Это я» в Telegram.
+    // Mask the email so the UI can say "код отправлен на j***@gmail.com"
+    // without echoing the full address on a pre-auth response.
+    const maskEmail = (e: string) => {
+      const [name, domain] = e.split('@');
+      if (!domain) return '***';
+      const head = name.length <= 1 ? name : name[0] + '***';
+      return `${head}@${domain}`;
+    };
     return new Response(JSON.stringify({
       requiresApproval: true,
       requestId: approval.requestId,
       expiresAt: approval.expiresAt,
+      channel: usedChannel,
+      ...(usedChannel === 'email' && user.email ? { maskedEmail: maskEmail(String(user.email)) } : {}),
     }), { status: 200, headers });
   }
 
@@ -550,6 +552,36 @@ route('POST', '/api/auth/login', async (request, env) => {
     status: 200,
     headers
   });
+});
+
+// Auth: toggle email-delivered 2FA for the current user.
+// Turning it ON makes every subsequent login require a code emailed to the
+// account's address (mirrors telegram_users.security_enabled, but for email).
+route('POST', '/api/auth/email-2fa', async (request, env) => {
+  const authUser = await getUser(request, env);
+  if (!authUser) return error('Unauthorized', 401);
+
+  const body = await request.json().catch(() => ({})) as { enabled?: boolean };
+  const enabled = body.enabled ? 1 : 0;
+
+  if (enabled) {
+    const row = await env.DB.prepare(
+      'SELECT email FROM users WHERE id = ? AND tenant_id = ?'
+    ).bind(authUser.id, authUser.tenant_id || '').first() as { email?: string } | null;
+    if (!row?.email || !row.email.trim()) {
+      return bilingualError(
+        'Сначала укажите email в профиле, чтобы включить вход по коду с почты.',
+        "Email orqali kirishni yoqish uchun avval profilda email kiriting.",
+        400
+      );
+    }
+  }
+
+  await env.DB.prepare(
+    'UPDATE users SET email_2fa_enabled = ? WHERE id = ? AND tenant_id = ?'
+  ).bind(enabled, authUser.id, authUser.tenant_id || '').run();
+
+  return json({ email_2fa_enabled: enabled });
 });
 
 // Auth: Register (protected - only admin/manager can create users)
@@ -613,12 +645,11 @@ route('POST', '/api/auth/register', async (request, env) => {
 
   const id = generateId();
   const passwordHash = await hashPassword(password);
-  const activationPhone = normalizeActivationPhone(phone);
 
   await env.DB.prepare(`
-    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id, telegram_activation_required)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, login.trim(), passwordHash, name, role, activationPhone || phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId, activationPhone ? 1 : 0).run();
+    INSERT INTO users (id, login, password_hash, name, role, phone, address, apartment, building_id, entrance, floor, specialization, branch, building, tenant_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, login.trim(), passwordHash, name, role, phone || null, address || null, apartment || null, building_id || null, entrance || null, floor || null, specialization || null, branch || null, building || null, registerTenantId).run();
 
   // Auto-create apartment record if resident has building_id + apartment number
   if (building_id && apartment && (role === 'resident' || role === 'tenant')) {
