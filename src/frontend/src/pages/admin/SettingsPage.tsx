@@ -361,8 +361,18 @@ export function SettingsPage() {
       minWidth: 0,
       maxWidth: '100%',
     }}>
-      {/* Pinned header — flex:0 0 auto, safe-area top */}
-      <div style={{
+      {/* Sticky header — прилипает к верху .main-content scroll-viewport.
+          На мобилке (< md) main-content имеет `px-3 py-3` padding — extend'им
+          header horizontally + вверх на -12px (-mx-3 -mt-3), чтобы он занял
+          всю ширину и прилегал к самому верху scroll-container'a. На md+ main
+          получает p-6, страница shorter — sticky не нужен, возвращаем static
+          поведение (md:static md:mx-0 md:mt-0).
+          background + backdropBlur уже непрозрачные — контент под ним читаемо
+          скроллится. z-30 держит его выше карточек и табов, но ниже modal-overlay
+          (у Modal.tsx z-10100) и Sidebar-drawer. */}
+      <div
+        className="sticky top-0 z-30 -mx-3 -mt-3 md:static md:mx-0 md:mt-0"
+        style={{
         flex: '0 0 auto',
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
         paddingLeft: 16, paddingRight: 16, paddingBottom: 14,
