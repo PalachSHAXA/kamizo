@@ -394,31 +394,28 @@ export function SettingsPage() {
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, #E6DFD2)',
       }}>
-        {/* Icon-only back button, shown only on the /settings route (i.e.
-            when the user arrived via the sidebar). On /profile — reached
-            via the BottomBar's "Профиль" tab — no back button, the tab
-            IS the home. */}
-        {showBackButton && (
-          <button
-            onClick={() => navigate('/')}
-            aria-label={language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
-            className="staff-primary-control mb-2 min-h-[44px] min-w-[44px] rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-        )}
-        <div className="flex flex-col items-stretch justify-between gap-3 min-[360px]:flex-row min-[360px]:items-center">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
-              <Settings className="w-5 h-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
-              <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
-            </div>
+        {/* Header ONE-ROW layout: back-arrow (optional) + icon-circle + title/subtitle + saved-toast.
+            Раньше back-arrow был отдельным блоком с mb-2 → header становился двухстрочным (~120px).
+            Теперь всё inline flex-row, header компактный. */}
+        <div className="flex items-center gap-3 min-w-0">
+          {showBackButton && (
+            <button
+              onClick={() => navigate('/')}
+              aria-label={language === 'ru' ? 'Назад к дашборду' : 'Dashboardga qaytish'}
+              className="staff-primary-control min-h-[44px] min-w-[44px] rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <Settings className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight">{language === 'ru' ? 'Настройки' : 'Sozlamalar'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? 'Параметры системы' : 'Tizim parametrlari'}</p>
           </div>
           {saved && (
-            <div className="flex min-h-[44px] items-center gap-2 self-start px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
+            <div className="flex min-h-[44px] items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-100 text-green-700 rounded-xl text-sm shrink-0">
               <CheckCircle className="w-4 h-4" />
               <span className="hidden sm:inline">{language === 'ru' ? 'Сохранено' : 'Saqlandi'}</span>
             </div>
