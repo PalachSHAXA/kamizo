@@ -559,12 +559,18 @@ export function Layout() {
   // sheet's own "Создать заявку" title + X close button. Hiding the
   // mobile header for the duration of the modal fixes the overlap
   // without changing per-modal z-index plumbing across the app.
+  // Hard-coded /profile hide убран: он резался вслепую для ВСЕХ ролей, а нужен
+  // только для тех, у кого /profile — full-bleed (admin/director/manager/dept-
+  // head/marketplace_manager: isStaffSettingsFullBleed; resident/tenant/
+  // commercial_owner: isResidentProfile). Обе группы уже покрываются
+  // !isResidentFullBleed выше. Executor и advertiser в них не входят —
+  // на своём /profile (StaffProfilePage) должны получать глобальный "My Helper"
+  // app-header, как на остальных разделах роли (/requests, /reports и т.д.).
   const showMobileHeader = !isSuperAdmin
     && modalCount === 0
     && !isResidentFullBleed
     && location.pathname !== '/marketplace'
     && location.pathname !== '/apartment-rentals'
-    && location.pathname !== '/profile'
     && location.pathname !== '/chat';
   const renderMobileHeader = showMobileHeader || (retainSidebarHeader && !isResidentFullBleed);
 
