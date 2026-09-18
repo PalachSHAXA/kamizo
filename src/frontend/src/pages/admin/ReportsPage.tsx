@@ -1163,8 +1163,63 @@ export function ReportsPage() {
                 scroll happens entirely within the card. -webkit-
                 overflow-scrolling:touch is a belt-and-braces for
                 momentum on older iOS WebKit (iOS 17+ enables this by
-                default). */}
-            <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+                default).
+                D-1 fix: 7-колоночная таблица не помещается на 375/393/430
+                даже с горизонтальным скроллом (правые колонки Специализация /
+                Заявок / Выполнено / Рейтинг / Статус физически шире экрана,
+                fade-mask бы обрезал их наполовину и пользователь пропустил бы
+                данные). На <md переходим на карточную раскладку: аватар+имя
+                +бэдж статуса сверху, метрики grid-cols-2 ниже. На md+ таблица
+                как раньше. */}
+            {/* Mobile: карточная раскладка */}
+            <div className="md:hidden space-y-3">
+              {executorStats.slice(0, 10).map((executor, index) => (
+                <div
+                  key={executor.id}
+                  className="bg-white/60 border border-gray-200 rounded-xl p-3"
+                >
+                  {/* Row 1: № + avatar + name + status badge */}
+                  <div className="flex items-start gap-2 mb-3">
+                    <span className="text-gray-400 text-sm font-medium w-6 flex-shrink-0 pt-1">{index + 1}</span>
+                    <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center text-sm font-medium text-primary-700 flex-shrink-0">
+                      {executor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm break-words">{executor.name}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{SPECIALIZATION_LABELS[executor.specialization]}</div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${
+                      executor.status === 'available' ? 'bg-green-100 text-green-700' :
+                      executor.status === 'busy' ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {executor.status === 'available' ? (language === 'ru' ? 'Доступен' : 'Mavjud') :
+                       executor.status === 'busy' ? (language === 'ru' ? 'Занят' : 'Band') : (language === 'ru' ? 'Оффлайн' : 'Oflayn')}
+                    </span>
+                  </div>
+                  {/* Row 2: metrics grid — Заявок, Выполнено, Рейтинг */}
+                  <div className="grid grid-cols-3 gap-2 text-center border-t border-gray-100 pt-2">
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">{language === 'ru' ? 'Заявок' : 'Arizalar'}</div>
+                      <div className="text-sm font-semibold mt-0.5">{executor.requests}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">{language === 'ru' ? 'Выполнено' : 'Bajarildi'}</div>
+                      <div className="text-sm font-semibold mt-0.5 text-green-700">{executor.completedCount}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">{language === 'ru' ? 'Рейтинг' : 'Reyting'}</div>
+                      <div className="text-sm font-semibold mt-0.5 flex items-center justify-center gap-1">
+                        <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                        {executor.rating}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop: таблица как раньше (md+) */}
+            <div className="hidden md:block overflow-x-auto [-webkit-overflow-scrolling:touch]">
               <table className="w-full" style={{ minWidth: '600px', WebkitTapHighlightColor: 'transparent' }}>
                 <thead>
                   <tr className="text-left text-sm text-gray-500 border-b border-gray-200">
