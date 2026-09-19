@@ -18,6 +18,7 @@ import { useTenantStore } from '../../stores/tenantStore';
 import { useFeatureFetch } from '../../stores/useFeatureFetch';
 import { useBuildingStore } from '../../stores/buildingStore';
 import { AppLogo } from '../common/AppLogo';
+import { isSecurityRole } from '../../utils/roles';
 import { chatApi } from '../../services/api';
 import { FeatureLockedModal } from '../FeatureLockedModal';
 import { ConfirmDialog } from '../common';
@@ -334,7 +335,7 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
     }
 
     if (user?.role === 'executor' || user?.role === 'security') {
-      const isSecurity = user?.role === 'security' || user?.specialization === 'security';
+      const isSecurity = isSecurityRole(user);
       return [
         // Работа
         { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar'), section: language === 'ru' ? 'Работа' : 'Ish' },

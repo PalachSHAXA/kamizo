@@ -6,13 +6,20 @@ import { FeatureUnavailable } from './FeatureUnavailable';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
+  // Специализации, которым также разрешён доступ (в дополнение к allowedRoles).
+  // Гейт пропускает, если совпало ЛИБО role, ЛИБО specialization. Используется
+  // для страниц, доступ к которым определяется признаком, не совпадающим с
+  // "чистой" ролью — например QR-сканер: role='security' ИЛИ
+  // (role='executor' + specialization='security'). Тот же признак должен
+  // считать BottomBar/Sidebar через isSecurityRole() из utils/roles.
+  allowedSpecializations?: string[];
   // If set, the route is only accessible when the current tenant has this
   // feature enabled. Useful for locking routes like /marketplace so a user
   // cannot bypass the drawer/dashboard lock by typing the URL directly.
   requiredFeature?: string;
 }
 
-export function ProtectedRoute({ children, allowedRoles, requiredFeature }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, allowedRoles, allowedSpecializations, requiredFeature }: ProtectedRouteProps) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const location = useLocation();
@@ -27,8 +34,14 @@ export function ProtectedRoute({ children, allowedRoles, requiredFeature }: Prot
     return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+  if (allowedRoles || allowedSpecializations) {
+    const roleOk = allowedRoles ? allowedRoles.includes(user.role) : false;
+    const specOk = allowedSpecializations
+      ? allowedSpecializations.includes(user.specialization || '')
+      : false;
+    if (!roleOk && !specOk) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   // Раньше здесь был <Navigate to="/" replace />: пользователь жал пункт
