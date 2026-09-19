@@ -1,8 +1,10 @@
 import { useState, useMemo, type ComponentType } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Key, Phone, Save, Eye, EyeOff, Edit3,
   Shield, Loader2, X, Globe, Moon, Send,
-  User as UserIcon, Wrench, Briefcase, ShieldCheck, Radio, Store, Megaphone, Crown, CheckCircle
+  User as UserIcon, Wrench, Briefcase, ShieldCheck, Radio, Store, Megaphone, Crown, CheckCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { authApi } from '../services/api/auth';
@@ -41,6 +43,7 @@ const SPECIALIZATION_LABELS: Record<string, { ru: string; uz: string }> = {
 };
 
 export function StaffProfilePage() {
+  const navigate = useNavigate();
   const { user, changePassword, updateProfile, refreshUser } = useAuthStore();
   const [email2fa, setEmail2fa] = useState<boolean>(!!user?.email_2fa_enabled);
   const [email2faSaving, setEmail2faSaving] = useState(false);
@@ -153,36 +156,83 @@ export function StaffProfilePage() {
     }
   };
 
-  // marketplace_manager /profile runs under `page-content-full-bleed`
-  // (see Layout.tsx isStaffSettingsFullBleed) — main-content has no side
-  // padding for them, so we must NOT apply the -mx-4 negative-margin
-  // compensation (it would drag content off-screen). Every other staff
-  // role still gets main-content padding, so keep the compensation.
-  const isMarketplaceMgr = user.role === 'marketplace_manager';
-  const wrapperClass = isMarketplaceMgr
+  // На full-bleed (Layout.tsx isStaffSettingsFullBleed → main без side padding
+  // и без глобального MobileHeader) страница сама рисует safe-area-aware chrome
+  // (см. return() ниже), поэтому -mx-4 -mt-4 компенсация НЕ нужна: main уже
+  // full-bleed, sides = 0, top = 0. Раньше это был только marketplace_manager;
+  // теперь executor/advertiser/security/dispatcher/coupon_checker тоже
+  // full-bleed на /profile (см. Layout.tsx isStaffSettingsFullBleed).
+  const isFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager', 'executor', 'advertiser', 'security', 'dispatcher', 'coupon_checker'].includes(user.role);
+  const wrapperClass = isFullBleed
     ? 'max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 md:mt-0'
     : 'max-w-2xl xl:max-w-3xl mx-auto pb-24 md:pb-6 -mx-4 -mt-4 md:mx-auto md:mt-0';
-  const contentPad = isMarketplaceMgr ? 'px-3' : 'px-4';
+  const contentPad = user.role === 'marketplace_manager' ? 'px-3' : 'px-4';
 
   return (
-    <div className={wrapperClass}>
-      {/* User Card Header — sticky at the top of the scroll container so
-          it stays pinned while the content list scrolls under it. bg-white
-          + z-30 make sure the cards can't peek through the semi-transparent
-          radial gradient overlay above the pinned surface. Layout hides the
-          global MobileHeader on /profile for every role, so nothing stacks
-          on top of this. */}
-      <div className="relative overflow-hidden bg-white sticky top-0 z-30 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
-        <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
-        <div className="relative px-5 pb-5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
-          <div className="flex items-center gap-4">
-            {/* Sprint 39: circular avatar matching the rest of the
-                profile pages. */}
+    <div
+      className="admin-form-controls w-full max-w-full min-w-0 fixed left-0 right-0 bottom-0 flex flex-col md:static md:h-auto md:block"
+      style={{
+        top: 0,
+        minHeight: 0,
+        marginTop: 0,
+        minWidth: 0,
+        maxWidth: '100%',
+      }}
+    >
+      {/* Pinned page-header strip — same pattern as admin SettingsPage:
+          background красит safe-area zone под notch, "← Назад" + иконка + h1 в
+          одну строку. Заменяет глобальный MobileHeader (скрыт для этой роли
+          через isStaffSettingsFullBleed в Layout.tsx). */}
+      <div style={{
+        flex: '0 0 auto',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+        paddingLeft: 16, paddingRight: 16, paddingBottom: 12,
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: '1px solid var(--border-c, #E6DFD2)',
+      }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад' : 'Ortga'}
+            className="staff-primary-control min-h-[44px] min-w-[44px] rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
+            <UserIcon className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight">{language === 'ru' ? 'Профиль' : 'Profil'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{language === 'ru' ? roleConfig.labelRu : roleConfig.labelUz}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Inner scroll container (flex:1) — свой независимый scroll context
+          (root fixed, height не задан → child без scroll-context). */}
+      <div className="settings-scroll" style={{
+        flex: '1 1 0',
+        minHeight: 0,
+        minWidth: 0,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehaviorY: 'contain',
+        paddingBottom: 'calc(var(--bottom-bar-h, 96px) + 32px)',
+      }}>
+      <div className={wrapperClass}>
+      {/* Первая карточка — avatar+name+role/spec badges. Раньше была sticky,
+          теперь обычная карточка в потоке (page-header выше уже даёт "Профиль"
+          заголовок и chrome). */}
+      <div className={`${contentPad} pt-4`}>
+        <div className="relative overflow-hidden bg-white rounded-[18px] shadow-[0_2px_10px_rgba(0,0,0,0.06)] px-5 py-5">
+          <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at top right, rgb(var(--brand-rgb)), transparent 70%)' }} />
+          <div className="relative flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#E8621A] to-[#F59E0B] flex items-center justify-center shadow-sm shrink-0">
               <RoleIcon className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h1>
+              <h2 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`px-2.5 py-0.5 ${roleConfig.bgColor} ${roleConfig.color} rounded-full text-xs font-semibold`}>
                   {language === 'ru' ? roleConfig.labelRu : roleConfig.labelUz}
@@ -511,6 +561,8 @@ export function StaffProfilePage() {
         {/* Install App Section */}
         <InstallAppSection language={language} roleContext={user.role} onHideForever={() => {}} />
       </div>
+      </div>{/* /wrapperClass */}
+      </div>{/* /settings-scroll inner scroller */}
     </div>
   );
 }

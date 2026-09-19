@@ -544,7 +544,12 @@ export function Layout() {
   // the same full-bleed treatment so its sticky avatar header and
   // content cards go edge-to-edge instead of leaving beige main-content
   // padding on the sides.
-  const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager'].includes(user?.role || '')
+  // Расширен до всех staff-ролей на /profile: executor/advertiser/security/
+  // dispatcher/coupon_checker раньше получали глобальный MobileHeader над
+  // собственным avatar-header'ом (двойной chrome без "Назад"). Теперь StaffProfilePage
+  // сам рисует safe-area-aware page-header с "← Назад + Профиль" (как у admin
+  // SettingsPage) — глобальный MobileHeader на /profile становится избыточен.
+  const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager', 'executor', 'advertiser', 'security', 'dispatcher', 'coupon_checker'].includes(user?.role || '')
     && (location.pathname === '/profile' || location.pathname === '/settings');
   const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
 
