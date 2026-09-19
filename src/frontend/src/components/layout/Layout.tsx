@@ -799,7 +799,7 @@ export function Layout() {
                 <ProtectedRoute allowedRoles={getRouteRoles('guestAccess')} requiredFeature="qr">{getGuestAccessPage()}</ProtectedRoute>
               } />
               <Route path="/qr-scanner" element={
-                <ProtectedRoute allowedRoles={['security']} requiredFeature="qr">
+                <ProtectedRoute allowedRoles={['security']} allowedSpecializations={['security']} requiredFeature="qr">
                   <GuardQRScannerPage />
                 </ProtectedRoute>
               } />

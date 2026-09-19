@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { SoftHaptic } from '../services/softHaptic';
+import { isSecurityRole } from '../utils/roles';
 
 const fireLightHaptic = () => {
   // Web no-op so the .catch isn't even reached on dev.
@@ -203,8 +204,7 @@ export function BottomBar() {
     }
 
     if (role === 'executor' || role === 'security') {
-      const isSecurity = role === 'security' || user.specialization === 'security';
-      if (isSecurity) {
+      if (isSecurityRole(user)) {
         return [
           { id: 'home', icon: FileText, label: language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar', path: '/guest-access', badge: 0 },
           { id: 'vehicle', icon: Car, label: language === 'ru' ? 'Машины' : 'Mashinalar', path: '/vehicle-search', badge: 0 },

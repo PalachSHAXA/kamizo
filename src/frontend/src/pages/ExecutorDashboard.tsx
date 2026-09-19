@@ -493,8 +493,18 @@ export function ExecutorDashboard() {
         language={language}
       />
 
-      {/* Tabs - Mobile optimized with horizontal scroll */}
-      <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+      {/* Tabs - Mobile optimized with horizontal scroll + fade-mask индикатор
+          справа (тот же паттерн, что RentalsModerationPage:169-175): без
+          scrollbar'а последний таб "Выполненные" обрезался ровно посередине и
+          не читался как "здесь можно прокрутить". Fade съедает 24px, сигналя
+          overflow. На md+ маска не нужна (табы влезают целиком). */}
+      <div
+        className="overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:[mask-image:none] md:[-webkit-mask-image:none]"
+        style={{
+          WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+          maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+        }}
+      >
             <div className="glass-card p-1.5 md:p-1 flex gap-1 min-w-max md:min-w-0 md:inline-flex">
               {tabs.map((tab) => (
                 <button
