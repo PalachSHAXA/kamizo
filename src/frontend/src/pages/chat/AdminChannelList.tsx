@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from 'react';
-import { Loader2, MessageSquare, Search, MapPin, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, MessageSquare, Search, MapPin, Building2, ArrowLeft } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { EmptyState, ScrollArea } from '../../components/common';
 import { formatName } from '../../utils/formatName';
@@ -80,6 +81,7 @@ export function AdminChannelList({
   selectedChannelId,
   isLoading,
 }: AdminChannelListProps) {
+  const navigate = useNavigate();
   const { language } = useLanguageStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
@@ -192,12 +194,26 @@ export function AdminChannelList({
           open) sets padding:0 on #main-content so the WebView's y=0 is
           the actual top of the visible viewport. */}
       <div className="sticky top-0 z-10 bg-white safe-area-top px-4 pt-2 pb-1.5 border-b border-gray-100">
-        <div className="flex items-center justify-between mb-0">
-          <h2 className="text-[17px] font-extrabold text-gray-900 leading-tight" style={{ fontFamily: "'Onest', sans-serif" }}>
-            {language === 'ru' ? 'Сообщения' : 'Xabarlar'}
-          </h2>
+        <div className="flex items-center justify-between mb-0 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* На mobile у /chat скрыт глобальный MobileHeader
+                (Layout.tsx:568 hardcode) — без back-кнопки роль executor
+                застревает в чате без быстрого способа вернуться домой (drawer
+                не для этого use-case). Показываем на mobile, скрываем на md+. */}
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              aria-label={language === 'ru' ? 'Назад' : 'Ortga'}
+              className="md:hidden min-h-[40px] min-w-[40px] rounded-full grid place-items-center text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition-colors shrink-0 -ml-2"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-[17px] font-extrabold text-gray-900 leading-tight min-w-0 truncate" style={{ fontFamily: "'Onest', sans-serif" }}>
+              {language === 'ru' ? 'Сообщения' : 'Xabarlar'}
+            </h2>
+          </div>
           {totalUnread > 0 && (
-            <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[10.5px] font-bold rounded-full">
+            <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[10.5px] font-bold rounded-full shrink-0">
               {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
