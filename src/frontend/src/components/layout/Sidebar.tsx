@@ -341,9 +341,10 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
         { path: '/', icon: FileText, label: language === 'ru' ? (user?.specialization === 'courier' ? 'Заказы' : 'Заявки') : (user?.specialization === 'courier' ? 'Buyurtmalar' : 'Arizalar'), section: language === 'ru' ? 'Работа' : 'Ish' },
         { path: '/schedule', icon: CalendarDays, label: language === 'ru' ? 'Расписание' : 'Jadval' },
         { path: '/my-stats', icon: BarChart3, label: language === 'ru' ? 'Статистика' : 'Statistika' },
-        // Инструменты — security получает QR + поиск авто, обычный executor не нужен поиск авто
+        // Инструменты — security получает Пропуска + QR + поиск авто; обычный executor не нужен
         ...(isSecurity ? [
-          { path: '/qr-scanner', icon: QrCode, label: language === 'ru' ? 'Сканер QR' : 'QR skaner', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
+          { path: '/guest-access-guard', icon: FileText, label: language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar', section: language === 'ru' ? 'Инструменты' : 'Asboblar' },
+          { path: '/qr-scanner', icon: QrCode, label: language === 'ru' ? 'Сканер QR' : 'QR skaner' },
           { path: '/vehicle-search', icon: Car, label: language === 'ru' ? 'Поиск авто' : 'Avto qidirish' },
         ] : []),
         { path: '/chat', icon: MessageCircle, label: language === 'ru' ? 'Чат' : 'Chat', section: isSecurity ? undefined : (language === 'ru' ? 'Инструменты' : 'Asboblar') },

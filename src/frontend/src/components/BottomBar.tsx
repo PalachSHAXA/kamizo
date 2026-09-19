@@ -206,7 +206,7 @@ export function BottomBar() {
     if (role === 'executor' || role === 'security') {
       if (isSecurityRole(user)) {
         return [
-          { id: 'home', icon: FileText, label: language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar', path: '/guest-access', badge: 0 },
+          { id: 'home', icon: FileText, label: language === 'ru' ? 'Пропуска' : 'Ruxsatnomalar', path: '/guest-access-guard', badge: 0 },
           { id: 'vehicle', icon: Car, label: language === 'ru' ? 'Машины' : 'Mashinalar', path: '/vehicle-search', badge: 0 },
           { id: 'qr', icon: QrCode, label: '', path: '/qr-scanner', badge: 0, isFab: true },
           { id: 'stats', icon: BarChart3, label: language === 'ru' ? 'Стат.' : 'Stat.', path: '/my-stats', badge: 0 },

@@ -150,6 +150,7 @@ const ColleaguesSection = lazyWithRetry(() => import('../../pages/ColleaguesSect
 const VehicleSearchPage = lazyWithRetry(() => import('../../pages/VehicleSearchPage').then(m => ({ default: m.VehicleSearchPage })));
 const ResidentGuestAccessPage = lazyWithRetry(() => import('../../pages/ResidentGuestAccessPage').then(m => ({ default: m.ResidentGuestAccessPage })));
 const GuardQRScannerPage = lazyWithRetry(() => import('../../pages/GuardQRScannerPage').then(m => ({ default: m.GuardQRScannerPage })));
+const GuardGuestAccessPage = lazyWithRetry(() => import('../../pages/GuardGuestAccessPage').then(m => ({ default: m.GuardGuestAccessPage })));
 const ManagerGuestAccessPage = lazyWithRetry(() => import('../../pages/ManagerGuestAccessPage').then(m => ({ default: m.ManagerGuestAccessPage })));
 const ResidentsPage = lazyWithRetry(() => import('../../pages/ResidentsPage').then(m => ({ default: m.ResidentsPage })));
 const ChatPage = lazyWithRetry(() => import('../../pages/ChatPage').then(m => ({ default: m.ChatPage })));
@@ -550,7 +551,7 @@ export function Layout() {
   // сам рисует safe-area-aware page-header с "← Назад + Профиль" (как у admin
   // SettingsPage) — глобальный MobileHeader на /profile становится избыточен.
   const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager', 'executor', 'advertiser', 'security', 'dispatcher', 'coupon_checker'].includes(user?.role || '')
-    && (location.pathname === '/profile' || location.pathname === '/settings');
+    && (location.pathname === '/profile' || location.pathname === '/settings' || location.pathname === '/guest-access-guard');
   const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
 
   // Whether the MobileHeader is rendered (same condition as below).
@@ -801,6 +802,14 @@ export function Layout() {
               <Route path="/qr-scanner" element={
                 <ProtectedRoute allowedRoles={['security']} allowedSpecializations={['security']} requiredFeature="qr">
                   <GuardQRScannerPage />
+                </ProtectedRoute>
+              } />
+              {/* Read-only список гостевых пропусков для охранника (КПП).
+                  Отдельный роут от /guest-access (admin/resident CRUD), потому
+                  что права/UI разные. Тот же isSecurityRole-паттерн, что QR. */}
+              <Route path="/guest-access-guard" element={
+                <ProtectedRoute allowedRoles={['security']} allowedSpecializations={['security']} requiredFeature="qr">
+                  <GuardGuestAccessPage />
                 </ProtectedRoute>
               } />
               <Route path="/chat" element={
