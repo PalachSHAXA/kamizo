@@ -40,6 +40,10 @@ const SPECIALIZATION_LABELS: Record<string, { ru: string; uz: string }> = {
   general: { ru: 'Разнорабочий', uz: 'Turli ishchi' },
   delivery: { ru: 'Курьер', uz: 'Kuryer' },
   concierge: { ru: 'Консьерж', uz: 'Konsyerj' },
+  // security: у glavoxrana role='executor' + spec='security'. Без записи здесь
+  // на карточке профиля рядом с бейджем «Исполнитель» появлялся raw ключ
+  // «security» вместо переведённой «Охранник» / «Qo'riqchi».
+  security: { ru: 'Охранник', uz: 'Qo\'riqchi' },
 };
 
 export function StaffProfilePage() {
@@ -232,7 +236,10 @@ export function StaffProfilePage() {
               <RoleIcon className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-[18px] font-bold text-gray-900 leading-tight truncate">{formatName(user.name)}</h2>
+              {/* Длинные ФИО (напр. «Abdukadirov Aziz Abduhamid ogli») на 375/393px
+                  не помещаются в одну строку с truncate. break-words + leading-snug
+                  разрешает перенос на 2 строки без обрезания. */}
+              <h2 className="text-[18px] font-bold text-gray-900 leading-snug break-words">{formatName(user.name)}</h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={`px-2.5 py-0.5 ${roleConfig.bgColor} ${roleConfig.color} rounded-full text-xs font-semibold`}>
                   {language === 'ru' ? roleConfig.labelRu : roleConfig.labelUz}
