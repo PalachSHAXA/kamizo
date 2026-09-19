@@ -148,7 +148,11 @@ export function Notepad({ userId, readOnly = false }: NotepadProps) {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        {!readOnly && <button
+        {/* «+ Добавить» показываем только когда список НЕ пуст: на пустом
+            состоянии есть центральная кнопка "Создать первую заметку" ниже,
+            дублирующая верхняя кнопка выглядела оторванной от списка (нет
+            карточек, к которым она относится). */}
+        {!readOnly && notes.length > 0 && <button
           onClick={() => setShowNoteEditor(true)}
           className="btn-primary flex items-center gap-2 py-2 px-3 text-sm"
         >

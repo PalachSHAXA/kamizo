@@ -369,6 +369,27 @@ export function VehicleSearchPage() {
         </div>
       </div>
 
+      {/* Empty-state: пока ничего не искали и в поле нет ни одной части номера —
+          показываем подсказку по центру, чтобы страница не выглядела просто
+          пустым beige-фоном под inputом. Исчезает как только пользователь начал
+          вводить номер или уже сделал первый поиск. */}
+      {!hasSearched && !searchResult && filteredVehicles.length === 0 && guestVehicleResults.length === 0
+        && !searchPlateParts.region && !searchPlateParts.letters1 && !searchPlateParts.digits && !searchPlateParts.letters2 && (
+        <div className="text-center py-10 md:py-14 px-4">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+            <Search className="w-6 h-6 text-gray-400" />
+          </div>
+          <p className="text-sm font-semibold text-gray-600">
+            {language === 'ru' ? 'Введите номер, чтобы найти автомобиль' : 'Avtomobil topish uchun raqamni kiriting'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
+            {language === 'ru'
+              ? 'Можно ввести часть номера — поиск найдёт все совпадения.'
+              : "Raqamning bir qismini kiriting — qidiruv barcha mosliklarni topadi."}
+          </p>
+        </div>
+      )}
+
       {/* Filtered Results List */}
       {hasSearched && filteredVehicles.length > 1 && !searchResult && (
         <div className="glass-card p-4">
