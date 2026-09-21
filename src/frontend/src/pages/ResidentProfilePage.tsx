@@ -563,15 +563,18 @@ export function ResidentProfilePage() {
               style={{ fontSize: 23 }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Длинные ФИО (напр. «Test MyHelper Resident», «Nurmuhammedov
+                  Begzod Tolqunovich») не помещаются в одну строку hero-header
+                  даже на 430px. Убран nowrap+ellipsis — переносим на 2 строки
+                  (break-words) + leading-tight, чтобы не съедало вертикаль. */}
               <div
                 style={{
                   fontSize: 20,
                   fontWeight: 800,
                   letterSpacing: '-0.02em',
                   color: TEXT_ON_DARK,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.15,
                 }}
               >
                 {displayName}
