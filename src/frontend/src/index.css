@@ -161,7 +161,13 @@
      unaware of the var). html.dark overrides below flip them all. */
   --chat-page-bg: #FAFAF9;
   --chat-page-gradient: linear-gradient(180deg, #FEFAF6 0%, #F5F0EA 100%);
-  --chat-strip-bg: rgba(250,250,249,0.95);
+  /* R-H3 (resident audit): 0.95 alpha + backdrop-blur давал просвечивание
+     контента сквозь ResidentChatView header (первое сообщение / фото на
+     375px виднелось через frosted glass). На iPhone-like viewport'ах это
+     читалось как «сломанный» header, особенно когда за ним проскроллено
+     большое цветное фото. Full opacity убирает bleed-through, blur остаётся
+     для safe-area зоны (statusbar text всё ещё нормально ложится). */
+  --chat-strip-bg: rgb(250,250,249);
   --chat-strip-border: rgba(0,0,0,0.06);
   /* v118.66 — sticky-header glass background для модалов с blurred top
      bar (MeetingVotingModal TopBar). Светлый полупрозрачный для light,
@@ -422,7 +428,8 @@ html.dark {
      and white-on-orange text stay verbatim (brand identity). */
   --chat-page-bg: #1A1612;
   --chat-page-gradient: linear-gradient(180deg, #1F1A14 0%, #1A1612 100%);
-  --chat-strip-bg: rgba(26,22,18,0.95);
+  /* R-H3: то же полное opacity в dark — см. комментарий у light --chat-strip-bg. */
+  --chat-strip-bg: rgb(26,22,18);
   --chat-strip-border: rgba(244,240,232,0.08);
   /* v118.66 dark override for sticky-header glass bg — dark warm
      stone полупрозрачный поверх dark app surface. */
