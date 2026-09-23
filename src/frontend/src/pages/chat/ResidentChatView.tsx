@@ -15,11 +15,16 @@
  *     they live outside the page's scroll container — any iOS PWA quirk
  *     with overflow:hidden + sticky / overscroll bounce on flex columns
  *     no longer affects them.
- *   • The kz-screen wrapper is `position:fixed; inset:0; overflow:hidden;
- *     overscroll-behavior:none` — the whole page is locked. The ONE
- *     element that scrolls is the inner messages list, with
- *     `overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:
- *     touch; overscroll-behavior:contain`.
+ *   • The screen wrapper on mobile is a flex-column child of `.chat-active`
+ *     (`display:flex; flex-direction:column; flex:1; min-height:0; height:100%;
+ *     overflow:hidden`). It USED to be `position:fixed; inset:0`, but any
+ *     transformed ancestor (even identity matrix from an animation) turned
+ *     that ancestor into the containing-block for the fixed child → on iOS
+ *     WKWebView the list ended up outside the paint region (DOM + computed
+ *     styles fine, physically не рисовалось). Flex-layout снимает edge-case.
+ *     The ONE element that scrolls is the inner messages list, with
+ *     `flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+ *     -webkit-overflow-scrolling:touch; overscroll-behavior:contain`.
  *   • Messages list padding-top / padding-bottom are sized dynamically
  *     from the measured heights of the portaled header and composer
  *     (ResizeObserver), so the first and last bubble always clear the
@@ -680,9 +685,24 @@ export function ResidentChatView({ channel, onBack }: Props) {
         // <body> (v118.114) — they never depended on this animation and
         // are unaffected. Chat is a BottomBar tab destination, so the
         // slide-in on entry was cosmetic, not load-bearing.
+        // Mobile: flex-column filling .chat-active parent (index.css:1072-1078
+        // — уже flex:1, display:flex, flex-direction:col, overflow:hidden).
+        // Раньше был `position: fixed; inset: 0` — но если у любого ancestor
+        // есть transform ≠ none (даже identity matrix(1,0,0,1,0,0)), по CSS-
+        // спеке position:fixed containing-block становится этот ancestor,
+        // не viewport → на iOS WKWebView список сообщений оказывался вне
+        // видимого paint-region (rows в DOM, computed styles валидны, а
+        // physically не рисуются). Flex-layout снимает этот edge-case:
+        // wrapper — обычный flex-child, listRef ниже — тоже flex-child с
+        // flex:1 + minHeight:0 + overflow-y:auto. Header/composer уже
+        // portaled в document.body (position:fixed относительно viewport
+        // напрямую) — их layout не зависит от этого wrapper.
         style={isMobile ? {
-          position: 'fixed',
-          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          height: '100%',
           background: 'var(--chat-page-bg, #FAFAF9)',
           overflow: 'hidden',
           overscrollBehavior: 'contain',
@@ -753,15 +773,16 @@ export function ResidentChatView({ channel, onBack }: Props) {
           // scroll-to-bottom per channel; nothing watches scroll
           // position, nothing reacts to it. The scroller is plain.
           style={isMobile ? {
-            position: 'absolute',
-            inset: 0,
+            // Flex-child in the wrapper above. Раньше был position:absolute
+            // inset:0 — обвал в связке с fixed-родителем + transformed
+            // ancestor (см. комментарий у style wrapper'а выше). paddingTop
+            // и paddingBottom по-прежнему из измеренных высот portaled
+            // header / composer.
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto', overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
-            // v118.114 — explicit touch-action so iOS WKWebView knows
-            // this is the vertical-pan target, regardless of ancestor
-            // touch-action rules. Removes any ambiguity at the edges
-            // about which element should receive the next gesture.
             touchAction: 'pan-y',
             paddingTop: `${headerHeight}px`,
             paddingBottom: `${composerHeight}px`,
