@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
-  CheckCircle, ShoppingBag, Star, ArrowLeft, Truck,
+  CheckCircle, ShoppingBag, Star, ArrowLeft, ChevronLeft, Truck,
   MessageCircle, Phone,
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
@@ -869,11 +869,23 @@ export function MarketplacePage() {
             grid intentionally does not filter by category — that's the
             approved current behaviour and left untouched). */}
 
-        {/* Title row — «Маркет УК.» with the period as a brand-orange
-            accent, per the design. Oversized editorial typography
-            (27px / 800 / -0.03em) so the marketplace has a hero-name
-            feel distinct from the plain «Заявки»/«Дом» headers. */}
-        <div className="px-5 pt-3 pb-3">
+        {/* Title row — chevron-back + «Маркет УК.» with the period as a
+            brand-orange accent, per the design. Oversized editorial
+            typography (27px / 800 / -0.03em) so the marketplace has a
+            hero-name feel distinct from the plain «Заявки»/«Дом»
+            headers. Back-button дублирует нижний тулбар (navigate('/'))
+            — «Назад» в BottomBar был единственным способом уйти
+            отсюда, и это неочевидно; здесь та же логика, но в шапке. */}
+        <div className="px-5 pt-3 pb-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+            className="flex-shrink-0 w-[34px] h-[34px] rounded-full grid place-items-center border border-white/50 cursor-pointer transition-transform active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.75)', boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }}
+          >
+            <ChevronLeft className="w-[20px] h-[20px] text-gray-800" strokeWidth={2.4} />
+          </button>
           <h1 className="text-[27px] font-extrabold text-gray-900" style={{ letterSpacing: '-0.03em', lineHeight: 1 }}>
             {language === 'ru' ? 'Маркет УК' : 'BK marketi'}
             <span className="text-primary-500">.</span>
@@ -961,21 +973,20 @@ export function MarketplacePage() {
             SHOP block so the header contains all of title + search +
             categories in one sticky surface. */}
         {activeTab === 'shop' && (
-          <div
-            className="flex gap-2 overflow-x-auto scrollbar-hide px-5 pb-3 snap-x snap-mandatory"
-            style={{
-              // Fade-mask + snap-scroll — уже отработанный паттерн для
-              // горизонтальных tab-строк, дополнительно к v10 pill-стилю.
-              WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
-              maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
-            }}
-          >
+          // Row-layout: пилюля «Всё» вынесена ИЗ скролл-контейнера и
+          // сидит статично слева (pl-5 = 20px, как заголовок/поиск).
+          // Скролл-контейнер справа держит остальные категории — fade-mask
+          // и snap-scroll остаются только у него. Такое разделение —
+          // надёжнее position:sticky внутри overflow-x:auto на native
+          // WebKit (Capacitor iOS): sticky-элемент внутри masked scroll'а
+          // на iOS Simulator иногда «мигает» и попадает под fade-градиент.
+          <div className="flex items-stretch gap-2 pl-5 pb-3">
             {/* v10-макет: пилюли вместо text-tabs с underline.
                 Неактивная: rgba(255,255,255,0.7) + оранжевый текст.
                 Активная: сплошная var(--mp-orange) + белый текст + brand-shadow. */}
             <button
               onClick={() => setSelectedCategory(null)}
-              className="flex-shrink-0 snap-start h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
+              className="flex-shrink-0 h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
               style={
                 !selectedCategory
                   ? {
@@ -991,30 +1002,40 @@ export function MarketplacePage() {
             >
               {language === 'ru' ? 'Всё' : 'Hammasi'}
             </button>
-            {categories.map(cat => {
-              const on = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(on ? null : cat.id)}
-                  className="flex-shrink-0 snap-start h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
-                  style={
-                    on
-                      ? {
-                          background: 'var(--mp-orange)',
-                          color: '#FFFFFF',
-                          boxShadow: '0 6px 14px -6px rgba(242,98,31,0.55)',
-                        }
-                      : {
-                          background: 'rgba(255,255,255,0.7)',
-                          color: 'var(--mp-orange-deep)',
-                        }
-                  }
-                >
-                  {language === 'ru' ? cat.name_ru : cat.name_uz}
-                </button>
-              );
-            })}
+            <div
+              className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pr-5 min-w-0 flex-1"
+              style={{
+                // Fade-mask справа + snap-scroll. Левый край не маскируем:
+                // «Всё» теперь снаружи и должно читаться на 100% opacity.
+                WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+                maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+              }}
+            >
+              {categories.map(cat => {
+                const on = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(on ? null : cat.id)}
+                    className="flex-shrink-0 snap-start h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
+                    style={
+                      on
+                        ? {
+                            background: 'var(--mp-orange)',
+                            color: '#FFFFFF',
+                            boxShadow: '0 6px 14px -6px rgba(242,98,31,0.55)',
+                          }
+                        : {
+                            background: 'rgba(255,255,255,0.7)',
+                            color: 'var(--mp-orange-deep)',
+                          }
+                    }
+                  >
+                    {language === 'ru' ? cat.name_ru : cat.name_uz}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
