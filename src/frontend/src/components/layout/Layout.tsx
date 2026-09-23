@@ -572,13 +572,42 @@ export function Layout() {
   // !isResidentFullBleed выше. Executor и advertiser в них не входят —
   // на своём /profile (StaffProfilePage) должны получать глобальный "My Helper"
   // app-header, как на остальных разделах роли (/requests, /reports и т.д.).
+  // Маркет: MarketplacePage рисует собственную оранжевую шапку (title +
+  // search + chevron-back + категории), поэтому глобальный MobileHeader
+  // «My Helper»/бургер/колокольчик избыточен и стакается сверху.
+  // Раньше сравнивали строго `!== '/marketplace'` — condition ломался при
+  // trailing slash, а также не покрывал будущие вложенные роуты вида
+  // /marketplace/product/:id, /marketplace/cart, которые всё равно рисуют
+  // ту же оранжевую шапку. `startsWith('/marketplace/')` покрывает всё
+  // подпространство, при этом сестринские staff-роуты `/marketplace-orders`
+  // и `/marketplace-products` НЕ матчатся (у них нет '/' после префикса),
+  // и глобальный header у них остаётся как раньше.
+  const isMarketplaceRoute = location.pathname === '/marketplace'
+    || location.pathname.startsWith('/marketplace/');
+  // Роуты, где страница сама рисует полноценный in-page header, поэтому
+  // глобальный MobileHeader категорически не должен появляться — ни через
+  // showMobileHeader, ни через fallback retainSidebarHeader.
+  // Раньше эти проверки жили только в showMobileHeader; renderMobileHeader
+  // же имеет OR-фолбэк `(retainSidebarHeader && !isResidentFullBleed)`,
+  // и он пропускал marketplace/chat/apartment-rentals — так что при
+  // сценарии «открыть drawer через бургер на главной → тап Маркет УК»
+  // retainSidebarHeader на 1-2 рендера оставался true (пока cleanup
+  // useModalPresence не пропоппит modalCount), и MobileHeader успевал
+  // смонтироваться поверх новой оранжевой шапки. Через deep-link drawer
+  // не открывался — retainSidebarHeader был false — поэтому баг был
+  // невидим. Финальный gate hideHeaderForRoute применяется к финальному
+  // выражению renderMobileHeader, поэтому route-исключения теперь
+  // абсолютные и не зависят от порядка/тайминга состояний drawer'а.
+  const hideMobileHeaderForRoute = isMarketplaceRoute
+    || location.pathname === '/apartment-rentals'
+    || location.pathname === '/chat';
   const showMobileHeader = !isSuperAdmin
     && modalCount === 0
     && !isResidentFullBleed
-    && location.pathname !== '/marketplace'
-    && location.pathname !== '/apartment-rentals'
-    && location.pathname !== '/chat';
-  const renderMobileHeader = showMobileHeader || (retainSidebarHeader && !isResidentFullBleed);
+    && !hideMobileHeaderForRoute;
+  const renderMobileHeader =
+    (showMobileHeader || (retainSidebarHeader && !isResidentFullBleed))
+    && !hideMobileHeaderForRoute;
 
   // Sprint 87 splash-gate — рендер каркаса только после подгрузки
   // tenant config (или cached fallback). NativeSplashOverlay,
