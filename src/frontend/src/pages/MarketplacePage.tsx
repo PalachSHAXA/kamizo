@@ -830,7 +830,18 @@ export function MarketplacePage() {
     // pill height + breathing room; env(safe-area-inset-bottom) covers
     // the iOS home indicator.
     <PullToRefresh onRefresh={fetchData} disabled={anyModalOpen}>
-    <div className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA]">
+    {/* Marketplace v10 (утверждённый макет): тёплый оранжевый градиент фона
+        сверху → плоский светлый #FAF8F6 внизу. Скроллер страницы =
+        родительский .main-content, поэтому градиент кладём на сам marketplace-
+        page (min-h-screen гарантирует, что нижняя точка градиента ниже fold'а).
+        Переменные --mp-* в index.css. */}
+    <div
+      className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen"
+      style={{
+        background:
+          'linear-gradient(180deg, var(--mp-gradient-top) 0%, var(--mp-gradient-mid1) 26%, var(--mp-gradient-mid2) 48%, var(--mp-gradient-flat) 100%)',
+      }}
+    >
       {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
           bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
           WKWebView иногда воспринимался как «уплывает» — визуально
@@ -839,17 +850,13 @@ export function MarketplacePage() {
           willChange: 'transform' форсирует создание composite-слоя —
           лекарство от известного sticky-глюка Safari, когда прилипание
           «отваливается» после первого overscroll. */}
+      {/* v10 макет: шапка сидит прямо на градиенте, без сплошной заливки и
+          без нижней границы. Внутренние элементы (search chip, favorites,
+          категории) сами становятся полу-прозрачными карточками. */}
       <div
-        className="sticky top-0 z-40 bg-white border-b border-gray-100 md:hidden"
+        className="sticky top-0 z-40 md:hidden"
         style={{
-          // Defensive: env(safe-area-inset-top) covers notched iOS
-          // (~47 px on iPhones with Dynamic Island). On Android
-          // WebView with capacitor.config overlaysWebView:false the
-          // WebView already sits below the status bar and this
-          // returns 0. The +4 px is a fallback breathing gap so the
-          // title has visible clearance even if a WebView reports
-          // safe-area 0 while the status bar still overlaps (rare
-          // Chromium quirk observed on some Android emulator images).
+          background: 'transparent',
           paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4px)',
           willChange: 'transform',
         }}
@@ -879,11 +886,19 @@ export function MarketplacePage() {
             mode toggle: tap once → activeTab='favorites' (orange
             gradient bg); tap again → back to 'shop'. Count badge is
             always rendered (design shows 0 in dim state). */}
-        <div className="px-5 pb-3 flex items-center gap-2.5 overflow-x-auto scrollbar-hide">
+        {/* Мы больше не даём этой строке горизонтально скроллиться:
+            search-input должен занять всё оставшееся место (flex:1) и не
+            обрезать плейсхолдер. Fade-mask с snap-x применяем ко всем
+            остальным горизонтальным табам (см. ниже), но не к этой строке
+            — тут именно row-layout с двумя элементами, а не список. */}
+        <div className="px-5 pb-3 flex items-center gap-2.5">
           {/* Search input styled as chip — real <input>, live filter.
-              min-w-[180px] keeps the field usable even when Избранное
-              chip wraps into horizontal-scroll on narrow phones. */}
-          <div className="relative flex-1 min-w-[180px]">
+              min-w-0 позволяет flex-1 контейнеру реально сжиматься на
+              375px (иначе flex-child по-умолчанию min-width: auto =
+              intrinsic-size input'а, и на узком экране placeholder режется
+              с правого края). Раньше был min-w-[180px] — на 375
+              контейнер в паре с pill «Избранное» суммарно не помещался. */}
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4 pointer-events-none" />
             <input
               type="search"
@@ -892,8 +907,8 @@ export function MarketplacePage() {
               placeholder={language === 'ru' ? 'Поиск товаров…' : 'Mahsulot qidirish…'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-[14px] bg-white border border-gray-200 text-[13.5px] font-semibold text-gray-600 placeholder:text-gray-500 focus:outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-500/20"
-              style={{ boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }}
+              className="w-full h-11 pl-10 pr-4 rounded-[14px] border border-white/50 text-[13.5px] font-semibold text-gray-700 placeholder:text-gray-500 focus:outline-none focus:border-primary-300 focus:ring-2 focus:ring-primary-500/20"
+              style={{ background: 'rgba(255,255,255,0.75)', boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)', textOverflow: 'ellipsis' }}
               aria-label={language === 'ru' ? 'Поиск товаров' : 'Mahsulot qidirish'}
             />
           </div>
@@ -911,27 +926,31 @@ export function MarketplacePage() {
             className={`flex-shrink-0 h-11 px-4 rounded-[14px] flex items-center gap-2 text-[13.5px] font-bold cursor-pointer transition-all ${
               activeTab === 'favorites'
                 ? 'text-white border-0'
-                : 'text-gray-600 border border-gray-200 bg-white'
+                : 'text-gray-700 border border-white/50'
             }`}
             style={
               activeTab === 'favorites'
-                ? { background: 'linear-gradient(150deg,#FB923C,#EA580C)', boxShadow: '0 8px 16px -8px rgba(249,115,22,0.6)' }
-                : { boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }
+                ? { background: 'var(--mp-orange)', boxShadow: '0 6px 14px -6px rgba(242,98,31,0.55)' }
+                : { background: 'rgba(255,255,255,0.75)', boxShadow: '0 12px 30px -16px rgba(28,25,23,0.30)' }
             }
             aria-label={language === 'ru' ? 'Избранное' : 'Sevimli'}
             aria-pressed={activeTab === 'favorites'}
           >
             <Heart className="w-4 h-4" fill="currentColor" />
             <span>{language === 'ru' ? 'Избранное' : 'Sevimli'}</span>
-            <span
-              className="min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-extrabold grid place-items-center text-white"
-              style={{
-                background:
-                  activeTab === 'favorites' ? 'rgba(255,255,255,0.28)' : 'var(--brand, #F97316)',
-              }}
-            >
-              {favorites.length}
-            </span>
+            {/* Badge с числом показываем только когда действительно есть избранное.
+                Пустой "0" отнимал ширину у search-input на 375px и не нёс информации. */}
+            {favorites.length > 0 && (
+              <span
+                className="min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-extrabold grid place-items-center text-white"
+                style={{
+                  background:
+                    activeTab === 'favorites' ? 'rgba(255,255,255,0.28)' : 'var(--brand, #F97316)',
+                }}
+              >
+                {favorites.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -942,24 +961,35 @@ export function MarketplacePage() {
             SHOP block so the header contains all of title + search +
             categories in one sticky surface. */}
         {activeTab === 'shop' && (
-          <div className="flex gap-6 overflow-x-auto scrollbar-hide px-5 border-b border-gray-100">
+          <div
+            className="flex gap-2 overflow-x-auto scrollbar-hide px-5 pb-3 snap-x snap-mandatory"
+            style={{
+              // Fade-mask + snap-scroll — уже отработанный паттерн для
+              // горизонтальных tab-строк, дополнительно к v10 pill-стилю.
+              WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+              maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+            }}
+          >
+            {/* v10-макет: пилюли вместо text-tabs с underline.
+                Неактивная: rgba(255,255,255,0.7) + оранжевый текст.
+                Активная: сплошная var(--mp-orange) + белый текст + brand-shadow. */}
             <button
               onClick={() => setSelectedCategory(null)}
-              className="relative flex-shrink-0 bg-transparent border-none cursor-pointer pb-3 text-[16px] whitespace-nowrap"
-              style={{
-                color: !selectedCategory ? 'var(--marketplace-text-primary)' : 'var(--marketplace-text-muted)',
-                fontWeight: !selectedCategory ? 800 : 650,
-                letterSpacing: '-0.01em',
-              }}
+              className="flex-shrink-0 snap-start h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
+              style={
+                !selectedCategory
+                  ? {
+                      background: 'var(--mp-orange)',
+                      color: '#FFFFFF',
+                      boxShadow: '0 6px 14px -6px rgba(242,98,31,0.55)',
+                    }
+                  : {
+                      background: 'rgba(255,255,255,0.7)',
+                      color: 'var(--mp-orange-deep)',
+                    }
+              }
             >
               {language === 'ru' ? 'Всё' : 'Hammasi'}
-              {!selectedCategory && (
-                <span
-                  aria-hidden
-                  className="absolute left-0 right-0 -bottom-px h-[3px] rounded-[3px]"
-                  style={{ background: 'var(--brand)' }}
-                />
-              )}
             </button>
             {categories.map(cat => {
               const on = selectedCategory === cat.id;
@@ -967,21 +997,21 @@ export function MarketplacePage() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(on ? null : cat.id)}
-                  className="relative flex-shrink-0 bg-transparent border-none cursor-pointer pb-3 text-[16px] whitespace-nowrap"
-                  style={{
-                    color: on ? 'var(--marketplace-text-primary)' : 'var(--marketplace-text-muted)',
-                    fontWeight: on ? 800 : 650,
-                    letterSpacing: '-0.01em',
-                  }}
+                  className="flex-shrink-0 snap-start h-9 px-4 rounded-full border-0 cursor-pointer text-[13px] font-bold whitespace-nowrap transition-all"
+                  style={
+                    on
+                      ? {
+                          background: 'var(--mp-orange)',
+                          color: '#FFFFFF',
+                          boxShadow: '0 6px 14px -6px rgba(242,98,31,0.55)',
+                        }
+                      : {
+                          background: 'rgba(255,255,255,0.7)',
+                          color: 'var(--mp-orange-deep)',
+                        }
+                  }
                 >
                   {language === 'ru' ? cat.name_ru : cat.name_uz}
-                  {on && (
-                    <span
-                      aria-hidden
-                      className="absolute left-0 right-0 -bottom-px h-[3px] rounded-[3px]"
-                      style={{ background: 'var(--brand)' }}
-                    />
-                  )}
                 </button>
               );
             })}
@@ -1019,12 +1049,19 @@ export function MarketplacePage() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]" />
             <input type="search" inputMode="search" autoComplete="off" placeholder={language === 'ru' ? 'Поиск товаров...' : 'Mahsulot qidirish...'} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-[14px] bg-white border border-gray-100 text-[14px] placeholder:text-gray-400 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-300 shadow-[0_1px_3px_rgba(0,0,0,0.04)]" aria-label={language === 'ru' ? 'Поиск товаров' : 'Mahsulot qidirish'} />
           </div>
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-            <button onClick={() => setSelectedCategory(null)} className={`flex items-center gap-1.5 px-3 py-[7px] rounded-[12px] text-[13px] font-semibold whitespace-nowrap shrink-0 ${!selectedCategory ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]' : 'bg-white text-gray-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]'}`}>
+          {/* Fade-mask + snap — тот же паттерн, что у main-header категорий выше. */}
+          <div
+            className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory"
+            style={{
+              WebkitMaskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+              maskImage: 'linear-gradient(to right, black 0%, black calc(100% - 24px), transparent 100%)',
+            }}
+          >
+            <button onClick={() => setSelectedCategory(null)} className={`flex items-center gap-1.5 px-3 py-[7px] rounded-[12px] text-[13px] font-semibold whitespace-nowrap shrink-0 snap-start ${!selectedCategory ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]' : 'bg-white text-gray-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]'}`}>
               <span>🏪</span><span>{language === 'ru' ? 'Все' : 'Hammasi'}</span>
             </button>
             {categories.map(cat => (
-              <button key={cat.id} onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)} className={`flex items-center gap-1.5 px-3 py-[7px] rounded-[12px] text-[13px] font-semibold whitespace-nowrap shrink-0 ${selectedCategory === cat.id ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]' : 'bg-white text-gray-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]'}`}>
+              <button key={cat.id} onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)} className={`flex items-center gap-1.5 px-3 py-[7px] rounded-[12px] text-[13px] font-semibold whitespace-nowrap shrink-0 snap-start ${selectedCategory === cat.id ? 'bg-primary-500 text-white shadow-[0_2px_8px_rgba(var(--brand-rgb),0.3)]' : 'bg-white text-gray-700 shadow-[0_1px_3px_rgba(0,0,0,0.06)]'}`}>
                 <span>{CATEGORY_ICONS[cat.id] || '📦'}</span><span>{language === 'ru' ? cat.name_ru : cat.name_uz}</span>
               </button>
             ))}
@@ -1032,7 +1069,15 @@ export function MarketplacePage() {
         </div>
       )}
       {activeTab === 'shop' && (
-        <div className="px-4 pt-3 pb-4">
+        // v10-макет: плавный transparent → #FAF8F6 переход в первые ~90px
+        // (высота под баннеры/первый ряд карточек), чтобы карточки товаров
+        // лежали на однотонной поверхности, а не на бренд-градиенте выше.
+        <div
+          className="px-4 pt-3 pb-4"
+          style={{
+            background: 'linear-gradient(180deg, transparent 0%, var(--mp-gradient-flat) 90px, var(--mp-gradient-flat) 100%)',
+          }}
+        >
           {/* Banners */}
           {!selectedCategory && !searchQuery && banners.length > 0 && (
             <div className="mb-4 space-y-3">
@@ -1434,8 +1479,17 @@ export function MarketplacePage() {
               })}
             </div>
           )}
+          {/* Разбор пустого состояния:
+              • Если каталог пуст И user НЕ вводил ничего в поиск и не выбирал
+                категорию → это реально «Каталог пока пуст» (первое посещение,
+                УК ещё не завела товары).
+              • Если filteredProducts=0, но user активно фильтрует (searchQuery
+                или selectedCategory) → это «Ничего не найдено», даже если
+                исходный каталог пуст (тогда фактически «нет товаров под ваш
+                запрос»). Иначе user вводит поиск и видит бессмысленный текст
+                про пустой каталог, не понимая что это связано с его запросом. */}
           {!loading && filteredProducts.length === 0 && (
-            products.length === 0 ? (
+            (products.length === 0 && !searchQuery && !selectedCategory) ? (
               // STATE 2 — feature enabled, catalog empty. Copy merges
               // the product pitch (previously stacked in the header as
               // a marketing tagline) with the empty-state message —
