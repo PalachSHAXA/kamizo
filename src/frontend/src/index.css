@@ -149,6 +149,17 @@
   --marketplace-status-danger-strong: #EF4444;
   --marketplace-status-warning-bg:    #FEFCE8;
 
+  /* Marketplace v10 warm-gradient look (утверждённый макет). Оранжевый
+     градиент фона сверху → плоский светлый снизу; полупрозрачные
+     карточки поверх, плюс два оранжевых бренд-цвета для активных
+     пилюль/CTA. Значения из спеки, не менять без нового макета. */
+  --mp-orange:         #F2621F;
+  --mp-orange-deep:    #D94F12;
+  --mp-gradient-top:   #FFDDC2;
+  --mp-gradient-mid1:  #FFEEDF;
+  --mp-gradient-mid2:  #FCF7F2;
+  --mp-gradient-flat:  #FAF8F6;
+
   --text-on-dark: #F4F0E8;
   --text-muted: #9CA3AF;
   --stone-300: #D6D3D1;
