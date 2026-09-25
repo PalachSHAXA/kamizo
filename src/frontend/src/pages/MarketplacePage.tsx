@@ -2125,8 +2125,13 @@ export function MarketplacePage() {
         </div>
       )}
 
-      {/* ORDER MODAL — checkout with address + phone form (Bug fix 2026-07-11) */}
-      {showOrderModal && (
+      {/* ORDER MODAL — checkout with address + phone form (Bug fix 2026-07-11)
+          Portal → document.body: тот же фикс, что для sticky-header маркета
+          и product bottom-sheet. PullToRefresh оборачивает children в div
+          с `transform: translateY`, создающий containing block — без
+          портала `fixed inset-0` привязывался бы к этому wrapper'у и
+          «уезжал» вместе со скроллом. */}
+      {showOrderModal && createPortal((
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !orderSubmitting && setShowOrderModal(false)}>
           <div
             className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto"
@@ -2204,7 +2209,7 @@ export function MarketplacePage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ORDER DETAIL MODAL */}
       {selectedOrder && (() => {
