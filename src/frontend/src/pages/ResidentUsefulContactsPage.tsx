@@ -30,10 +30,8 @@ const TEXT_PRIMARY = '#1C1917';
 const TEXT_SECONDARY = '#6F6A62';
 const TEXT_MUTED = '#A8A29E';
 const SURFACE = '#FFFFFF';
-const SURFACE_2 = '#F4F0E8';
 const SURFACE_SUNKEN = '#EDE7DB';
 const BORDER = '#E6DFD2';
-const BORDER_STRONG = '#D8CFBE';
 const STATUS_CRITICAL = '#E2483D';
 const STATUS_CRITICAL_BG = 'rgba(226,72,61,0.12)';
 const BRAND = '#F97316';
@@ -252,18 +250,6 @@ export default function ResidentUsefulContactsPage() {
   // or badges.hot is set. Falls back to the first ad if none qualify.
   const featuredAd = filteredAds.find(a => a.badges?.recommended || a.badges?.hot) || filteredAds[0] || null;
   const regularAds = filteredAds.filter(a => a.id !== featuredAd?.id);
-
-  // "Стать партнёром" target — tenant-specific contact email if defined,
-  // platform fallback otherwise. Triggers the system mail composer.
-  const tenantContact = config?.tenant as { contact_email?: string } | undefined;
-  const partnerMailto = (() => {
-    const to = tenantContact?.contact_email || 'partners@kamizo.uz';
-    const subj = language === 'ru' ? 'Заявка на партнёрство' : 'Hamkorlik uchun ariza';
-    const body = language === 'ru'
-      ? `Здравствуйте! Я бы хотел разместить услугу для жителей дома.\n\nКомпания:\nКатегория:\nКонтакты:\nПредложение:\n`
-      : "Salom! Uy aholisi uchun xizmat joylashtirmoqchiman.\n\nKompaniya:\nKategoriya:\nKontaktlar:\nTaklif:\n";
-    return `mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-  })();
 
   // ────────────────────────────────────────────────────────────────────
   // Detail view (unchanged data flow — coupon issue + copy work as before)
@@ -571,8 +557,8 @@ export default function ResidentUsefulContactsPage() {
                 {e.label}
               </span>
               <span style={{
-                fontSize: 12, fontWeight: 800, color: STATUS_CRITICAL,
-                fontVariantNumeric: 'tabular-nums',
+                fontSize: 18, fontWeight: 800, color: STATUS_CRITICAL,
+                fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
               }}>
                 {e.tel}
               </span>
@@ -613,35 +599,6 @@ export default function ResidentUsefulContactsPage() {
           </div>
         )}
 
-        {/* ── "Стать партнёром" CTA ───────────────────────────────────── */}
-        <div style={{
-          marginTop: 16, padding: 16,
-          borderRadius: 20,
-          border: `1.5px dashed ${BORDER_STRONG}`,
-          textAlign: 'center',
-          background: SURFACE_2,
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: TEXT_PRIMARY }}>
-            {language === 'ru' ? 'Здесь может быть ваш сервис' : 'Bu yerda sizning xizmatingiz boʻlishi mumkin'}
-          </div>
-          <div style={{ fontSize: 12.5, color: TEXT_SECONDARY, marginTop: 4, lineHeight: 1.4 }}>
-            {language === 'ru'
-              ? 'Размещайте предложения для жителей дома — химчистка, доставка, ремонт'
-              : 'Uy aholisi uchun takliflar joylashtiring — kimyoviy tozalash, yetkazib berish, taʼmirlash'}
-          </div>
-          <a
-            href={partnerMailto}
-            style={{
-              display: 'inline-block', marginTop: 12,
-              padding: '10px 20px', borderRadius: 999,
-              background: SURFACE, border: `1px solid ${BORDER_STRONG}`,
-              color: BRAND_DARK, fontSize: 13, fontWeight: 700,
-              textDecoration: 'none', cursor: 'pointer',
-            }}
-          >
-            {language === 'ru' ? 'Стать партнёром' : 'Hamkor boʻlish'}
-          </a>
-        </div>
       </div>
     </div>
   );
