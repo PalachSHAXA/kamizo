@@ -7,7 +7,7 @@ import {
   Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
-  Shield, Send, Mail,
+  Shield, Send, Mail, ArrowLeft,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -531,9 +531,29 @@ export function ResidentProfilePage() {
             borderRadius: 28,
             background: 'linear-gradient(160deg, #4A3B30 0%, #2A2018 100%)',
             color: TEXT_ON_DARK,
-            padding: 20,
+            padding: '64px 20px 20px',
           }}
         >
+          {/* Back-кнопка поверх hero (dark bg → белая полупрозрачная).
+              padding-top hero расширен до 64px, чтобы уместить кнопку 40+12 */}
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              position: 'absolute', top: 12, left: 12, zIndex: 2,
+              width: 40, height: 40, borderRadius: 12,
+              background: 'rgba(255,255,255,0.14)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              color: TEXT_ON_DARK,
+              display: 'grid', placeItems: 'center',
+              cursor: 'pointer', padding: 0,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}
+          >
+            <ArrowLeft size={19} />
+          </button>
           <div
             style={{
               position: 'absolute',

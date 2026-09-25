@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { residentFinanceApi, type MyChargeRow, type MyBalance, type MyApartmentRow, type PenaltyRow } from '../../../services/api';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
@@ -220,9 +221,22 @@ export function ResidentFinancePage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 space-y-4 pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* Header — единый паттерн: ArrowLeft слева + заголовок */}
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label={isRu ? 'Назад' : 'Orqaga'}
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{
+            background: 'var(--surface, #FFFFFF)',
+            border: '1px solid var(--border-c, #E6DFD2)',
+            color: 'var(--text-primary, #1C1917)',
+          }}
+        >
+          <ArrowLeft size={19} />
+        </button>
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900">
             {isRu ? 'Мои начисления' : 'Mening hisoblarim'}
           </h1>
@@ -232,12 +246,6 @@ export function ResidentFinancePage() {
               : (isRu ? `Квартир: ${apartments.length}` : `Xonadonlar: ${apartments.length}`)}
           </p>
         </div>
-        <button
-          onClick={() => navigate(-1)}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
       </div>
 
       {/* Balance card */}

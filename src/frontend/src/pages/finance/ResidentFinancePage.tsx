@@ -11,9 +11,10 @@
 // reconciliation only returns JSON not a PDF).
 
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Check, ChevronDown, Clock, CreditCard, Download, Info, Loader2,
-  Receipt, Banknote, Landmark, Globe,
+  Receipt, Banknote, Landmark, Globe, ArrowLeft,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../stores/languageStore';
@@ -167,6 +168,7 @@ const PAYMENT_ICONS: Record<string, typeof Banknote> = {
 };
 
 export function ResidentFinancePage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { language } = useLanguageStore();
   const lang: 'ru' | 'uz' = language === 'ru' ? 'ru' : 'uz';
@@ -277,18 +279,37 @@ export function ResidentFinancePage() {
       <div style={{
         padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 8px',
       }}>
-        <div style={{
-          fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
-          color: TEXT_SECONDARY, textTransform: 'uppercase',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {headerEyebrow}
-        </div>
-        <div style={{
-          fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
-          marginTop: 2, color: TEXT_PRIMARY,
-        }}>
-          {lang === 'ru' ? 'Оплата' : 'To\'lov'}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label={lang === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+              background: 'var(--surface, #FFFFFF)',
+              border: '1px solid var(--border-c, #E6DFD2)',
+              color: TEXT_PRIMARY,
+              display: 'grid', placeItems: 'center',
+              cursor: 'pointer', padding: 0,
+            }}
+          >
+            <ArrowLeft size={19} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em',
+              color: TEXT_SECONDARY, textTransform: 'uppercase',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {headerEyebrow}
+            </div>
+            <div style={{
+              fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em',
+              marginTop: 2, color: TEXT_PRIMARY,
+            }}>
+              {lang === 'ru' ? 'Оплата' : 'To\'lov'}
+            </div>
+          </div>
         </div>
       </div>
 

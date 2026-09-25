@@ -19,7 +19,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, Star as StarIcon, Check, Building2 } from 'lucide-react';
+import { Send, Star as StarIcon, Check, Building2, ArrowLeft } from 'lucide-react';
 import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { useAuthStore } from '../stores/authStore';
 import { useRequestStore, useExecutorStore } from '../stores/dataStore';
@@ -269,17 +269,36 @@ export function ResidentRateEmployeesPage() {
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--border-c, rgba(28,25,23,0.06))',
       }}>
-        <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
-          color: 'var(--text-secondary, #A8A29E)', textTransform: 'uppercase',
-        }}>
-          {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
-        </div>
-        <div style={{
-          fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
-          color: 'var(--text-primary, #1C1917)',
-        }}>
-          {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+            style={{
+              width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+              background: 'var(--surface, #FFFFFF)',
+              border: '1px solid var(--border-c, #E6DFD2)',
+              color: 'var(--text-primary, #1C1917)',
+              display: 'grid', placeItems: 'center',
+              cursor: 'pointer', padding: 0,
+            }}
+          >
+            <ArrowLeft size={19} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+              color: 'var(--text-secondary, #A8A29E)', textTransform: 'uppercase',
+            }}>
+              {language === 'ru' ? 'Оценка сотрудников' : 'Xodimlarni baholash'}
+            </div>
+            <div style={{
+              fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 1,
+              color: 'var(--text-primary, #1C1917)',
+            }}>
+              {language === 'ru' ? 'Спасибо, что делитесь' : 'Fikringiz uchun rahmat'}
+            </div>
+          </div>
         </div>
       </div>
 
