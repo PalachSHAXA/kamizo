@@ -260,11 +260,16 @@ function HomeHero({ name, apt, activeCount, language, onMenu, onBell, bellOpen, 
         {/* v118.25 — compact active-count chip per handoff: padding
             8x12, borderRadius 13, digit 22, sub 10.5 — no fixed
             minWidth (was 16x18 / radius 18 / digit 34 / sub 11 /
-            minWidth 88 in v164). */}
-        <div style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 13, background: chipBg, border: `1px solid ${chipBorder}`, textAlign: 'center', backdropFilter: 'blur(6px)' }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: chipNum, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
-          <div style={{ fontSize: 10.5, fontWeight: 600, color: onHeroSofter, marginTop: 3, lineHeight: 1.2 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
-        </div>
+            minWidth 88 in v164).
+            2026-09-25 — рендер только если activeCount >= 1: раньше
+            плашка «0 / активные заявки» показывалась всегда и висела
+            пустой у жителей без заявок. */}
+        {activeCount >= 1 && (
+          <div style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 13, background: chipBg, border: `1px solid ${chipBorder}`, textAlign: 'center', backdropFilter: 'blur(6px)' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: chipNum, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{activeCount}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: onHeroSofter, marginTop: 3, lineHeight: 1.2 }}>{ru(language, 'активные', 'faol')}<br/>{ru(language, 'заявки', 'arizalar')}</div>
+          </div>
+        )}
       </div>
     </div>
   );

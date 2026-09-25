@@ -522,8 +522,30 @@ export function ResidentProfilePage() {
           ThemeProvider. Every visual token in this page and the BottomBar
           reads through `var(--…, <light-fallback>)`, so the page renders
           identically in light mode for non-opted users. */}
+      {/* ── Back-row над hero — единый паттерн, как на Оплате /
+          Уведомлениях / Чате: 40×40 rounded-12, --surface bg,
+          --border-c border, слева-сверху с тем же 16px отступом от
+          края. Не внутри hero, чтобы не перекрывать аватар. */}
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 4px' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
+          style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'var(--surface, #FFFFFF)',
+            border: '1px solid var(--border-c, #E6DFD2)',
+            color: TEXT_PRIMARY,
+            display: 'grid', placeItems: 'center',
+            cursor: 'pointer', padding: 0,
+          }}
+        >
+          <ArrowLeft size={19} />
+        </button>
+      </div>
+
       {/* ── Hero — premium dark card ─────────────────────────────────── */}
-      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 0' }}>
+      <div style={{ padding: '8px 16px 0' }}>
         <div
           style={{
             position: 'relative',
@@ -531,29 +553,9 @@ export function ResidentProfilePage() {
             borderRadius: 28,
             background: 'linear-gradient(160deg, #4A3B30 0%, #2A2018 100%)',
             color: TEXT_ON_DARK,
-            padding: '64px 20px 20px',
+            padding: 20,
           }}
         >
-          {/* Back-кнопка поверх hero (dark bg → белая полупрозрачная).
-              padding-top hero расширен до 64px, чтобы уместить кнопку 40+12 */}
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
-            style={{
-              position: 'absolute', top: 12, left: 12, zIndex: 2,
-              width: 40, height: 40, borderRadius: 12,
-              background: 'rgba(255,255,255,0.14)',
-              border: '1px solid rgba(255,255,255,0.22)',
-              color: TEXT_ON_DARK,
-              display: 'grid', placeItems: 'center',
-              cursor: 'pointer', padding: 0,
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-            }}
-          >
-            <ArrowLeft size={19} />
-          </button>
           <div
             style={{
               position: 'absolute',
