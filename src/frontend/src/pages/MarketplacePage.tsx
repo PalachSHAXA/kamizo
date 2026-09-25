@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
   CheckCircle, ShoppingBag, Star, ArrowLeft, ChevronLeft, Truck,
@@ -208,6 +208,30 @@ export function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'shop' | 'favorites' | 'cart' | 'orders'>('shop');
   const [categories, setCategories] = useState<MarketplaceCategoryAPI[]>([]);
   const [products, setProducts] = useState<MarketplaceProductAPI[]>([]);
+
+  // Sticky-хедер маркета на WKWebView (Capacitor iOS) при rubber-band
+  // overscroll «отклеивался» от верха — position:sticky в комбинации с
+  // `-webkit-overflow-scrolling: touch` на .main-content даёт известный
+  // артефакт, когда sticky-layer на кадре бесshadow скачет вниз при bounce.
+  // willChange:transform + composite-hints были недостаточны.
+  // Переключаем на position:fixed (top:0, left:0, right:0) — fixed
+  // жёстко привязан к viewport и не участвует в scroll-паузе WKWebView.
+  // Компенсируем через spacer-div высотой = реальная высота шапки, чтобы
+  // контент не подпрыгивал под неё при исчезновении из flow. Высоту
+  // измеряем через ResizeObserver: safe-area меняется при повороте, при
+  // hide-status-bar трюках, при open-keyboard, а также если в шапку
+  // добавится ряд/пропадёт.
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    const measure = () => setHeaderHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Нормализация булевых полей: SQLite отдаёт integer 0/1 для is_on_demand,
   // is_featured, is_active. TypeScript интерфейс объявляет их boolean,
@@ -838,8 +862,15 @@ export function MarketplacePage() {
     <div
       className="marketplace-page pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-0 -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen"
       style={{
+        // Верх — тёплая оранжевая ступень градиента (под шапкой и баннером);
+        // низ — гарантированно чистый #FFFFFF. Переход завершается на 55%
+        // высоты (double stop #FFFFFF 55% + 100%), чтобы вся нижняя половина
+        // страницы — от area после product-grid и до BottomBar — была
+        // чисто белой без бежевого перехода mid2→flat. Раньше конечный
+        // stop лежал на 100% и на длинных списках виднелась warmth почти
+        // до самого низа.
         background:
-          'linear-gradient(180deg, var(--mp-gradient-top) 0%, var(--mp-gradient-mid1) 26%, var(--mp-gradient-mid2) 48%, var(--mp-gradient-flat) 100%)',
+          'linear-gradient(180deg, var(--mp-gradient-top) 0%, var(--mp-gradient-mid1) 20%, var(--mp-gradient-mid2) 35%, #FFFFFF 55%, #FFFFFF 100%)',
       }}
     >
       {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
@@ -850,15 +881,36 @@ export function MarketplacePage() {
           willChange: 'transform' форсирует создание composite-слоя —
           лекарство от известного sticky-глюка Safari, когда прилипание
           «отваливается» после первого overscroll. */}
-      {/* v10 макет: шапка сидит прямо на градиенте, без сплошной заливки и
-          без нижней границы. Внутренние элементы (search chip, favorites,
-          категории) сами становятся полу-прозрачными карточками. */}
+      {/* v10 макет: шапка сидит прямо на градиенте, непрозрачная.
+          POSITION: FIXED (не sticky) — на WKWebView (Capacitor iOS) sticky
+          при rubber-band overscroll даёт видимый «отклей», где на одном
+          кадре шапка уезжает вниз, показывая пустоту сверху. Fixed привязан
+          к viewport напрямую и не участвует в scroll-паузе iOS scroller'а,
+          поэтому визуально стабилен даже на резком bounce. Spacer-div
+          ниже компенсирует, что fixed убрал шапку из потока — иначе
+          product-grid поднимался бы под шапку.
+          z-40 гарантирует, что product-grid никогда не перекроет header.
+          left/right: 0 — растяжение по viewport (marketplace-page на mobile
+          full-bleed через -mx-4, значит совпадает с viewport по X). */}
       <div
-        className="sticky top-0 z-40 md:hidden"
+        ref={headerRef}
+        className="fixed top-0 z-40 md:hidden"
         style={{
-          background: 'transparent',
+          // left/right: -8px — safety-overhang за пределы viewport, чтобы
+          // накрыть sub-pixel щели по краям, где просвечивал layout-root
+          // (marketplace-bg=#FFFFFF) в местах, куда не дотягивал paint
+          // marketplace-page (-mx-4 → overhang 2-8px, clip'ится
+          // overflow-x:hidden на .main-content — на WKWebView sub-pixel
+          // границы иногда «пилят» и оставляют светлые полосы). Fixed
+          // element может быть шире viewport безопасно — браузер сам
+          // clip'ит по viewport. inset-x-[-8px] не сработает в
+          // arbitrary-value tailwind, поэтому через inline style.
+          left: '-8px',
+          right: '-8px',
+          background:
+            'linear-gradient(180deg, var(--mp-gradient-top) 0%, var(--mp-gradient-mid1) 55%, var(--mp-gradient-mid2) 100%)',
           paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4px)',
-          willChange: 'transform',
+          boxShadow: '0 10px 20px -18px rgba(28,25,23,0.35)',
         }}
       >
         {/* Sprint 87 v9 — editorial header from screens/10-marketplace.html.
@@ -1040,6 +1092,13 @@ export function MarketplacePage() {
         )}
       </div>
 
+      {/* Spacer — компенсирует высоту position:fixed шапки, чтобы контент
+          начинался сразу под ней, а не под status bar'ом (fixed вынес
+          header из document flow). Высоту берём из ResizeObserver — она
+          меняется от роли/safe-area/наличия ряда категорий. Только на
+          мобилке (md:hidden); desktop-шапка ниже — своя, sticky. */}
+      <div className="md:hidden" style={{ height: headerHeight, flexShrink: 0 }} aria-hidden="true" />
+
       {/* Desktop tabs */}
       <div className="hidden md:block sticky top-0 z-40 glass-card">
         <div className="flex">
@@ -1090,13 +1149,15 @@ export function MarketplacePage() {
         </div>
       )}
       {activeTab === 'shop' && (
-        // v10-макет: плавный transparent → #FAF8F6 переход в первые ~90px
+        // v10-макет: плавный transparent → #FFFFFF переход в первые ~90px
         // (высота под баннеры/первый ряд карточек), чтобы карточки товаров
-        // лежали на однотонной поверхности, а не на бренд-градиенте выше.
+        // лежали на однотонной белой поверхности, а не на бренд-градиенте
+        // выше. Раньше был --mp-gradient-flat (#FAF8F6) — давал бежевый
+        // оттенок в низу списка; теперь чистый #FFFFFF.
         <div
           className="px-4 pt-3 pb-4"
           style={{
-            background: 'linear-gradient(180deg, transparent 0%, var(--mp-gradient-flat) 90px, var(--mp-gradient-flat) 100%)',
+            background: 'linear-gradient(180deg, transparent 0%, #FFFFFF 90px, #FFFFFF 100%)',
           }}
         >
           {/* Banners */}

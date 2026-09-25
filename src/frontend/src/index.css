@@ -272,6 +272,28 @@ html {
 .layout-root {
   background: var(--app-bg);
 }
+/* /marketplace (и подмаршруты) — MarketplacePage.tsx рисует свой градиент
+   top→#FFFFFF на .marketplace-page, но root main-content transparent, и
+   home-indicator zone под BottomBar показывала --app-bg (тёплый бежевый
+   #F4F0E8) полоской. Для /marketplace override'им layout-root на градиент
+   1-в-1 с marketplace-page: сверху тёплый оранжевый (за краями fixed-хедера),
+   снизу чистый white (home-indicator zone под BottomBar). marketplace-bg
+   класс ставится в Layout.tsx через isMarketplaceRoute, тот же флаг, что
+   используется для hideMobileHeaderForRoute; на остальных маршрутах
+   ничего не меняется, home-indicator zone остаётся warm-beige.
+   Раньше был просто #FFFFFF — на WKWebView в местах, где marketplace-page
+   overhang (-mx-4) обрезался overflow-x:hidden, по краям экрана рядом с
+   fixed-хедером просвечивали белые вертикальные полосы поверх оранжевой
+   шапки. Тот же градиент, что у .marketplace-page, гарантирует их
+   визуальное совпадение — даже если какая-то sub-pixel щель откроется. */
+.layout-root.marketplace-bg {
+  background: linear-gradient(180deg,
+    var(--mp-gradient-top) 0%,
+    var(--mp-gradient-mid1) 20%,
+    var(--mp-gradient-mid2) 35%,
+    #FFFFFF 55%,
+    #FFFFFF 100%);
+}
 
 /* ─────────────────────────────────────────────────────────
    ── DARK MODE ────────────────────────────────────────────

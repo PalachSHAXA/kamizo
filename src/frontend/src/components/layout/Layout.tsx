@@ -637,7 +637,7 @@ export function Layout() {
 
   return (
     <div
-      className={`layout-root${isStaffShell ? ' staff-shell' : ''}`}
+      className={`layout-root${isStaffShell ? ' staff-shell' : ''}${isMarketplaceRoute ? ' marketplace-bg' : ''}`}
       data-shell={isStaffShell ? 'staff' : undefined}
       style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
     >
