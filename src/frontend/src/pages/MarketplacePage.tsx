@@ -289,19 +289,6 @@ export function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
-  // DEBUG (temp) — auto-open first product modal via ?debug_open_product=1 or
-  // ?debug_open_product=<slug>. Used for on-device verification of sheet layout
-  // without needing physical tap through cliclick (which iOS Simulator treats
-  // as text-selection). REMOVE with bottom-sheet layout debug session close.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const flag = params.get('debug_open_product');
-    if (!flag) return;
-    if (products.length === 0) return;
-    const target = flag === '1' ? products[0] : (products.find(p => p.name_ru.toLowerCase().includes(flag.toLowerCase())) || products[0]);
-    if (target) setSelectedProduct(target);
-  }, [products]);
   const [showOrderModal, setShowOrderModal] = useState(false);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
