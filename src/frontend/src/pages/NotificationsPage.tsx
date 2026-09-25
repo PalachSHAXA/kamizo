@@ -115,13 +115,14 @@ export function NotificationsPage() {
       className="kz-screen"
       style={{
         position: 'fixed',
-        // D-3 fix: страница — full-viewport overlay (position:fixed inset:0),
-        // но `.mobile-header` тоже position:fixed top:0 z-index:10 — они
-        // конкурируют за верхнюю полосу. Заголовок «Уведомления» просвечивал
-        // сквозь backdrop-blur mobile-header'a. Сдвигаем overlay ВНИЖ на
-        // высоту --mobile-header-h (64px + safe-area) — тогда page-header
-        // начинается СРАЗУ под app-bar «My Helper», без наложения.
-        top: 'var(--mobile-header-h, 68px)',
+        // 2026-09-25: /notifications теперь isResidentFullBleed в
+        // Layout.tsx — глобальный MobileHeader скрыт, значит overlay
+        // может занимать весь viewport от top:0 и сам добавить safe-
+        // area-inset-top в padding заголовка. Раньше offset
+        // `var(--mobile-header-h)` оставлял ~123px пустого места
+        // сверху на iPhone 16 Pro Max, так как MobileHeader visually
+        // сливался с бежевым фоном и не рендерил читаемый контент.
+        top: 0,
         left: 0, right: 0, bottom: 0,
         display: 'flex', flexDirection: 'column',
         background: 'var(--app-bg)',
@@ -129,13 +130,11 @@ export function NotificationsPage() {
         letterSpacing: '-0.01em',
       }}
     >
-      {/* Fixed-top header (not sticky — it's a flex child).
-          D-3 fix: убран env(safe-area-inset-top) из padding-top —
-          safe-area уже учтена в --mobile-header-h выше, дублировать не надо. */}
+      {/* Sticky header — pinned под notch (env(safe-area-inset-top)). */}
       <div
         style={{
           flex: '0 0 auto',
-          padding: '14px 16px 12px',
+          padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
           background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',

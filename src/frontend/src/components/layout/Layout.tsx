@@ -508,6 +508,11 @@ export function Layout() {
   // would compound; full-bleed gates the modifier.
   const isResidentContacts = ['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')
     && location.pathname === '/useful-contacts';
+  // Notifications (all roles) — page рисует свою sticky-шапку с ArrowLeft
+  // + фильтр-чипами. Глобальный MobileHeader над ней делал заголовок
+  // «Уведомления» просвечивающим и оставлял пустое пространство сверху
+  // на iPhone 16 Pro Max — full-bleed скрывает глобальную шапку.
+  const isNotifications = location.pathname === '/notifications';
   // Resident announcements (Claude Design §06-obyavleniya) — sticky in-page
   // header + filter chips + announcement feed. Page paints its own 16-px
   // sides so .page-content's per-device mobile padding would compound;
@@ -552,7 +557,7 @@ export function Layout() {
   // SettingsPage) — глобальный MobileHeader на /profile становится избыточен.
   const isStaffSettingsFullBleed = ['admin', 'director', 'manager', 'department_head', 'marketplace_manager', 'executor', 'advertiser', 'security', 'dispatcher', 'coupon_checker'].includes(user?.role || '')
     && (location.pathname === '/profile' || location.pathname === '/settings' || location.pathname === '/guest-access-guard');
-  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed;
+  const isResidentFullBleed = isResidentHome || isResidentVehicles || isResidentProfile || isResidentPasses || isResidentRate || isResidentContacts || isResidentAnnouncements || isResidentMeetings || isResidentContract || isResidentFinance || isStaffSettingsFullBleed || isNotifications;
 
   // Whether the MobileHeader is rendered (same condition as below).
   // Chat is a dedicated full-screen surface with its own header (back arrow +
