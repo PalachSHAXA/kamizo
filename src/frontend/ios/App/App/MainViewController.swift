@@ -80,6 +80,14 @@ class MainViewController: CAPBridgeViewController {
             sv.panGestureRecognizer.cancelsTouchesInView = false
 
             webView.allowsBackForwardNavigationGestures = false
+
+            // TEMPORARY debug — Safari Web Inspector attaches to WKWebView
+            // only when isInspectable=true. Needed for on-device DOM
+            // inspection of native rendering diffs vs web. Revert before
+            // shipping to prod (see MainViewController-debug branch note).
+            if #available(iOS 16.4, *) {
+                webView.isInspectable = true
+            }
         }
     }
 }

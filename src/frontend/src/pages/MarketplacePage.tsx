@@ -1976,16 +1976,7 @@ export function MarketplacePage() {
                 ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
                 : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
             </div>
-            <div
-              className="px-4 pt-4"
-              style={{
-                // Home-indicator zone (env(safe-area-inset-bottom, 0px)) на iPhone
-                // с notch = 34pt. + 16px «дышащего» промежутка, чтобы CTA «В корзину»
-                // не прижимался к самой полоске жестов. На устройствах без
-                // home-indicator env резолвится в 0 → падаем на чистые 16px.
-                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
-              }}
-            >
+            <div className="px-4 pt-4 pb-4">
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
               {(language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz) && <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz}</p>}
               <div className="flex items-end justify-between mt-3 mb-4">
@@ -2007,6 +1998,11 @@ export function MarketplacePage() {
                 <button onClick={() => { addToCart(selectedProduct.id); setSelectedProduct(null); }} disabled={selectedProduct.stock_quantity === 0} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:bg-gray-200 disabled:text-gray-400 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"><ShoppingCart className="w-5 h-5" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
               )}
             </div>
+            {/* Bottom safe-area spacer — раньше был `paddingBottom: env(safe-area-inset-bottom)+16px` на content-контейнере, но у WKWebView с overflow-y:auto padding-bottom последнего child не всегда учитывается в scrollHeight (известный quirk) — CTA обрезался home-indicator'ом. Явный spacer-div высотой env+16px гарантированно уважается всеми браузерами (height, в отличие от padding, honors scroll extent). aria-hidden — decoration only. */}
+            <div
+              style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', minHeight: 16, flexShrink: 0 }}
+              aria-hidden="true"
+            />
           </div>
         </div>
       ), document.body)}
