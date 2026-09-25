@@ -288,8 +288,9 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
-  // Swipe-to-dismiss на drag-handle checkout-шторки. Порог тот же, что
-  // в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
+  // Swipe-to-dismiss на drag-handle шторок (product-sheet + checkout).
+  // Порог тот же, что в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
+  const productSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   const orderSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   // iOS WKWebView баг: при открытом fixed-модальном окне свайп по нему
   // трактуется как overscroll body, из-за чего вся модалка «плывёт»
@@ -1960,8 +1961,19 @@ export function MarketplacePage() {
             style={{ height: '55dvh', maxHeight: '85vh' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Grabber — pinned top, вне scroll'а */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+            {/* Grabber — pinned top, вне scroll'а. Свайп вниз > 60px закрывает
+                шторку (тот же паттерн, что в checkout и FeatureLockedModal). */}
+            <div
+              className="flex justify-center pt-3 pb-1 sm:hidden shrink-0 touch-none"
+              onTouchStart={e => { productSheetSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
+              onTouchEnd={e => {
+                if (!productSheetSwipeRef.current) return;
+                const dy = e.changedTouches[0].clientY - productSheetSwipeRef.current.startY;
+                const dx = Math.abs(e.changedTouches[0].clientX - productSheetSwipeRef.current.startX);
+                if (dy > 60 && dx < dy) setSelectedProduct(null);
+                productSheetSwipeRef.current = null;
+              }}
+            >
               <div className="w-9 h-1 rounded-full bg-gray-300" />
             </div>
             {/* Action-bar — pinned top ряд с ♥/× (вне scroll'а, всегда виден) */}
@@ -2158,9 +2170,11 @@ export function MarketplacePage() {
           >
             {/* Drag-handle — свайп вниз > 60px закрывает шторку.
                 Touch listeners только на полоске: не мешают редактированию
-                полей и внутреннему скроллу формы. */}
+                полей и внутреннему скроллу формы. Стиль (pt-3 pb-1 +
+                w-9 h-1 bg-gray-300) идентичен product-sheet — единая
+                визуальная система шторок. */}
             <div
-              className="flex justify-center pt-3 pb-2 sm:hidden touch-none"
+              className="flex justify-center pt-3 pb-1 sm:hidden touch-none shrink-0"
               onTouchStart={e => { orderSheetSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
               onTouchEnd={e => {
                 if (!orderSheetSwipeRef.current) return;
