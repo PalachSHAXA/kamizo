@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, memo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShoppingCart, Search, Heart, Package, Plus, Minus, X,
   CheckCircle, ShoppingBag, Star, ArrowLeft, ChevronLeft, Truck,
@@ -210,17 +211,21 @@ export function MarketplacePage() {
   const [products, setProducts] = useState<MarketplaceProductAPI[]>([]);
 
   // Sticky-хедер маркета на WKWebView (Capacitor iOS) при rubber-band
-  // overscroll «отклеивался» от верха — position:sticky в комбинации с
-  // `-webkit-overflow-scrolling: touch` на .main-content даёт известный
-  // артефакт, когда sticky-layer на кадре бесshadow скачет вниз при bounce.
-  // willChange:transform + composite-hints были недостаточны.
-  // Переключаем на position:fixed (top:0, left:0, right:0) — fixed
-  // жёстко привязан к viewport и не участвует в scroll-паузе WKWebView.
-  // Компенсируем через spacer-div высотой = реальная высота шапки, чтобы
-  // контент не подпрыгивал под неё при исчезновении из flow. Высоту
-  // измеряем через ResizeObserver: safe-area меняется при повороте, при
-  // hide-status-bar трюках, при open-keyboard, а также если в шапку
-  // добавится ряд/пропадёт.
+  // overscroll «отклеивался» от верха. Прошли через 3 итерации:
+  //   1. position:sticky — двигался при bounce.
+  //   2. position:fixed + inline в MarketplacePage — тоже двигался.
+  //      Причина: на iOS position:fixed внутри `overflow: auto` container'а
+  //      с `-webkit-overflow-scrolling: touch` привязан к нативному
+  //      scroller'у (.main-content), а не к viewport. При overscroll iOS
+  //      анимирует весь scroll-контент вместе с fixed-элементом.
+  //      Покадровый анализ recordVideo подтвердил: chevron_y=78 в нормале,
+  //      chevron_y=138 в момент rubber-band bounce → сдвиг на 60px.
+  //   3. **portal в document.body + position:fixed** — фикс работает,
+  //      потому что header больше не находится внутри .main-content
+  //      scroller'а. Fixed теперь относится к viewport (initial containing
+  //      block), и iOS не двигает его при bounce.
+  // Spacer-div остаётся внутри marketplace-page — компенсирует, что
+  // header из flow вырезан (иначе product-grid начинается с top viewport).
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   useLayoutEffect(() => {
@@ -231,6 +236,17 @@ export function MarketplacePage() {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+  // Portal node — DIV прикреплённый к document.body. Он существует всё
+  // время жизни компонента, что даёт header стабильный DOM-anchor вне
+  // scroller'а. При unmount MarketplacePage — удаляем node из body.
+  const [headerPortal, setHeaderPortal] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = document.createElement('div');
+    node.setAttribute('data-marketplace-header-portal', '');
+    document.body.appendChild(node);
+    setHeaderPortal(node);
+    return () => { document.body.removeChild(node); };
   }, []);
 
   // Нормализация булевых полей: SQLite отдаёт integer 0/1 для is_on_demand,
@@ -873,25 +889,14 @@ export function MarketplacePage() {
           'linear-gradient(180deg, var(--mp-gradient-top) 0%, var(--mp-gradient-mid1) 20%, var(--mp-gradient-mid2) 35%, #FFFFFF 55%, #FFFFFF 100%)',
       }}
     >
-      {/* HEADER — sticky, "остаётся на месте" при скролле карточек товаров.
-          bg-white (не /95): полупрозрачный фон + backdrop-blur на iOS
-          WKWebView иногда воспринимался как «уплывает» — визуально
-          сквозь заголовок просвечивают карточки. Полная непрозрачность
-          убирает эту иллюзию.
-          willChange: 'transform' форсирует создание composite-слоя —
-          лекарство от известного sticky-глюка Safari, когда прилипание
-          «отваливается» после первого overscroll. */}
-      {/* v10 макет: шапка сидит прямо на градиенте, непрозрачная.
-          POSITION: FIXED (не sticky) — на WKWebView (Capacitor iOS) sticky
-          при rubber-band overscroll даёт видимый «отклей», где на одном
-          кадре шапка уезжает вниз, показывая пустоту сверху. Fixed привязан
-          к viewport напрямую и не участвует в scroll-паузе iOS scroller'а,
-          поэтому визуально стабилен даже на резком bounce. Spacer-div
-          ниже компенсирует, что fixed убрал шапку из потока — иначе
-          product-grid поднимался бы под шапку.
-          z-40 гарантирует, что product-grid никогда не перекроет header.
-          left/right: 0 — растяжение по viewport (marketplace-page на mobile
-          full-bleed через -mx-4, значит совпадает с viewport по X). */}
+      {/* HEADER — портируется через createPortal в document.body (см. useEffect
+          с headerPortal выше). Position:fixed внутри `.main-content`
+          (overflow:auto + -webkit-overflow-scrolling:touch) на iOS WKWebView
+          двигается вместе со scroll-контентом при rubber-band overscroll
+          (подтверждено покадрово — сдвиг ~60px в момент bounce). Портирование
+          в document.body вытаскивает header из scroller'а — fixed теперь
+          реально относится к viewport, а не к внутреннему нативному scroller'у. */}
+      {headerPortal && createPortal((
       <div
         ref={headerRef}
         className="fixed top-0 z-40 md:hidden"
@@ -1091,12 +1096,14 @@ export function MarketplacePage() {
           </div>
         )}
       </div>
+      ), headerPortal)}
 
-      {/* Spacer — компенсирует высоту position:fixed шапки, чтобы контент
-          начинался сразу под ней, а не под status bar'ом (fixed вынес
-          header из document flow). Высоту берём из ResizeObserver — она
-          меняется от роли/safe-area/наличия ряда категорий. Только на
-          мобилке (md:hidden); desktop-шапка ниже — своя, sticky. */}
+      {/* Spacer — компенсирует высоту портированной fixed-шапки, чтобы контент
+          начинался сразу под ней, а не под status bar'ом (header портирован
+          в document.body → вне DOM flow marketplace-page). Высоту берём из
+          ResizeObserver — она меняется от роли/safe-area/наличия ряда
+          категорий. Только на мобилке (md:hidden); desktop-шапка ниже — своя,
+          sticky. */}
       <div className="md:hidden" style={{ height: headerHeight, flexShrink: 0 }} aria-hidden="true" />
 
       {/* Desktop tabs */}
