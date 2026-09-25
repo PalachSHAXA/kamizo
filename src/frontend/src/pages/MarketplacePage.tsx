@@ -288,6 +288,9 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  // Swipe-to-dismiss на drag-handle checkout-шторки. Порог тот же, что
+  // в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
+  const orderSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
   // orders.ts брал user.address/phone напрямую, менеджер получал
@@ -2134,15 +2137,31 @@ export function MarketplacePage() {
       {showOrderModal && createPortal((
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !orderSubmitting && setShowOrderModal(false)}>
           <div
-            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto"
-            style={{ paddingBottom: 'var(--kz-kb-h, 0px)' }}
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] flex flex-col max-h-[calc(100dvh-24px)]"
+            style={{ paddingBottom: `calc(max(env(safe-area-inset-bottom, 0px), 12px) + var(--kz-kb-h, 0px))` }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
-            <div className="p-4">
+            {/* Drag-handle — свайп вниз > 60px закрывает шторку.
+                Touch listeners только на полоске: не мешают редактированию
+                полей и внутреннему скроллу формы. */}
+            <div
+              className="flex justify-center pt-3 pb-2 sm:hidden touch-none"
+              onTouchStart={e => { orderSheetSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
+              onTouchEnd={e => {
+                if (!orderSheetSwipeRef.current) return;
+                const dy = e.changedTouches[0].clientY - orderSheetSwipeRef.current.startY;
+                const dx = Math.abs(e.changedTouches[0].clientX - orderSheetSwipeRef.current.startX);
+                if (dy > 60 && dx < dy && !orderSubmitting) setShowOrderModal(false);
+                orderSheetSwipeRef.current = null;
+              }}
+            >
+              <div className="w-9 h-1 rounded-full bg-gray-300" />
+            </div>
+            {/* Скроллируемая область только для полей — footer с Итого+CTA
+                фиксирован снизу шторки, без пустоты между ними. */}
+            <div className="flex-1 overflow-y-auto px-4 pt-1">
               <h2 className="text-[17px] font-bold text-gray-900 mb-3">{language === 'ru' ? 'Оформление' : 'Rasmiylashtirish'}</h2>
-
-              <div className="space-y-3 mb-3">
+              <div className="space-y-3 pb-3">
                 <div>
                   <label className="text-[12px] font-semibold text-gray-700 mb-1 block">
                     {language === 'ru' ? 'Адрес доставки' : 'Yetkazish manzili'} <span className="text-red-500">*</span>
@@ -2192,8 +2211,9 @@ export function MarketplacePage() {
                   />
                 </div>
               </div>
-
-              <div className="flex items-center justify-between p-3.5 bg-primary-50 rounded-[14px] mb-4">
+            </div>
+            <div className="px-4 pt-2 space-y-3 shrink-0">
+              <div className="flex items-center justify-between p-3.5 bg-primary-50 rounded-[14px]">
                 <span className="text-[14px] font-medium text-gray-700">{language === 'ru' ? 'Итого' : 'Jami'}</span>
                 <span className="text-[18px] font-extrabold text-primary-600">{fmt(cartTotal)}</span>
               </div>
