@@ -1407,8 +1407,11 @@ export function MarketplacePage() {
                       className="border-none p-0 cursor-pointer relative"
                       style={{
                         flex: '0 0 122px',
+                        // Нейтральный фон, чтобы поля вокруг object-contain
+                        // не резали глаз оранжевым (гpадиент оставлен только
+                        // как placeholder-фон, когда image_url отсутствует).
                         background: p.image_url
-                          ? undefined
+                          ? '#F5F5F5'
                           : 'linear-gradient(145deg, #FDBA74, #EA580C)',
                       }}
                       aria-label={language === 'ru' ? p.name_ru : p.name_uz}
@@ -1419,7 +1422,7 @@ export function MarketplacePage() {
                           alt={language === 'ru' ? p.name_ru : p.name_uz}
                           loading="lazy"
                           decoding="async"
-                          className="absolute inset-0 w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-contain"
                         />
                       )}
                       {/* Priority: on-demand > discount > out-of-stock. */}
