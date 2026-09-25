@@ -7,7 +7,7 @@ import {
   Key, ShieldCheck, Globe, Bell, Download, Moon,
   Check, Pencil, ChevronRight, LogOut,
   X, Loader2, Eye, EyeOff, AlertCircle, Save,
-  Shield, Send, Mail, ArrowLeft,
+  Shield, Send, Mail,
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common';
 import { useAuthStore } from '../stores/authStore';
@@ -522,30 +522,10 @@ export function ResidentProfilePage() {
           ThemeProvider. Every visual token in this page and the BottomBar
           reads through `var(--…, <light-fallback>)`, so the page renders
           identically in light mode for non-opted users. */}
-      {/* ── Back-row над hero — единый паттерн, как на Оплате /
-          Уведомлениях / Чате: 40×40 rounded-12, --surface bg,
-          --border-c border, слева-сверху с тем же 16px отступом от
-          края. Не внутри hero, чтобы не перекрывать аватар. */}
-      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 4px' }}>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          aria-label={language === 'ru' ? 'Назад' : 'Orqaga'}
-          style={{
-            width: 40, height: 40, borderRadius: 12,
-            background: 'var(--surface, #FFFFFF)',
-            border: '1px solid var(--border-c, #E6DFD2)',
-            color: TEXT_PRIMARY,
-            display: 'grid', placeItems: 'center',
-            cursor: 'pointer', padding: 0,
-          }}
-        >
-          <ArrowLeft size={19} />
-        </button>
-      </div>
-
-      {/* ── Hero — premium dark card ─────────────────────────────────── */}
-      <div style={{ padding: '8px 16px 0' }}>
+      {/* ── Hero — premium dark card. Profile — это BottomBar-таб, а
+          не push-navigated экран, back-кнопка не нужна. safe-area-
+          inset-top уводит hero под notch с минимальным 16px паддингом. */}
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 0' }}>
         <div
           style={{
             position: 'relative',
