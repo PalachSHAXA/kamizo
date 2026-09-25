@@ -190,31 +190,61 @@ export function ResidentFinancePage() {
     return m;
   }, [apartments]);
 
-  if (loading) return <PageSkeleton variant="list" />;
+  // Единый back-block для всех return-веток (loading, error, empty, main).
+  const backBtn = (
+    <button
+      type="button"
+      onClick={() => navigate('/')}
+      aria-label={isRu ? 'Назад' : 'Orqaga'}
+      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+      style={{
+        background: 'var(--surface, #FFFFFF)',
+        border: '1px solid var(--border-c, #E6DFD2)',
+        color: 'var(--text-primary, #1C1917)',
+      }}
+    >
+      <ArrowLeft size={19} />
+    </button>
+  );
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-4">
+        <div className="mb-4">{backBtn}</div>
+        <PageSkeleton variant="list" />
+      </div>
+    );
+  }
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 text-center">
-        <div className="text-red-500 font-semibold mb-2">{error}</div>
-        <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">
-          {isRu ? 'Обновить' : 'Yangilash'}
-        </button>
+      <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="mb-4">{backBtn}</div>
+        <div className="text-center py-8">
+          <div className="text-red-500 font-semibold mb-2">{error}</div>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">
+            {isRu ? 'Обновить' : 'Yangilash'}
+          </button>
+        </div>
       </div>
     );
   }
 
   if (apartments.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 text-center text-gray-500">
-        <div className="text-5xl mb-4">🏠</div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">
-          {isRu ? 'Нет квартир в системе' : 'Xonadonlar yo\'q'}
-        </h2>
-        <p className="text-sm">
-          {isRu
-            ? 'Ваш аккаунт не привязан к квартире. Обратитесь в УК.'
-            : 'Akkauntingiz xonadonga bog\'lanmagan.'}
-        </p>
+      <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="mb-4">{backBtn}</div>
+        <div className="text-center py-8 text-gray-500">
+          <div className="text-5xl mb-4">🏠</div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">
+            {isRu ? 'Нет квартир в системе' : 'Xonadonlar yo\'q'}
+          </h2>
+          <p className="text-sm">
+            {isRu
+              ? 'Ваш аккаунт не привязан к квартире. Обратитесь в УК.'
+              : 'Akkauntingiz xonadonga bog\'lanmagan.'}
+          </p>
+        </div>
       </div>
     );
   }
