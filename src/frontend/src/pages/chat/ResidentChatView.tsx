@@ -362,7 +362,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
         left: isMobile ? 0 : undefined,
         right: isMobile ? 0 : undefined,
         zIndex: isMobile ? 200 : 1,
-        background: 'var(--chat-strip-bg, rgb(250,250,249))',
+        background: 'var(--app-bg, #F4F0E8)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderBottom: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
@@ -493,7 +493,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
         left: isMobile ? 0 : undefined,
         right: isMobile ? 0 : undefined,
         zIndex: isMobile ? 200 : 1,
-        background: 'var(--chat-strip-bg, rgb(250,250,249))',
+        background: 'var(--app-bg, #F4F0E8)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
         borderTop: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
@@ -703,7 +703,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
           flex: 1,
           minHeight: 0,
           height: '100%',
-          background: 'var(--chat-page-bg, #FAFAF9)',
+          background: 'var(--app-bg, #F4F0E8)',
           overflow: 'hidden',
           overscrollBehavior: 'contain',
         } : {
@@ -712,7 +712,7 @@ export function ResidentChatView({ channel, onBack }: Props) {
           // header-h fallback + safe-area) so the composer hugs the bottom
           // without being clipped by the home-indicator zone.
           position: 'relative',
-          background: 'var(--chat-page-bg, #FAFAF9)',
+          background: 'var(--app-bg, #F4F0E8)',
           overflow: 'hidden',
           border: '1px solid var(--chat-strip-border, rgba(0,0,0,0.06))',
           borderRadius: 22,
