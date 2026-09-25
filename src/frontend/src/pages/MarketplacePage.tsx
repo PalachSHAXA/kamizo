@@ -289,6 +289,19 @@ export function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
+  // DEBUG (temp) — auto-open first product modal via ?debug_open_product=1 or
+  // ?debug_open_product=<slug>. Used for on-device verification of sheet layout
+  // without needing physical tap through cliclick (which iOS Simulator treats
+  // as text-selection). REMOVE with bottom-sheet layout debug session close.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get('debug_open_product');
+    if (!flag) return;
+    if (products.length === 0) return;
+    const target = flag === '1' ? products[0] : (products.find(p => p.name_ru.toLowerCase().includes(flag.toLowerCase())) || products[0]);
+    if (target) setSelectedProduct(target);
+  }, [products]);
   const [showOrderModal, setShowOrderModal] = useState(false);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
@@ -1938,19 +1951,18 @@ export function MarketplacePage() {
           onClick={() => setSelectedProduct(null)}
         >
           <div
-            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[28px] overflow-y-auto flex flex-col"
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[28px] flex flex-col overflow-hidden"
             style={{ height: '55dvh', maxHeight: '85vh' }}
             onClick={e => e.stopPropagation()}
           >
+            {/* Grabber — pinned top, вне scroll'а */}
             <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
               <div className="w-9 h-1 rounded-full bg-gray-300" />
             </div>
-            {/* Sticky action-bar — фиксирована относительно scroll-контейнера
-                шторки. bg-white/95 + backdrop-blur делает bar непрозрачным
-                чтобы фото/цена чётко уходили под него при скролле контента. */}
+            {/* Action-bar — pinned top ряд с ♥/× (вне scroll'а, всегда виден) */}
             <div
-              className="sticky top-0 z-10 flex items-center justify-between px-3 pt-1 pb-2 shrink-0"
-              style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+              className="flex items-center justify-between px-3 pt-1 pb-2 shrink-0"
+              style={{ background: '#FFFFFF' }}
             >
               <button
                 onClick={() => toggleFavorite(selectedProduct.id)}
@@ -1967,42 +1979,51 @@ export function MarketplacePage() {
                 <X className="w-4 h-4 text-gray-600" />
               </button>
             </div>
-            {/* Фото/плейсхолдер — компактная фиксированная высота, чтобы
-                оставить место под название/цену/CTA в 55dvh sheet без
-                чрезмерного скролла. Раньше был aspect-square (393x393),
-                съедал почти всю шторку. */}
-            <div className="h-[42dvh] max-h-[280px] bg-gray-50 flex items-center justify-center shrink-0">
-              {selectedProduct.image_url
-                ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
-                : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
-            </div>
-            <div className="px-4 pt-4 pb-4">
-              <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
-              {(language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz) && <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz}</p>}
-              <div className="flex items-end justify-between mt-3 mb-4">
-                {selectedProduct.is_on_demand ? (
-                  <div>
-                    <p className="text-[22px] font-extrabold text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
-                    <p className="text-[12px] text-gray-500">{language === 'ru' ? 'УК свяжется и назовёт цену' : "Boshqaruv bog'lanib narxni aytadi"}</p>
-                  </div>
-                ) : (
-                  <>
-                    <div><p className="text-[22px] font-extrabold text-primary-600">{fmt(selectedProduct.price)}</p>{selectedProduct.old_price && <p className="text-[13px] text-gray-400 line-through">{fmt(selectedProduct.old_price)}</p>}</div>
-                    <div className="text-right"><p className="text-[12px] text-gray-400">{selectedProduct.unit}</p><p className={`text-[12px] font-medium ${selectedProduct.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{selectedProduct.stock_quantity > 0 ? (language === 'ru' ? 'В наличии' : 'Mavjud') : (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')}</p></div>
-                  </>
-                )}
+            {/* Scroll-area = image + название + описание + цена. flex-1 min-h-0
+                позволяет scroll-стриму занять всё оставшееся место между
+                header'ом и footer'ом; если контент выше — скроллится ВНУТРИ
+                этой области, header и footer остаются pinned. */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="bg-gray-50 flex items-center justify-center" style={{ minHeight: '30dvh', maxHeight: '45dvh' }}>
+                {selectedProduct.image_url
+                  ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
+                  : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
               </div>
+              <div className="px-4 pt-4 pb-2">
+                <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
+                {(language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz) && <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz}</p>}
+                <div className="flex items-end justify-between mt-3">
+                  {selectedProduct.is_on_demand ? (
+                    <div>
+                      <p className="text-[22px] font-extrabold text-amber-600">{language === 'ru' ? 'Цена по запросу' : "So'rov bo'yicha"}</p>
+                      <p className="text-[12px] text-gray-500">{language === 'ru' ? 'УК свяжется и назовёт цену' : "Boshqaruv bog'lanib narxni aytadi"}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div><p className="text-[22px] font-extrabold text-primary-600">{fmt(selectedProduct.price)}</p>{selectedProduct.old_price && <p className="text-[13px] text-gray-400 line-through">{fmt(selectedProduct.old_price)}</p>}</div>
+                      <div className="text-right"><p className="text-[12px] text-gray-400">{selectedProduct.unit}</p><p className={`text-[12px] font-medium ${selectedProduct.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{selectedProduct.stock_quantity > 0 ? (language === 'ru' ? 'В наличии' : 'Mavjud') : (language === 'ru' ? 'Нет в наличии' : 'Mavjud emas')}</p></div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Footer — pinned bottom, CTA всегда виден в 55dvh sheet.
+                paddingBottom с safe-area-inset-bottom + 16px гарантирует
+                отступ от home-indicator zone. */}
+            <div
+              className="px-4 pt-3 shrink-0"
+              style={{
+                background: '#FFFFFF',
+                borderTop: '1px solid rgba(0,0,0,0.04)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+              }}
+            >
               {selectedProduct.is_on_demand ? (
                 <button onClick={() => { const p = selectedProduct; setSelectedProduct(null); requestOnDemand(p); }} className="w-full py-3.5 bg-amber-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_12px_rgba(245,158,11,0.3)]"><ShoppingBag className="w-5 h-5" />{language === 'ru' ? 'Заказать под привоз' : 'Buyurtma qilish'}</button>
               ) : (
                 <button onClick={() => { addToCart(selectedProduct.id); setSelectedProduct(null); }} disabled={selectedProduct.stock_quantity === 0} className="w-full py-3.5 bg-primary-500 text-white rounded-[14px] font-semibold text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:bg-gray-200 disabled:text-gray-400 shadow-[0_4px_12px_rgba(var(--brand-rgb),0.3)]"><ShoppingCart className="w-5 h-5" />{language === 'ru' ? 'В корзину' : 'Savatga'}</button>
               )}
             </div>
-            {/* Bottom safe-area spacer — раньше был `paddingBottom: env(safe-area-inset-bottom)+16px` на content-контейнере, но у WKWebView с overflow-y:auto padding-bottom последнего child не всегда учитывается в scrollHeight (известный quirk) — CTA обрезался home-indicator'ом. Явный spacer-div высотой env+16px гарантированно уважается всеми браузерами (height, в отличие от padding, honors scroll extent). aria-hidden — decoration only. */}
-            <div
-              style={{ height: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', minHeight: 16, flexShrink: 0 }}
-              aria-hidden="true"
-            />
           </div>
         </div>
       ), document.body)}
