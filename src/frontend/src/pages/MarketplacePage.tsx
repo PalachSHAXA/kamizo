@@ -1914,19 +1914,42 @@ export function MarketplacePage() {
       />
 
       {/* PRODUCT DETAIL */}
-      {/* TODO: Refactor to use <Modal> component */}
-      {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[85dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
-            {/* Sticky action-bar — раньше кнопки ♥ и × были absolute поверх
-                фото-контейнера и уезжали вверх вместе со скроллом. Теперь
-                они в отдельном sticky top-0 ряду внутри scroll-контейнера
-                модалки. bg-white/95 + backdrop-blur делает bar непрозрачным
-                чтобы контент чётко уходил под него. z-10 гарантирует, что
-                фото/цена не перекроют кнопки. */}
+      {/* Bottom-sheet шторка ~55dvh: не разворачивается на весь экран,
+          лента товаров позади видна сквозь тёмный полупрозрачный scrim
+          (rgba(20,20,19,0.42) без backdrop-blur — лента должна читаться
+          затемнённой, но чёткой). Тап по scrim'у закрывает модалку.
+          Sheet имеет фиксированную высоту 55dvh; если контент не помещается
+          — он скроллится внутри шторки, sticky-bar с ♥/× остаётся на месте.
+          На mobile — rounded-t-[24px] сверху; на десктопе разворачивается в
+          центрированное диалоговое окно с h-[55dvh].
+          Портируется через createPortal в document.body, потому что
+          PullToRefresh оборачивает children в div с `transform: translateY`,
+          создающий containing block — без portal'а `fixed inset-0` был бы
+          привязан к content-wrapper (иногда далеко за viewport), а не к
+          самому viewport. Portal вырывает модалку из этого контекста.
+          На WKWebView sticky внутри overflow-y:auto (в отличие от fixed)
+          НЕ подвержен overscroll-bounce артефакту — sticky-элемент
+          обрабатывается как child scroller'а по стандарту CSS, а не как
+          viewport-fixed. */}
+      {selectedProduct && createPortal((
+        <div
+          className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center"
+          style={{ background: 'rgba(20,20,19,0.42)' }}
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[28px] overflow-y-auto flex flex-col"
+            style={{ height: '55dvh', maxHeight: '85vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
+              <div className="w-9 h-1 rounded-full bg-gray-300" />
+            </div>
+            {/* Sticky action-bar — фиксирована относительно scroll-контейнера
+                шторки. bg-white/95 + backdrop-blur делает bar непрозрачным
+                чтобы фото/цена чётко уходили под него при скролле контента. */}
             <div
-              className="sticky top-0 z-10 flex items-center justify-between px-3 pt-1 pb-2"
+              className="sticky top-0 z-10 flex items-center justify-between px-3 pt-1 pb-2 shrink-0"
               style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
             >
               <button
@@ -1944,7 +1967,11 @@ export function MarketplacePage() {
                 <X className="w-4 h-4 text-gray-600" />
               </button>
             </div>
-            <div className="aspect-square bg-gray-50 flex items-center justify-center">
+            {/* Фото/плейсхолдер — компактная фиксированная высота, чтобы
+                оставить место под название/цену/CTA в 55dvh sheet без
+                чрезмерного скролла. Раньше был aspect-square (393x393),
+                съедал почти всю шторку. */}
+            <div className="h-[42dvh] max-h-[280px] bg-gray-50 flex items-center justify-center shrink-0">
               {selectedProduct.image_url
                 ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
                 : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
@@ -1973,7 +2000,7 @@ export function MarketplacePage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* ON-DEMAND REQUEST MODAL (Stage 4a) */}
       {onDemandProduct && (
