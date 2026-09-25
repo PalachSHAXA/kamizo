@@ -1,51 +1,37 @@
-// v118.114 — Custom CAPBridgeViewController subclass that takes
-// explicit control of the WKWebView's scrollView. Previously this
-// file was referenced by a v118.20 code comment in
-// pages/chat/ResidentChatView.tsx as the "primary fix" for the back-
-// swipe bug, but the file never actually existed — only the CSS
-// belt-and-suspenders were in place. The recurring resident-chat
-// "scroll-up dead at the bottom edge" bug (v254 → v257 attempts)
-// turns out to be a WKWebView-level issue, so we finally need this
-// file.
+// Custom CAPBridgeViewController subclass — explicit control of
+// WKWebView's outer scrollView.
 //
 // WHY EACH CONFIG:
-//   • webView.scrollView.bounces = true
-//       Should be the default, but Apple has changed it across iOS
-//       versions and Capacitor doesn't expose a config flag for it.
-//       Forcing it ON guarantees the rubber-band slack at scroll
-//       edges that keeps the gesture recogniser alive — without it,
-//       a settled scroller at scrollTop=max stops accepting the
-//       next opposite-direction touch (the exact symptom users
-//       reported on resident chat).
-//   • webView.scrollView.alwaysBounceVertical = true
-//       Stronger guarantee — bounces both ways even when content
-//       fits in the viewport. Belt-and-suspenders for the dead-
-//       edge.
+//   • webView.scrollView.bounces = false
+//   • webView.scrollView.alwaysBounceVertical = false
+//   • webView.scrollView.alwaysBounceHorizontal = false
+//       2026-09-25 — checkout-sheet drag bug. Пользователь на iPhone
+//       16 Pro Max сообщил: fixed-модалка «Оформление» двигается
+//       пальцем в любом месте. Web-слой (touch-action: none,
+//       overscroll-behavior: contain, body-scroll-lock) не помог —
+//       WKWebView's native UIScrollView всё равно ловит touch и
+//       делает rubber-band, двигая всю viewport-плоскость (включая
+//       fixed-элементы) вверх/вниз. Единственное надёжное решение —
+//       глобально отключить native bounce на outer scrollView.
+//       Скролл ленты, PullToRefresh и inner overflow:auto scrollers
+//       работают самостоятельно и в native bounce не нуждаются;
+//       Android эквивалент — `overScrollMode: 'never'` в
+//       capacitor.config.ts (уже включён).
 //   • webView.scrollView.bouncesZoom = false
-//       Pinch-zoom is already disabled at the meta/viewport level;
-//       killing the zoom bounce too removes the only other gesture
-//       that could compete with the inner scrollers for touches.
+//       Pinch-zoom и так отключён на meta/viewport level; убираем
+//       zoom bounce, чтобы никакой gesture не конкурировал с inner-
+//       scrollers за touches.
 //   • webView.allowsBackForwardNavigationGestures = false
-//       Disables WebKit's edge-swipe back/forward gesture, which
-//       on the chat screen was hijacking horizontal swipes near
-//       the left edge and occasionally interfering with vertical
-//       pan recognition near edges. CSS rules in ResidentChatView
-//       (touchAction pan-y, overscroll-behavior-x none) were
-//       belt-and-suspenders for this — this is the actual fix.
+//       Отключает WebKit's edge-swipe back/forward — раньше он
+//       конфликтовал с горизонтальными свайпами по чату у левого
+//       края.
 //   • webView.scrollView.contentInsetAdjustmentBehavior = .never
-//       Mirrors `contentInset: 'never'` in capacitor.config.ts.
-//       Stops iOS from auto-inflating the page with status-bar /
-//       home-indicator padding (we handle safe-area in CSS via
-//       env() everywhere). Keeping it explicit at the Swift layer
-//       avoids any future Capacitor default change.
-//   • Inner-scroller hint via panGestureRecognizer.cancelsTouchesInView:
-//       Capacitor doesn't expose this either — we set it false on
-//       the outer scrollView so that the outer scrollView's gesture
-//       NEVER eats touches that should reach the inner DOM
-//       scrollers. Combined with the page's overflow:hidden body,
-//       the outer scrollView has nothing to scroll, but it still
-//       hosts the pan gesture recogniser — letting touches pass
-//       through preserves the inner scrollers' momentum.
+//       Дублирует `contentInset: 'never'` из capacitor.config.ts.
+//       Останавливает iOS auto-inflating page с status-bar /
+//       home-indicator padding (safe-area держим в CSS через env()).
+//   • panGestureRecognizer.cancelsTouchesInView = false
+//       Outer pan-gesture не съедает touches, которые должны дойти
+//       до inner DOM scrollers.
 
 import UIKit
 import Capacitor
@@ -73,8 +59,12 @@ class MainViewController: CAPBridgeViewController {
         // reasoning behind each line.
         if let webView = self.webView {
             let sv = webView.scrollView
-            sv.bounces = true
-            sv.alwaysBounceVertical = true
+            // Global bounce OFF — fixes fixed-modal drag bug on
+            // iPhone 16 Pro Max (WKWebView rubber-band moved the
+            // whole viewport including fixed elements).
+            sv.bounces = false
+            sv.alwaysBounceVertical = false
+            sv.alwaysBounceHorizontal = false
             sv.bouncesZoom = false
             sv.contentInsetAdjustmentBehavior = .never
             sv.panGestureRecognizer.cancelsTouchesInView = false
