@@ -170,9 +170,16 @@ const ProductCardPlaceholder = memo(function ProductCardPlaceholder({ name, cate
 // торчащий справа «хвост» вида «…00» через сбойный line-clamp-1
 // в WKWebView).
 function ProductPhoto({ src, name }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
+  // object-contain (было object-cover) — некоторые товары раньше приходили
+  // с крупными «квадратными» изображениями (типа сплэш-баннера УК), которые
+  // при object-cover обрезались по краям и превращались в набор бессмысленных
+  // фрагментов надписей («…mizo», «…ение домом»). Contain показывает
+  // картинку целиком, центрированно, с прозрачными полями по краям
+  // (bg-gray-50 их подсвечивает мягким серым фоном). Для настоящих квадратных
+  // product-фото это визуально идентично object-cover.
   return (
     <div className="w-full h-full relative overflow-hidden bg-gray-50">
-      <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-contain" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
     </div>
   );
 }
@@ -1909,10 +1916,35 @@ export function MarketplacePage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedProduct(null)}>
           <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[85dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
-            <div className="relative">
-              <div className="aspect-square bg-gray-50 flex items-center justify-center">{selectedProduct.image_url ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" /> : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}</div>
-              <button onClick={() => setSelectedProduct(null)} className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-600" /></button>
-              <button onClick={() => toggleFavorite(selectedProduct.id)} className="absolute top-3 left-3 min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm" aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}><Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} /></button>
+            {/* Sticky action-bar — раньше кнопки ♥ и × были absolute поверх
+                фото-контейнера и уезжали вверх вместе со скроллом. Теперь
+                они в отдельном sticky top-0 ряду внутри scroll-контейнера
+                модалки. bg-white/95 + backdrop-blur делает bar непрозрачным
+                чтобы контент чётко уходил под него. z-10 гарантирует, что
+                фото/цена не перекроют кнопки. */}
+            <div
+              className="sticky top-0 z-10 flex items-center justify-between px-3 pt-1 pb-2"
+              style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+            >
+              <button
+                onClick={() => toggleFavorite(selectedProduct.id)}
+                className="min-w-[44px] min-h-[44px] bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100"
+                aria-label={language === 'ru' ? 'В избранное' : 'Sevimlilarga'}
+              >
+                <Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+              </button>
+              <button
+                onClick={() => setSelectedProduct(null)}
+                className="min-w-[44px] min-h-[44px] bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100"
+                aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="aspect-square bg-gray-50 flex items-center justify-center">
+              {selectedProduct.image_url
+                ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
+                : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
             </div>
             <div className="p-4">
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
