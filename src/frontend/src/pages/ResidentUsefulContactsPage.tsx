@@ -15,6 +15,7 @@ import {
   Tag, Eye, Gift, Globe, Shield, HeartPulse, Zap,
   Wrench, Droplet, Truck, Hammer, Scissors, Laptop,
   Bug, Briefcase, Wind, Heart, Car, Star, Package,
+  LifeBuoy, Plug,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -116,10 +117,13 @@ const getCategoryStyle = (iconKey: string) => CATEGORY_STYLE[iconKey] || DEFAULT
 // Hardcoded UZ-national emergency numbers — these never come from the
 // API (they're public-service constants), so they live in the file.
 const EMERGENCY_CONTACTS = (lang: 'ru' | 'uz') => [
-  { label: lang === 'ru' ? 'Полиция'   : 'Politsiya',     tel: '102', Icon: Shield },
-  { label: lang === 'ru' ? 'Пожарная'  : "O't o'chirish", tel: '101', Icon: Flame },
-  { label: lang === 'ru' ? 'Скорая'    : 'Tez yordam',    tel: '103', Icon: HeartPulse },
-  { label: lang === 'ru' ? 'Газ'       : 'Gaz',           tel: '104', Icon: Zap },
+  { label: lang === 'ru' ? 'Полиция'   : 'Politsiya',        tel: '102',  Icon: Shield },
+  { label: lang === 'ru' ? 'Пожарная'  : "O't o'chirish",    tel: '101',  Icon: Flame },
+  { label: lang === 'ru' ? 'Скорая'    : 'Tez yordam',       tel: '103',  Icon: HeartPulse },
+  { label: lang === 'ru' ? 'Газ'       : 'Gaz',              tel: '104',  Icon: Zap },
+  { label: lang === 'ru' ? 'МЧС'       : 'FVV',              tel: '112',  Icon: LifeBuoy },
+  { label: lang === 'ru' ? 'Водоканал' : 'Suvsoz',           tel: '1055', Icon: Droplet },
+  { label: lang === 'ru' ? 'Электро'   : 'Elektr tarmoq',    tel: '1044', Icon: Plug },
 ];
 
 export default function ResidentUsefulContactsPage() {
@@ -557,8 +561,8 @@ export default function ResidentUsefulContactsPage() {
                 {e.label}
               </span>
               <span style={{
-                fontSize: 18, fontWeight: 800, color: STATUS_CRITICAL,
-                fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
+                fontSize: 12, fontWeight: 800, color: STATUS_CRITICAL,
+                fontVariantNumeric: 'tabular-nums',
               }}>
                 {e.tel}
               </span>
