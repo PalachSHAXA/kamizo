@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Heart, Phone, MessageCircle,
-  Copy, Check, Home, DoorOpen, Wifi, Snowflake, Car, Sofa, ShieldAlert,
+  Copy, Check, Home, DoorOpen, Wifi, Snowflake, Car, Sofa, ShieldAlert, Key,
 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -144,15 +144,55 @@ export function RentalListingDetailPage() {
     );
   }
   if (!listing) {
+    // Brandy 404 — идентичный стиль с empty-state на /apartment-rentals/mine
+    // (иконка Key в кружке + editorial-заголовок + описание + оранжевый CTA
+    // full-width). Раньше здесь была плоская минималистичная заглушка,
+    // выпадала визуально из остального Rentals-раздела.
     return (
-      <div className="marketplace-page -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA] flex items-center justify-center p-6">
-        <div className="text-center">
-          <div className="text-[16px] font-bold text-gray-900 mb-2">
-            {t(language, 'Объявление не найдено', "E'lon topilmadi")}
+      <div className="marketplace-page -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA] flex flex-col">
+        {/* Sticky header — тот же паттерн, что у RentalMyListingsPage: chevron
+            «Аренда квартир», safe-area padding, white bg + hairline border. */}
+        <div
+          className="sticky top-0 z-40 bg-white border-b border-gray-100 md:hidden"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4px)', willChange: 'transform' }}
+        >
+          <div className="px-4 pt-2 pb-2 flex items-center gap-2">
+            <button
+              onClick={() => navigate('/apartment-rentals')}
+              className="tap-target w-[38px] h-[38px] rounded-[13px] bg-gray-50 flex items-center justify-center active:scale-90"
+              aria-label={t(language, 'Назад', 'Orqaga')}
+            >
+              <ArrowLeft className="w-[18px] h-[18px] text-gray-700" strokeWidth={2.2} />
+            </button>
+            <h1 className="flex-1 text-[16px] font-bold text-gray-900 text-center">
+              {t(language, 'Аренда квартир', 'Kvartira ijarasi')}
+            </h1>
+            {/* Симметричный spacer, чтобы заголовок реально центрировался */}
+            <div className="w-[38px] h-[38px]" aria-hidden="true" />
           </div>
-          <button onClick={() => navigate('/apartment-rentals')} className="text-[13px] text-primary-600 font-semibold">
-            {t(language, 'Вернуться к ленте', 'Lentaga qaytish')}
-          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="pt-4 pb-10 px-6 text-center max-w-[340px] mx-auto">
+            <div className="w-16 h-16 rounded-full bg-primary-50 grid place-items-center mx-auto mb-5">
+              <Key className="w-7 h-7 text-primary-500" strokeWidth={1.8} />
+            </div>
+            <h2 className="text-[19px] font-extrabold text-gray-900" style={{ letterSpacing: '-0.01em' }}>
+              {t(language, 'Объявление не найдено', "E'lon topilmadi")}
+              <span className="text-primary-500">.</span>
+            </h2>
+            <p className="text-[13.5px] text-gray-500 mt-2.5 mb-6 leading-relaxed">
+              {t(language,
+                'Возможно, оно уже сдано или снято владельцем. Загляните в ленту — там есть другие варианты.',
+                "Ehtimol, u allaqachon ijaraga berilgan yoki egasi tomonidan olib tashlangan. Lentadan boshqa variantlarni ko'ring.")}
+            </p>
+            <button
+              onClick={() => navigate('/apartment-rentals')}
+              className="w-full py-3.5 rounded-[14px] text-white font-semibold text-[14px] active:scale-[0.98]"
+              style={{ background: 'linear-gradient(150deg, #FB923C, #EA580C)', boxShadow: '0 10px 24px -10px rgba(249,115,22,0.7)' }}
+            >
+              {t(language, 'Вернуться к ленте', 'Lentaga qaytish')}
+            </button>
+          </div>
         </div>
       </div>
     );
