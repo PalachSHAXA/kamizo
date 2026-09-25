@@ -604,8 +604,19 @@ export function MarketplacePage() {
       requestOnDemand(product);
       return;
     }
-    try { await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: 1 }) }); const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart'); setCart(r?.cart || []); } catch { /* */ }
-  }, [products, requestOnDemand]);
+    try {
+      await apiRequest('/api/marketplace/cart', { method: 'POST', body: JSON.stringify({ product_id: productId, quantity: 1 }) });
+      const r = await apiRequest<{ cart: MarketplaceCartItemAPI[] }>('/api/marketplace/cart');
+      setCart(r?.cart || []);
+      // Явная обратная связь — раньше catch был silent, при 5xx на POST/GET
+      // пользователь не понимал, произошло ли добавление. Теперь success-toast
+      // виден всегда, ошибки — с текстом.
+      addToast('success', language === 'ru' ? 'Добавлено в корзину' : 'Savatga qo\'shildi');
+    } catch (e: any) {
+      const msg = e?.message || (language === 'ru' ? 'Не удалось добавить в корзину' : 'Savatga qo\'shib bo\'lmadi');
+      addToast('error', msg);
+    }
+  }, [products, requestOnDemand, addToast, language]);
 
   // Submit the on-demand form → POST /api/marketplace/orders/on-demand.
   // Address + phone are required; empty submission would 400 on the

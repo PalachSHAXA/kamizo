@@ -23,7 +23,7 @@ route('GET', '/api/marketplace/cart', async (request, env) => {
     JOIN marketplace_products p ON c.product_id = p.id
     LEFT JOIN marketplace_categories cat ON p.category_id = cat.id AND cat.tenant_id = p.tenant_id
     WHERE c.user_id = ? ${tenantId ? 'AND c.tenant_id = ? AND p.tenant_id = ?' : ''}
-    ORDER BY c.added_at DESC
+    ORDER BY c.created_at DESC
   `).bind(user.id, ...(tenantId ? [tenantId, tenantId] : [])).all();
 
   const total = (results as any[]).reduce((sum, item) => sum + (item.price * item.quantity), 0);
