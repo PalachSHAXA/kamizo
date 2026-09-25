@@ -170,16 +170,14 @@ const ProductCardPlaceholder = memo(function ProductCardPlaceholder({ name, cate
 // торчащий справа «хвост» вида «…00» через сбойный line-clamp-1
 // в WKWebView).
 function ProductPhoto({ src, name }: { src: string; name: string; categoryId: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
-  // object-contain (было object-cover) — некоторые товары раньше приходили
-  // с крупными «квадратными» изображениями (типа сплэш-баннера УК), которые
-  // при object-cover обрезались по краям и превращались в набор бессмысленных
-  // фрагментов надписей («…mizo», «…ение домом»). Contain показывает
-  // картинку целиком, центрированно, с прозрачными полями по краям
-  // (bg-gray-50 их подсвечивает мягким серым фоном). Для настоящих квадратных
-  // product-фото это визуально идентично object-cover.
+  // object-cover: заполняет фиксированный контейнер (в модалке 180px,
+  // в карточке списка 122px), обрезает overflowing edges — размер стабильный
+  // для любого исходного изображения (фото, плейсхолдер-коробка, брендовый
+  // splash). Для сплэш-баннеров crop центрируется — Kamizo-логотип по центру
+  // и остаётся читаемым, обрезаются только периферийные надписи.
   return (
     <div className="w-full h-full relative overflow-hidden bg-gray-50">
-      <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-contain" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+      <img src={src} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
     </div>
   );
 }
@@ -1968,10 +1966,16 @@ export function MarketplacePage() {
             </div>
             {/* Scroll-area = image + название + описание + цена. flex-1 min-h-0
                 позволяет scroll-стриму занять всё оставшееся место между
-                header'ом и footer'ом; если контент выше — скроллится ВНУТРИ
-                этой области, header и footer остаются pinned. */}
+                header'ом и footer'ом; если описание длинное — скроллится
+                ВНУТРИ этой области, header и footer остаются pinned. */}
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="bg-gray-50 flex items-center justify-center" style={{ minHeight: '30dvh', maxHeight: '45dvh' }}>
+              {/* Photo / placeholder — ФИКСИРОВАННАЯ 180px высота: одинакова
+                  для реального фото (object-cover), placeholder-коробки и
+                  брендового Kamizo-splash'а. Достаточно, чтобы название+
+                  цена+CTA (~200pt) гарантированно поместились в 55dvh sheet
+                  (~469pt на iPhone 14+) БЕЗ скролла. Раньше был 30-45dvh —
+                  съедал 256-383pt и выталкивал цену за viewport. */}
+              <div className="bg-gray-50 flex items-center justify-center shrink-0" style={{ height: 180 }}>
                 {selectedProduct.image_url
                   ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
                   : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
