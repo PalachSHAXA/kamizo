@@ -985,17 +985,17 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/apartment-rentals/create" element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredFeature="rental_listings">
                   <RentalCreatePage />
                 </ProtectedRoute>
               } />
               <Route path="/apartment-rentals/mine" element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredFeature="rental_listings">
                   <RentalMyListingsPage />
                 </ProtectedRoute>
               } />
               <Route path="/apartment-rentals/:id" element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredFeature="rental_listings">
                   <RentalListingDetailPage />
                 </ProtectedRoute>
               } />
