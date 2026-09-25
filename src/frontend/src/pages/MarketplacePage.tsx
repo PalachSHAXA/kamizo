@@ -1976,7 +1976,16 @@ export function MarketplacePage() {
                 ? <ProductPhoto src={selectedProduct.image_url} name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />
                 : <ProductCardPlaceholder name={language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz} categoryId={selectedProduct.category_id} size="xl" />}
             </div>
-            <div className="p-4">
+            <div
+              className="px-4 pt-4"
+              style={{
+                // Home-indicator zone (env(safe-area-inset-bottom, 0px)) на iPhone
+                // с notch = 34pt. + 16px «дышащего» промежутка, чтобы CTA «В корзину»
+                // не прижимался к самой полоске жестов. На устройствах без
+                // home-indicator env резолвится в 0 → падаем на чистые 16px.
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+              }}
+            >
               <h2 className="text-[18px] font-bold text-gray-900">{language === 'ru' ? selectedProduct.name_ru : selectedProduct.name_uz}</h2>
               {(language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz) && <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">{language === 'ru' ? selectedProduct.description_ru : selectedProduct.description_uz}</p>}
               <div className="flex items-end justify-between mt-3 mb-4">
