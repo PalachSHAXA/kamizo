@@ -814,15 +814,13 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
                 onClick={() => go('/marketplace')}
                 isLast={false}
               />
-              {/* Apartment rentals — resident-facing announcement.
-                  Feature doesn't exist for any tenant; tapping opens
-                  ApartmentRentalsPage, a static "в разработке" screen.
-                  No lock affordance in the row — NavRow doesn't have
-                  one, and Home QuickTiles' padlock convention is for
-                  non-functional buttons. This button IS functional
-                  (opens a real screen), so a plain row matches the
-                  Marketplace pattern above. Distinct from /rentals
-                  (RentalsPage, admin-only УК contract table). */}
+              {/* Apartment rentals — resident-facing feature. Tapping
+                  opens RentalsFeedPage (Sprint 88): three-state page
+                  (gate / empty / feed) gated by `rental_listings`
+                  tenant feature — no route-level ProtectedRoute lock,
+                  the page itself renders the gate copy when feature
+                  is off. Distinct from /rentals (RentalsPage, admin-
+                  only УК contract table). */}
               <NavRow
                 Icon={Key}
                 label={language === 'ru' ? 'Аренда квартир' : 'Kvartira ijarasi'}
