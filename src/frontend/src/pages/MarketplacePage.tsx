@@ -15,7 +15,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useTenantStore } from '../stores/tenantStore';
 import { useToastStore } from '../stores/toastStore';
-import { useModalPresence } from '../stores/modalStore';
+import { useModalPresence, useBodyScrollLock } from '../stores/modalStore';
 import { MarketplaceBottomBar } from './marketplace/MarketplaceBottomBar';
 import { IS_MOCK, MOCK_CATEGORIES, MOCK_PRODUCTS } from './marketplace/__devMock';
 import { Capacitor } from '@capacitor/core';
@@ -291,6 +291,12 @@ export function MarketplacePage() {
   // Swipe-to-dismiss на drag-handle checkout-шторки. Порог тот же, что
   // в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
   const orderSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
+  // iOS WKWebView баг: при открытом fixed-модальном окне свайп по нему
+  // трактуется как overscroll body, из-за чего вся модалка «плывёт»
+  // вверх-вниз. Лечится только фризом основной scroll-поверхности
+  // (body + `.main-content`). Хук ref-counted — совместимо со стэком
+  // модалок.
+  useBodyScrollLock(showOrderModal);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
   // orders.ts брал user.address/phone напрямую, менеджер получал
@@ -2135,10 +2141,19 @@ export function MarketplacePage() {
           портала `fixed inset-0` привязывался бы к этому wrapper'у и
           «уезжал» вместе со скроллом. */}
       {showOrderModal && createPortal((
-        <div className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center" onClick={() => !orderSubmitting && setShowOrderModal(false)}>
+        <div
+          className="fixed inset-0 bg-black/50 z-[110] flex items-end sm:items-center justify-center"
+          style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
+          onClick={() => !orderSubmitting && setShowOrderModal(false)}
+          onTouchMove={e => { if (e.target === e.currentTarget) e.preventDefault(); }}
+        >
           <div
             className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] flex flex-col max-h-[calc(100dvh-24px)]"
-            style={{ paddingBottom: `calc(max(env(safe-area-inset-bottom, 0px), 12px) + var(--kz-kb-h, 0px))` }}
+            style={{
+              paddingBottom: `calc(max(env(safe-area-inset-bottom, 0px), 12px) + var(--kz-kb-h, 0px))`,
+              overscrollBehavior: 'contain',
+              touchAction: 'pan-y',
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Drag-handle — свайп вниз > 60px закрывает шторку.
@@ -2158,8 +2173,13 @@ export function MarketplacePage() {
               <div className="w-9 h-1 rounded-full bg-gray-300" />
             </div>
             {/* Скроллируемая область только для полей — footer с Итого+CTA
-                фиксирован снизу шторки, без пустоты между ними. */}
-            <div className="flex-1 overflow-y-auto px-4 pt-1">
+                фиксирован снизу шторки, без пустоты между ними.
+                overscroll-behavior:contain — на iOS WKWebView bounce
+                внутреннего скролла не должен передаваться на модалку. */}
+            <div
+              className="flex-1 overflow-y-auto px-4 pt-1"
+              style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
+            >
               <h2 className="text-[17px] font-bold text-gray-900 mb-3">{language === 'ru' ? 'Оформление' : 'Rasmiylashtirish'}</h2>
               <div className="space-y-3 pb-3">
                 <div>
