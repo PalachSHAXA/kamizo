@@ -228,15 +228,6 @@ export function MarketplacePage() {
   // header из flow вырезан (иначе product-grid начинается с top viewport).
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
-  useLayoutEffect(() => {
-    if (!headerRef.current) return;
-    const el = headerRef.current;
-    const measure = () => setHeaderHeight(el.getBoundingClientRect().height);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   // Portal node — DIV прикреплённый к document.body. Он существует всё
   // время жизни компонента, что даёт header стабильный DOM-anchor вне
   // scroller'а. При unmount MarketplacePage — удаляем node из body.
@@ -248,6 +239,24 @@ export function MarketplacePage() {
     setHeaderPortal(node);
     return () => { document.body.removeChild(node); };
   }, []);
+  // Header height measure — dependency `headerPortal`, потому что header
+  // портируется в document.body ТОЛЬКО после того, как useEffect выше
+  // создаст node и `setHeaderPortal` триггернёт ре-рендер. Без dependency
+  // useLayoutEffect срабатывал на первом рендере (когда headerPortal=null
+  // и header ещё не отрендерен) — headerRef.current был null, measure
+  // не выполнялся, spacer оставался 0px, и весь контент оказывался под
+  // шапкой. Теперь эффект перезапускается на 2-м рендере, когда header
+  // уже присутствует в DOM (через portal), и ResizeObserver корректно
+  // ставит headerHeight = реальная высота.
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    const measure = () => setHeaderHeight(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [headerPortal]);
 
   // Нормализация булевых полей: SQLite отдаёт integer 0/1 для is_on_demand,
   // is_featured, is_active. TypeScript интерфейс объявляет их boolean,
