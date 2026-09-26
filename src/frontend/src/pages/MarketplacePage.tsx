@@ -8,6 +8,7 @@ import {
 import { EmptyState } from '../components/common';
 import { CardSkeleton } from '../components/CardSkeleton';
 import { SuccessScreen } from '../components/SuccessScreen';
+import { MarketplaceOrderSuccess } from '../components/MarketplaceOrderSuccess';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { useAuthStore } from '../stores/authStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -1878,42 +1879,45 @@ export function MarketplacePage() {
           so this pill would sit right on top of it and duplicate the
           shortcut. */}
 
-      {/* Post-submit success overlay — full-viewport confirmation for
-          either on-demand or checkout submission. Fixed-position layer
-          sits above every marketplace UI (bottom bar z-1000, sheets
-          z-[110]) at z-[1100]. Dismisses to Orders (primary) or Shop
-          (secondary). Copy differs per kind. Error paths still surface
-          via toast — this only replaces the SUCCESS toast. */}
-      {successKind !== null && (
+      {/* Post-submit success overlay.
+          On-demand — прежний универсальный SuccessScreen (только
+          подтверждение, без деталей).
+          Checkout — специальный MarketplaceOrderSuccess по
+          утверждённому мокапу: тёплый градиент, зелёная галочка с
+          конфетти, «Готово! Заказ принят» + номер заказа + ETA. */}
+      {successKind === 'on-demand' && (
         <div className="fixed inset-0 z-[1100]">
           <SuccessScreen
             variant="confirmation"
-            title={successKind === 'on-demand'
-              ? (language === 'ru' ? 'Заявка отправлена' : 'Ariza yuborildi')
-              : (language === 'ru' ? 'Заказ создан' : 'Buyurtma yaratildi')}
-            subtitle={successKind === 'on-demand'
-              ? (language === 'ru'
-                  ? 'УК свяжется с вами по цене и доставке.'
-                  : "Boshqaruv narx va yetkazish bo'yicha siz bilan bog'lanadi.")
-              : (language === 'ru'
-                  ? 'Мы уже собираем ваш заказ. Отслеживайте статус в разделе «Заказы».'
-                  : "Buyurtmangizni yig'a boshladik. Holatni «Buyurtmalar» bo'limida kuzatib boring.")}
+            title={language === 'ru' ? 'Заявка отправлена' : 'Ariza yuborildi'}
+            subtitle={language === 'ru'
+              ? 'УК свяжется с вами по цене и доставке.'
+              : "Boshqaruv narx va yetkazish bo'yicha siz bilan bog'lanadi."}
             primary={{
-              label: successKind === 'on-demand'
-                ? (language === 'ru' ? 'Вернуться в магазин' : "Do'konga qaytish")
-                : (language === 'ru' ? 'К моим заказам' : 'Buyurtmalarim'),
-              onClick: () => {
-                const kind = successKind;
-                setSuccessKind(null);
-                // On-demand → back to shop (order sits at awaiting_price
-                // in Orders; feed is the natural return). Checkout →
-                // Orders tab (immediately actionable status).
-                setActiveTab(kind === 'on-demand' ? 'shop' : 'orders');
-              },
+              label: language === 'ru' ? 'Вернуться в магазин' : "Do'konga qaytish",
+              onClick: () => { setSuccessKind(null); setActiveTab('shop'); },
             }}
           />
         </div>
       )}
+      {successKind === 'checkout' && (() => {
+        // Свежий заказ — orders[0] по created_at DESC после fetch в
+        // createOrder. Fallback на плейсхолдер, если по какой-то
+        // причине лента ещё пуста.
+        const fresh = orders.find(o => o.order_type !== 'on_demand') || orders[0];
+        const orderNumber = fresh?.order_number || '—';
+        const etaLabel = language === 'ru' ? '30–60 минут' : '30–60 daqiqa';
+        return (
+          <MarketplaceOrderSuccess
+            orderNumber={orderNumber}
+            etaLabel={etaLabel}
+            language={language === 'ru' ? 'ru' : 'uz'}
+            onBack={() => { setSuccessKind(null); setActiveTab('shop'); }}
+            onMyOrders={() => { setSuccessKind(null); setActiveTab('orders'); }}
+            onContinueShopping={() => { setSuccessKind(null); setActiveTab('shop'); }}
+          />
+        );
+      })()}
 
       {/* MarketplaceBottomBar — /marketplace-scoped nav. Mounted here
           rather than in Layout because it needs the sub-tab state
