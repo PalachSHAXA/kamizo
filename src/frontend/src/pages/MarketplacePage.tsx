@@ -324,6 +324,40 @@ export function MarketplacePage() {
   // чтобы WKWebView не двигал fixed-overlay при overscroll. Хук
   // должен идти ПОСЛЕ объявления `selectedOrder`, иначе TDZ.
   useBodyScrollLock(!!selectedOrder);
+
+  // v11: drag-to-dismiss с follow-finger. Механика 1:1 из
+  // ResidentNewRequestFlow.SheetShell — прямая мутация DOM во время
+  // touchmove (никаких setState на каждом фрейме), CSS-transition
+  // для close/snap-back. Порог 90px или flick > 0.55 px/ms.
+  const orderDetailPanelRef = useRef<HTMLDivElement | null>(null);
+  const [orderDetailClosing, setOrderDetailClosing] = useState(false);
+  const orderDetailDragActive = useRef(false);
+  const orderDetailDragY = useRef(0);
+  const orderDetailLastY = useRef(0);
+  const orderDetailLastT = useRef(0);
+  const orderDetailVelocity = useRef(0);
+  useEffect(() => {
+    // Сбрасываем closing-state и inline transform при каждом новом
+    // открытии карточки — иначе после свайпа на прошлой она открылась
+    // бы уже «полузакрытой».
+    if (selectedOrder) {
+      setOrderDetailClosing(false);
+      const el = orderDetailPanelRef.current;
+      if (el) { el.style.transition = 'none'; el.style.transform = 'translateY(0px)'; }
+    }
+  }, [selectedOrder]);
+  const orderDetailApplyTransform = (y: number, withSpring: boolean) => {
+    const el = orderDetailPanelRef.current;
+    if (!el) return;
+    el.style.transition = withSpring ? 'transform .28s cubic-bezier(.32,.72,0,1)' : 'none';
+    el.style.transform = `translateY(${y}px)`;
+  };
+  const orderDetailRequestClose = () => {
+    setOrderDetailClosing(true);
+    // Даём CSS transition (transform .28s + backdrop .25s) доиграть,
+    // потом реально размонтируем модалку.
+    window.setTimeout(() => setSelectedOrder(null), 260);
+  };
   const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string }[]>([]);
 
   // On-demand order request modal (Stage 4a). Opened when the resident
@@ -2292,49 +2326,92 @@ export function MarketplacePage() {
         const canRate = selectedOrder.status === 'delivered' && !selectedOrder.rating;
         return (
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center"
-            style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
-            onClick={() => setSelectedOrder(null)}
+            className="fixed inset-0 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center"
+            style={{
+              // Backdrop opacity плавно исчезает при закрытии.
+              background: `rgba(0,0,0,${orderDetailClosing ? 0 : 0.5})`,
+              transition: 'background .25s ease',
+              touchAction: 'none',
+              overscrollBehavior: 'contain',
+            }}
+            onClick={orderDetailRequestClose}
             onTouchMove={e => { if (e.target === e.currentTarget) e.preventDefault(); }}
           >
             <div
+              ref={orderDetailPanelRef}
               className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] flex flex-col max-h-[calc(100dvh-24px)]"
               style={{
                 paddingBottom: `max(env(safe-area-inset-bottom, 0px), 12px)`,
                 overscrollBehavior: 'contain',
                 touchAction: 'pan-y',
+                // Fallback-transform для CSS-driven закрытия (когда drag
+                // не активен, applyTransform не переопределил inline).
+                transform: orderDetailClosing ? 'translateY(100%)' : 'translateY(0px)',
+                transition: 'transform .28s cubic-bezier(.32,.72,0,1)',
+                willChange: 'transform',
               }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Pinned top: drag-handle + header.
-                  - Hit area расширена (pt-3 pb-4 + h-9 = ~40pt по вертикали);
-                    узкие 20pt cliff'ы промахивались пальцем на iPhone.
-                  - touchcancel обрабатываем так же как touchend — iOS
-                    WKWebView конвертирует «длинный» swipe в native gesture
-                    и присылает touchcancel вместо touchend.
-                  - touch-action:none на самой полоске (браузер не перехватит
-                    её как scroll gesture), но НЕ на wrapper — иначе теряется
-                    click-to-close на бэкдропе. */}
+              {/* Drag-handle с follow-finger 1:1 (механика из
+                  ResidentNewRequestFlow SheetShell):
+                  - onTouchMove пишет translateY прямо в panel.style
+                    (без setState — 60fps даже на слабых устройствах);
+                  - onTouchEnd/Cancel: если dy > CLOSE_DISTANCE_PX или
+                    flick > CLOSE_VELOCITY — запускаем плавное закрытие
+                    через CSS transition + setTimeout(240ms);
+                  - иначе snap-back на translateY(0) с той же spring
+                    curve. */}
               <div
                 className="flex justify-center items-center pt-3 pb-4 sm:hidden shrink-0"
                 style={{ touchAction: 'none' }}
                 onTouchStart={e => {
-                  orderDetailSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX };
+                  const y = e.touches[0].clientY;
+                  orderDetailDragActive.current = true;
+                  orderDetailSwipeRef.current = { startY: y, startX: e.touches[0].clientX };
+                  orderDetailDragY.current = 0;
+                  orderDetailLastY.current = y;
+                  orderDetailLastT.current = performance.now();
+                  orderDetailVelocity.current = 0;
                 }}
-                onTouchEnd={e => {
-                  if (!orderDetailSwipeRef.current) return;
-                  const dy = e.changedTouches[0].clientY - orderDetailSwipeRef.current.startY;
-                  const dx = Math.abs(e.changedTouches[0].clientX - orderDetailSwipeRef.current.startX);
-                  if (dy > 60 && dx < dy) setSelectedOrder(null);
+                onTouchMove={e => {
+                  if (!orderDetailDragActive.current || !orderDetailSwipeRef.current) return;
+                  const clientY = e.touches[0].clientY;
+                  const dy = clientY - orderDetailSwipeRef.current.startY;
+                  const y = dy > 0 ? dy : 0;
+                  orderDetailDragY.current = y;
+                  orderDetailApplyTransform(y, false);
+                  const now = performance.now();
+                  const dt = now - orderDetailLastT.current;
+                  if (dt > 0) orderDetailVelocity.current = (clientY - orderDetailLastY.current) / dt;
+                  orderDetailLastY.current = clientY;
+                  orderDetailLastT.current = now;
+                }}
+                onTouchEnd={() => {
+                  if (!orderDetailDragActive.current) return;
+                  orderDetailDragActive.current = false;
+                  const flick = orderDetailVelocity.current > 0.55;
+                  const far = orderDetailDragY.current > 90;
+                  if (flick || far) {
+                    // Плавно докатываем панель до низа + fade backdrop.
+                    orderDetailApplyTransform(window.innerHeight, true);
+                    orderDetailRequestClose();
+                  } else {
+                    orderDetailApplyTransform(0, true);
+                    orderDetailDragY.current = 0;
+                  }
                   orderDetailSwipeRef.current = null;
                 }}
-                onTouchCancel={e => {
-                  if (!orderDetailSwipeRef.current) return;
-                  const t = e.changedTouches[0];
-                  if (t) {
-                    const dy = t.clientY - orderDetailSwipeRef.current.startY;
-                    const dx = Math.abs(t.clientX - orderDetailSwipeRef.current.startX);
-                    if (dy > 60 && dx < dy) setSelectedOrder(null);
+                onTouchCancel={() => {
+                  if (!orderDetailDragActive.current) return;
+                  orderDetailDragActive.current = false;
+                  const flick = orderDetailVelocity.current > 0.55;
+                  const far = orderDetailDragY.current > 90;
+                  if (flick || far) {
+                    orderDetailApplyTransform(window.innerHeight, true);
+                    orderDetailRequestClose();
+                  } else {
+                    orderDetailApplyTransform(0, true);
+                    orderDetailDragY.current = 0;
                   }
                   orderDetailSwipeRef.current = null;
                 }}
@@ -2349,7 +2426,7 @@ export function MarketplacePage() {
                       {new Date(selectedOrder.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  <button onClick={() => setSelectedOrder(null)} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-500" /></button>
+                  <button onClick={orderDetailRequestClose} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-500" /></button>
                 </div>
               </div>
 
@@ -2542,7 +2619,7 @@ export function MarketplacePage() {
                     <X className="w-4 h-4" />{language === 'ru' ? 'Отменить заказ' : 'Buyurtmani bekor qilish'}
                   </button>
                 )}
-                <button onClick={() => setSelectedOrder(null)}
+                <button onClick={orderDetailRequestClose}
                   className="w-full py-3 border border-gray-200 text-gray-600 rounded-[14px] text-[14px] font-medium">
                   {language === 'ru' ? 'Закрыть' : 'Yopish'}
                 </button>
