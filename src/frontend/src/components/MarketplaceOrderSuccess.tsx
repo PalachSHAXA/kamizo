@@ -8,7 +8,8 @@
 // Анимация ре-плейится по тапу на круг: анимационная область
 // перемонтируется через ключ `replayKey`.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   orderNumber: string;
@@ -23,6 +24,8 @@ interface Props {
 const INK = '#141413';
 const INK_DIM = '#8a8985';
 const HINT = '#b9b7b1';
+const BRAND = '#D97757';
+const BRAND_SHADOW = 'rgba(217,119,87,0.30)';
 const GREEN_A = '#7FB981';
 const GREEN_B = '#5A9B5E';
 const RING = '#6FA672';
@@ -46,11 +49,24 @@ export function MarketplaceOrderSuccess({
   orderNumber, etaLabel, language, onBack, onMyOrders, onContinueShopping,
 }: Props) {
   const [replayKey, setReplayKey] = useState(0);
+  const [portalNode, setPortalNode] = useState<HTMLDivElement | null>(null);
+  // Портируем прямо в document.body — иначе `position: fixed` цепляется
+  // за transform-родителя (PullToRefresh / MarketplacePage wrapper) и
+  // фон-градиент не достаёт до краёв на широком экране.
+  useEffect(() => {
+    const node = document.createElement('div');
+    node.setAttribute('data-marketplace-success-portal', '');
+    document.body.appendChild(node);
+    setPortalNode(node);
+    return () => { document.body.removeChild(node); };
+  }, []);
   const t = (ru: string, uz: string) => language === 'ru' ? ru : uz;
-  return (
+  if (!portalNode) return null;
+  return createPortal((
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1100,
+        width: '100vw', height: '100dvh',
         background: 'linear-gradient(180deg, #FFF8EF 0%, #FCEBD9 55%, #FBDFC4 100%)',
         display: 'flex', flexDirection: 'column',
         paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -115,9 +131,10 @@ export function MarketplaceOrderSuccess({
           onClick={onMyOrders}
           style={{
             width: '100%', height: 52, borderRadius: 26,
-            background: INK, color: '#FFFFFF',
+            background: BRAND, color: '#FFFFFF',
             border: 'none', font: '600 15px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
             letterSpacing: '-0.005em', cursor: 'pointer', padding: 0,
+            boxShadow: `0 8px 20px ${BRAND_SHADOW}`,
             animation: 'msuFadeUp 0.45s cubic-bezier(0.22,0.61,0.36,1) 0.95s both',
           }}
         >
@@ -155,7 +172,7 @@ export function MarketplaceOrderSuccess({
         }
       `}</style>
     </div>
-  );
+  ), portalNode);
 }
 
 // Изолированный анимационный блок — переDESTROYится по key.
