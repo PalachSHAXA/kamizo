@@ -30,7 +30,27 @@ import type { MarketplaceOrderStatus } from '../types/marketplace';
 
 interface MarketplaceCategoryAPI { id: string; name_ru: string; name_uz: string; icon?: string; sort_order: number; is_active: boolean; created_at: string; }
 interface MarketplaceProductAPI { id: string; category_id: string; name_ru: string; name_uz: string; description_ru?: string; description_uz?: string; price: number; old_price?: number; unit: string; stock_quantity: number; image_url?: string; is_active: boolean; is_featured: boolean; is_on_demand?: boolean; created_at: string; }
-interface MarketplaceCartItemAPI { id: string; product_id: string; quantity: number; added_at: string; }
+interface MarketplaceCartItemAPI {
+  id: string;
+  product_id: string;
+  quantity: number;
+  added_at?: string;
+  created_at?: string;
+  // Backend `/api/marketplace/cart` JOIN'ит `marketplace_products` и
+  // возвращает эти поля в каждом cart-item'e. Раньше клиент их
+  // игнорировал и брал только из локального `products`-стейта — из-за
+  // чего сразу после add-to-cart в cart-tab карточка не рендерилась,
+  // пока products не подгрузятся (4-5 сек). Теперь читаем эти поля
+  // напрямую как fallback.
+  name_ru?: string;
+  name_uz?: string;
+  price?: number;
+  old_price?: number;
+  image_url?: string;
+  stock_quantity?: number;
+  unit?: string;
+  category_id?: string;
+}
 interface MarketplaceOrderAPI {
   id: string;
   order_number: string;
@@ -843,7 +863,13 @@ export function MarketplacePage() {
     [cart]
   );
   const cartTotal = useMemo(
-    () => cart.reduce((s, i) => { const p = products.find(x => x.id === i.product_id); return s + (p?.price || 0) * i.quantity; }, 0),
+    () => cart.reduce((s, i) => {
+      // Fallback на i.price из JOIN'а в /api/marketplace/cart —
+      // «Итого» становится верным сразу, ещё до загрузки products.
+      const p = products.find(x => x.id === i.product_id);
+      const price = p?.price ?? i.price ?? 0;
+      return s + price * i.quantity;
+    }, 0),
     [cart, products]
   );
   const cartCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
@@ -1773,24 +1799,35 @@ export function MarketplacePage() {
             <>
               <div className="space-y-2 mb-3">
                 {cart.map(item => {
+                  // Fallback-цепочка: сначала полный `products` (если уже
+                  // загружены), иначе поля из самого cart-item (backend
+                  // джойнит marketplace_products). Так карточка появляется
+                  // мгновенно, ещё до GET /api/marketplace/products.
                   const p = products.find(x => x.id === item.product_id);
-                  if (!p) return null;
+                  const name = language === 'ru'
+                    ? (p?.name_ru ?? item.name_ru ?? '—')
+                    : (p?.name_uz ?? item.name_uz ?? '—');
+                  const price = p?.price ?? item.price ?? 0;
+                  const image = p?.image_url ?? item.image_url;
+                  const unit = p?.unit ?? item.unit ?? '';
+                  const catId = p?.category_id ?? item.category_id ?? '';
+                  if (!p && !item.name_ru && !item.name_uz) return null;
                   return (
                     <div key={item.id} className="bg-white rounded-[16px] p-3 flex gap-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <div className="w-16 h-16 bg-gray-50 rounded-[12px] flex items-center justify-center shrink-0 overflow-hidden">
-                        {p.image_url ? <ProductPhoto src={p.image_url} name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="xs" /> : <ProductCardPlaceholder name={language === 'ru' ? p.name_ru : p.name_uz} categoryId={p.category_id} size="xs" />}
+                        {image ? <ProductPhoto src={image} name={name} categoryId={catId} size="xs" /> : <ProductCardPlaceholder name={name} categoryId={catId} size="xs" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-1">{language === 'ru' ? p.name_ru : p.name_uz}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{p.unit}</p>
-                        <p className="font-bold text-[14px] text-primary-600 mt-1">{fmt(p.price * item.quantity)}</p>
+                        <h3 className="font-semibold text-[13px] text-gray-900 line-clamp-1">{name}</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">{unit}</p>
+                        <p className="font-bold text-[14px] text-primary-600 mt-1">{fmt(price * item.quantity)}</p>
                       </div>
                       <div className="flex flex-col items-end justify-between">
-                        <button onClick={() => removeFromCart(p.id)} className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-300 active:text-red-500 hover:bg-red-50 rounded-md transition-colors" aria-label={language === 'ru' ? 'Удалить из корзины' : 'Savatdan olib tashlash'}><X className="w-4 h-4" /></button>
+                        <button onClick={() => removeFromCart(item.product_id)} className="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-300 active:text-red-500 hover:bg-red-50 rounded-md transition-colors" aria-label={language === 'ru' ? 'Удалить из корзины' : 'Savatdan olib tashlash'}><X className="w-4 h-4" /></button>
                         <div className="flex items-center gap-1.5 bg-gray-50 rounded-[10px] p-0.5">
-                          <button onClick={() => updateCartQuantity(p.id, item.quantity - 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3 h-3 text-gray-600" /></button>
+                          <button onClick={() => updateCartQuantity(item.product_id, item.quantity - 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Уменьшить количество' : 'Sonni kamaytirish'}><Minus className="w-3 h-3 text-gray-600" /></button>
                           <span className="w-5 text-center text-[13px] font-bold">{item.quantity}</span>
-                          <button onClick={() => updateCartQuantity(p.id, item.quantity + 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3 h-3 text-gray-600" /></button>
+                          <button onClick={() => updateCartQuantity(item.product_id, item.quantity + 1)} className="w-6 h-6 rounded-[8px] bg-white shadow-sm flex items-center justify-center active:scale-90 transition-transform" aria-label={language === 'ru' ? 'Увеличить количество' : 'Sonni oshirish'}><Plus className="w-3 h-3 text-gray-600" /></button>
                         </div>
                       </div>
                     </div>
