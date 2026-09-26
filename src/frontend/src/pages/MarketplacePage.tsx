@@ -300,9 +300,6 @@ export function MarketplacePage() {
   // (body + `.main-content`). Хук ref-counted — совместимо со стэком
   // модалок.
   useBodyScrollLock(showOrderModal);
-  // То же для детальной модалки заказа — фризит фон, чтобы WKWebView
-  // не двигал fixed-overlay при overscroll.
-  useBodyScrollLock(!!selectedOrder);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
   // orders.ts брал user.address/phone напрямую, менеджер получал
@@ -323,6 +320,10 @@ export function MarketplacePage() {
   const [deliveryReview, setDeliveryReview] = useState('');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrderAPI | null>(null);
+  // Body-scroll-lock для детальной модалки заказа — фризит фон,
+  // чтобы WKWebView не двигал fixed-overlay при overscroll. Хук
+  // должен идти ПОСЛЕ объявления `selectedOrder`, иначе TDZ.
+  useBodyScrollLock(!!selectedOrder);
   const [banners, setBanners] = useState<{ id: string; title: string; description?: string; image_url?: string; link_url?: string }[]>([]);
 
   // On-demand order request modal (Stage 4a). Opened when the resident
