@@ -308,10 +308,38 @@ export function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProductAPI | null>(null);
+  const [productSheetClosing, setProductSheetClosing] = useState(false);
+  useEffect(() => {
+    if (selectedProduct) {
+      setProductSheetClosing(false);
+      const el = productSheetPanelRef.current;
+      if (el) { el.style.transition = 'none'; el.style.transform = 'translateY(0px)'; }
+    }
+  }, [selectedProduct]);
+  const productSheetApplyTransform = (y: number, withSpring: boolean) => {
+    const el = productSheetPanelRef.current;
+    if (!el) return;
+    el.style.transition = withSpring ? 'transform .28s cubic-bezier(.32,.72,0,1)' : 'none';
+    el.style.transform = `translateY(${y}px)`;
+  };
+  const productSheetRequestClose = () => {
+    setProductSheetClosing(true);
+    window.setTimeout(() => setSelectedProduct(null), 260);
+  };
   const [showOrderModal, setShowOrderModal] = useState(false);
   // Swipe-to-dismiss на drag-handle шторок (product-sheet + checkout).
   // Порог тот же, что в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
   const productSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
+  // Drag-to-dismiss с follow-finger 1:1 (тот же паттерн, что в order-
+  // detail модалке — см. блок для selectedOrder ниже). Держим стейт
+  // здесь, а useEffect сброса — сразу после объявления `selectedProduct`
+  // ниже (чтобы не влететь в TDZ).
+  const productSheetPanelRef = useRef<HTMLDivElement | null>(null);
+  const productSheetDragActive = useRef(false);
+  const productSheetDragY = useRef(0);
+  const productSheetLastY = useRef(0);
+  const productSheetLastT = useRef(0);
+  const productSheetVelocity = useRef(0);
   const orderSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   const orderDetailSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   // iOS WKWebView баг: при открытом fixed-модальном окне свайп по нему
@@ -2033,28 +2061,90 @@ export function MarketplacePage() {
       {selectedProduct && createPortal((
         <div
           className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center"
-          style={{ background: 'rgba(20,20,19,0.42)' }}
-          onClick={() => setSelectedProduct(null)}
+          style={{
+            // Backdrop opacity плавно исчезает при закрытии (та же механика
+            // из ResidentNewRequestFlow.SheetShell, что и в order-detail).
+            background: `rgba(20,20,19,${productSheetClosing ? 0 : 0.42})`,
+            transition: 'background .25s ease',
+          }}
+          onClick={productSheetRequestClose}
         >
           <div
+            ref={productSheetPanelRef}
             className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[28px] flex flex-col overflow-hidden"
-            style={{ height: '55dvh', maxHeight: '85vh' }}
+            style={{
+              height: '55dvh',
+              maxHeight: '85vh',
+              // Fallback JSX transform для «cold» state и закрытия
+              // (когда drag неактивен и panelRef.style ещё не переопределён).
+              transform: productSheetClosing ? 'translateY(100%)' : 'translateY(0px)',
+              transition: 'transform .28s cubic-bezier(.32,.72,0,1)',
+              willChange: 'transform',
+            }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Grabber — pinned top, вне scroll'а. Свайп вниз > 60px закрывает
-                шторку (тот же паттерн, что в checkout и FeatureLockedModal). */}
+            {/* Grabber с follow-finger 1:1 (эталон 1:1 с order-detail):
+                - onTouchMove пишет translateY прямо в panel.style — 60fps;
+                - onTouchEnd/Cancel: если dragY > 90 ИЛИ velocity > 0.55 —
+                  плавное закрытие через spring transition + setTimeout(260);
+                - иначе snap-back на translateY(0) со spring curve.
+                Hit area 34pt, w-10 h-1.5 grabber с pointer-events:none,
+                touch-action:none inline. */}
             <div
-              className="flex justify-center pt-3 pb-1 sm:hidden shrink-0 touch-none"
-              onTouchStart={e => { productSheetSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
-              onTouchEnd={e => {
-                if (!productSheetSwipeRef.current) return;
-                const dy = e.changedTouches[0].clientY - productSheetSwipeRef.current.startY;
-                const dx = Math.abs(e.changedTouches[0].clientX - productSheetSwipeRef.current.startX);
-                if (dy > 60 && dx < dy) setSelectedProduct(null);
+              className="flex justify-center items-center pt-3 pb-4 sm:hidden shrink-0"
+              style={{ touchAction: 'none' }}
+              onTouchStart={e => {
+                const y = e.touches[0].clientY;
+                productSheetDragActive.current = true;
+                productSheetSwipeRef.current = { startY: y, startX: e.touches[0].clientX };
+                productSheetDragY.current = 0;
+                productSheetLastY.current = y;
+                productSheetLastT.current = performance.now();
+                productSheetVelocity.current = 0;
+              }}
+              onTouchMove={e => {
+                if (!productSheetDragActive.current || !productSheetSwipeRef.current) return;
+                const clientY = e.touches[0].clientY;
+                const dy = clientY - productSheetSwipeRef.current.startY;
+                const y = dy > 0 ? dy : 0;
+                productSheetDragY.current = y;
+                productSheetApplyTransform(y, false);
+                const now = performance.now();
+                const dt = now - productSheetLastT.current;
+                if (dt > 0) productSheetVelocity.current = (clientY - productSheetLastY.current) / dt;
+                productSheetLastY.current = clientY;
+                productSheetLastT.current = now;
+              }}
+              onTouchEnd={() => {
+                if (!productSheetDragActive.current) return;
+                productSheetDragActive.current = false;
+                const flick = productSheetVelocity.current > 0.55;
+                const far = productSheetDragY.current > 90;
+                if (flick || far) {
+                  productSheetApplyTransform(window.innerHeight, true);
+                  productSheetRequestClose();
+                } else {
+                  productSheetApplyTransform(0, true);
+                  productSheetDragY.current = 0;
+                }
+                productSheetSwipeRef.current = null;
+              }}
+              onTouchCancel={() => {
+                if (!productSheetDragActive.current) return;
+                productSheetDragActive.current = false;
+                const flick = productSheetVelocity.current > 0.55;
+                const far = productSheetDragY.current > 90;
+                if (flick || far) {
+                  productSheetApplyTransform(window.innerHeight, true);
+                  productSheetRequestClose();
+                } else {
+                  productSheetApplyTransform(0, true);
+                  productSheetDragY.current = 0;
+                }
                 productSheetSwipeRef.current = null;
               }}
             >
-              <div className="w-9 h-1 rounded-full bg-gray-300" />
+              <div className="w-10 h-1.5 rounded-full bg-gray-300 pointer-events-none" />
             </div>
             {/* Action-bar — pinned top ряд с ♥/× (вне scroll'а, всегда виден) */}
             <div
@@ -2069,7 +2159,7 @@ export function MarketplacePage() {
                 <Heart className={`w-4 h-4 ${favorites.includes(selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
               </button>
               <button
-                onClick={() => setSelectedProduct(null)}
+                onClick={productSheetRequestClose}
                 className="min-w-[44px] min-h-[44px] bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100"
                 aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}
               >
