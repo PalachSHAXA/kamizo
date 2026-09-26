@@ -932,7 +932,7 @@ export function MarketplacePage() {
           (подтверждено покадрово — сдвиг ~60px в момент bounce). Портирование
           в document.body вытаскивает header из scroller'а — fixed теперь
           реально относится к viewport, а не к внутреннему нативному scroller'у. */}
-      {headerPortal && createPortal((
+      {headerPortal && successKind === null && createPortal((
       <div
         ref={headerRef}
         className="fixed top-0 z-40 md:hidden"
