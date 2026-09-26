@@ -2306,12 +2306,21 @@ export function MarketplacePage() {
               }}
               onClick={e => e.stopPropagation()}
             >
-              {/* Pinned top: drag-handle + header. Свайп вниз на handle
-                  закрывает; в самом header туч-хендлеров нет (можно
-                  тапать по крестику без риска закрыть свайпом). */}
+              {/* Pinned top: drag-handle + header.
+                  - Hit area расширена (pt-3 pb-4 + h-9 = ~40pt по вертикали);
+                    узкие 20pt cliff'ы промахивались пальцем на iPhone.
+                  - touchcancel обрабатываем так же как touchend — iOS
+                    WKWebView конвертирует «длинный» swipe в native gesture
+                    и присылает touchcancel вместо touchend.
+                  - touch-action:none на самой полоске (браузер не перехватит
+                    её как scroll gesture), но НЕ на wrapper — иначе теряется
+                    click-to-close на бэкдропе. */}
               <div
-                className="flex justify-center pt-3 pb-1 sm:hidden touch-none shrink-0"
-                onTouchStart={e => { orderDetailSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
+                className="flex justify-center items-center pt-3 pb-4 sm:hidden shrink-0"
+                style={{ touchAction: 'none' }}
+                onTouchStart={e => {
+                  orderDetailSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX };
+                }}
                 onTouchEnd={e => {
                   if (!orderDetailSwipeRef.current) return;
                   const dy = e.changedTouches[0].clientY - orderDetailSwipeRef.current.startY;
@@ -2319,8 +2328,18 @@ export function MarketplacePage() {
                   if (dy > 60 && dx < dy) setSelectedOrder(null);
                   orderDetailSwipeRef.current = null;
                 }}
+                onTouchCancel={e => {
+                  if (!orderDetailSwipeRef.current) return;
+                  const t = e.changedTouches[0];
+                  if (t) {
+                    const dy = t.clientY - orderDetailSwipeRef.current.startY;
+                    const dx = Math.abs(t.clientX - orderDetailSwipeRef.current.startX);
+                    if (dy > 60 && dx < dy) setSelectedOrder(null);
+                  }
+                  orderDetailSwipeRef.current = null;
+                }}
               >
-                <div className="w-9 h-1 rounded-full bg-gray-300" />
+                <div className="w-10 h-1.5 rounded-full bg-gray-300 pointer-events-none" />
               </div>
               <div className="px-5 pt-1 pb-4 border-b border-gray-100 shrink-0">
                 <div className="flex items-start justify-between">
