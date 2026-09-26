@@ -293,12 +293,16 @@ export function MarketplacePage() {
   // Порог тот же, что в FeatureLockedModal — `diffY > 60 && diffX < diffY`.
   const productSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   const orderSheetSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
+  const orderDetailSwipeRef = useRef<{ startY: number; startX: number } | null>(null);
   // iOS WKWebView баг: при открытом fixed-модальном окне свайп по нему
   // трактуется как overscroll body, из-за чего вся модалка «плывёт»
   // вверх-вниз. Лечится только фризом основной scroll-поверхности
   // (body + `.main-content`). Хук ref-counted — совместимо со стэком
   // модалок.
   useBodyScrollLock(showOrderModal);
+  // То же для детальной модалки заказа — фризит фон, чтобы WKWebView
+  // не двигал fixed-overlay при overscroll.
+  useBodyScrollLock(!!selectedOrder);
   // Bug fix 2026-07-11: раньше заказы уходили в БД с пустым
   // delivery_address/phone, если у резидента профиль был не заполнен —
   // orders.ts брал user.address/phone напрямую, менеджер получал
@@ -2269,27 +2273,55 @@ export function MarketplacePage() {
         </div>
       ), document.body)}
 
-      {/* ORDER DETAIL MODAL */}
-      {selectedOrder && (() => {
+      {/* ORDER DETAIL MODAL — portal-в-body + flex-col:
+          pinned grabber+header → scrollable content → pinned footer.
+          Единый паттерн с product-sheet / checkout — шапка и кнопки
+          не уезжают со скроллом, драг за полоску закрывает. */}
+      {selectedOrder && createPortal((() => {
         const si = getOrderStageIndex(selectedOrder.status);
         const sm = getOrderStatusMessage(selectedOrder.status, language as 'ru' | 'uz');
         const items = selectedOrder.items || [];
         const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-        // Этап 4b: on-demand — своя ветка UX. На awaiting_price/price_pending
-        // прайса ещё нет, `total_amount` = 0 — прячем сумму. На price_offered
-        // показываем разбивку и кнопки согласия/отказа.
         const isOnDemand = selectedOrder.order_type === 'on_demand';
         const isPriceOffered = isOnDemand && selectedOrder.status === 'price_offered';
         const isPricePreOffer =
           isOnDemand && (selectedOrder.status === 'awaiting_price' || selectedOrder.status === 'price_pending');
         const priceActionPending = priceActionOrderId === selectedOrder.id;
+        const canCancel = ['new', 'confirmed'].includes(selectedOrder.status);
+        const canRate = selectedOrder.status === 'delivered' && !selectedOrder.rating;
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
-            <div className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-center pt-3 pb-1 sm:hidden"><div className="w-9 h-1 rounded-full bg-gray-300" /></div>
-
-              {/* Header */}
-              <div className="px-5 pt-3 pb-4 border-b border-gray-100">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center"
+            style={{ touchAction: 'none', overscrollBehavior: 'contain' }}
+            onClick={() => setSelectedOrder(null)}
+            onTouchMove={e => { if (e.target === e.currentTarget) e.preventDefault(); }}
+          >
+            <div
+              className="bg-white w-full sm:max-w-md rounded-t-[24px] sm:rounded-[24px] flex flex-col max-h-[calc(100dvh-24px)]"
+              style={{
+                paddingBottom: `max(env(safe-area-inset-bottom, 0px), 12px)`,
+                overscrollBehavior: 'contain',
+                touchAction: 'pan-y',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Pinned top: drag-handle + header. Свайп вниз на handle
+                  закрывает; в самом header туч-хендлеров нет (можно
+                  тапать по крестику без риска закрыть свайпом). */}
+              <div
+                className="flex justify-center pt-3 pb-1 sm:hidden touch-none shrink-0"
+                onTouchStart={e => { orderDetailSwipeRef.current = { startY: e.touches[0].clientY, startX: e.touches[0].clientX }; }}
+                onTouchEnd={e => {
+                  if (!orderDetailSwipeRef.current) return;
+                  const dy = e.changedTouches[0].clientY - orderDetailSwipeRef.current.startY;
+                  const dx = Math.abs(e.changedTouches[0].clientX - orderDetailSwipeRef.current.startX);
+                  if (dy > 60 && dx < dy) setSelectedOrder(null);
+                  orderDetailSwipeRef.current = null;
+                }}
+              >
+                <div className="w-9 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="px-5 pt-1 pb-4 border-b border-gray-100 shrink-0">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-[18px] font-bold text-gray-900">#{selectedOrder.order_number}</h2>
@@ -2300,6 +2332,12 @@ export function MarketplacePage() {
                   <button onClick={() => setSelectedOrder(null)} className="min-w-[44px] min-h-[44px] bg-gray-100 rounded-full flex items-center justify-center" aria-label={language === 'ru' ? 'Закрыть' : 'Yopish'}><X className="w-4 h-4 text-gray-500" /></button>
                 </div>
               </div>
+
+              {/* Scrollable middle: status + items + total + price-negotiation */}
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
+              >
 
               {/* Status progress */}
               <div className="px-5 py-4 border-b border-gray-100">
@@ -2458,38 +2496,41 @@ export function MarketplacePage() {
                   </div>
                 )}
 
-                {/* Rating */}
+                {/* Rating (readonly для доставленного заказа с оценкой) */}
                 {selectedOrder.status === 'delivered' && selectedOrder.rating && (
                   <div className="flex items-center gap-1 mb-4 p-3 bg-yellow-50 rounded-xl">
                     {[1,2,3,4,5].map(s => <Star key={s} className={`w-4 h-4 ${s <= (selectedOrder.rating||0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />)}
                     <span className="text-[12px] text-gray-500 ml-2">{language === 'ru' ? 'Ваша оценка' : 'Sizning bahoyingiz'}</span>
                   </div>
                 )}
+              </div>
+              {/* /Total & delivery info */}
+              </div>
+              {/* /scrollable middle */}
 
-                {/* Actions */}
-                <div className="space-y-2">
-                  {selectedOrder.status === 'delivered' && !selectedOrder.rating && (
-                    <button onClick={() => { setSelectedOrder(null); setRatingOrderId(selectedOrder.id); setShowDeliveryRatingModal(true); }}
-                      className="w-full py-3 bg-primary-50 text-primary-600 rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2">
-                      <Star className="w-4 h-4" />{language === 'ru' ? 'Оценить доставку' : 'Baholash'}
-                    </button>
-                  )}
-                  {['new', 'confirmed'].includes(selectedOrder.status) && (
-                    <button onClick={() => { cancelOrder(selectedOrder.id); setSelectedOrder(null); }}
-                      className="w-full py-3 bg-red-50 text-red-600 rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2">
-                      <X className="w-4 h-4" />{language === 'ru' ? 'Отменить заказ' : 'Buyurtmani bekor qilish'}
-                    </button>
-                  )}
-                  <button onClick={() => setSelectedOrder(null)}
-                    className="w-full py-3 border border-gray-200 text-gray-600 rounded-[14px] text-[14px] font-medium">
-                    {language === 'ru' ? 'Закрыть' : 'Yopish'}
+              {/* Pinned footer — кнопки всегда видны, не уезжают со скроллом. */}
+              <div className="px-5 pt-3 space-y-2 shrink-0 border-t border-gray-100">
+                {canRate && (
+                  <button onClick={() => { setSelectedOrder(null); setRatingOrderId(selectedOrder.id); setShowDeliveryRatingModal(true); }}
+                    className="w-full py-3 bg-primary-50 text-primary-600 rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2">
+                    <Star className="w-4 h-4" />{language === 'ru' ? 'Оценить доставку' : 'Baholash'}
                   </button>
-                </div>
+                )}
+                {canCancel && (
+                  <button onClick={() => { cancelOrder(selectedOrder.id); setSelectedOrder(null); }}
+                    className="w-full py-3 bg-red-50 text-red-600 rounded-[14px] text-[14px] font-semibold flex items-center justify-center gap-2">
+                    <X className="w-4 h-4" />{language === 'ru' ? 'Отменить заказ' : 'Buyurtmani bekor qilish'}
+                  </button>
+                )}
+                <button onClick={() => setSelectedOrder(null)}
+                  className="w-full py-3 border border-gray-200 text-gray-600 rounded-[14px] text-[14px] font-medium">
+                  {language === 'ru' ? 'Закрыть' : 'Yopish'}
+                </button>
               </div>
             </div>
           </div>
         );
-      })()}
+      })(), document.body)}
 
       {/* RATING MODAL */}
       {showDeliveryRatingModal && ratingOrderId && (
