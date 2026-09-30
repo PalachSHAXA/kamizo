@@ -589,6 +589,12 @@ export function Layout() {
   // и глобальный header у них остаётся как раньше.
   const isMarketplaceRoute = location.pathname === '/marketplace'
     || location.pathname.startsWith('/marketplace/');
+  // Резидентские rental-страницы сами красят свой контент (bg-[#F8F8FA] /
+  // bg-white). Но layout-root под home-indicator zone остаётся warm-beige
+  // --app-bg, из-за чего под BottomBar видна бежевая полоса. Тот же приём,
+  // что и с marketplace-bg: точечный override layout-root'а на white.
+  const isApartmentRentalsRoute = location.pathname === '/apartment-rentals'
+    || location.pathname.startsWith('/apartment-rentals/');
   // Роуты, где страница сама рисует полноценный in-page header, поэтому
   // глобальный MobileHeader категорически не должен появляться — ни через
   // showMobileHeader, ни через fallback retainSidebarHeader.
@@ -603,8 +609,28 @@ export function Layout() {
   // невидим. Финальный gate hideHeaderForRoute применяется к финальному
   // выражению renderMobileHeader, поэтому route-исключения теперь
   // абсолютные и не зависят от порядка/тайминга состояний drawer'а.
+  // Все rental-страницы (feed + резидентские mine/create/edit/detail +
+  // менеджерская модерация) рисуют собственный in-page header — глобальная
+  // MobileHeader тут дублирует и порождает большой пустой белый блок между
+  // двумя шапками. Раньше исключение было только на точное '/apartment-rentals'
+  // и на /rentals-moderation вообще отсутствовало.
+  //
+  // Также главная страница '/' у УК-ролей (manager/admin/director/
+  // department_head) — их дашборды сами рисуют «Панель управления» /
+  // «Отдел» заголовком, поэтому глобальная шапка тут тоже дублирует.
+  // Для резидента/tenant/executor и прочих не-УК ролей на '/' MobileHeader
+  // остаётся, потому что у них дашборд без своей шапки (или другая).
+  // Broadened: startsWith covers trailing slash '/rentals-moderation/' and
+  // any nested sub-routes we may add later. Strict === also stays via prefix.
+  const isRentalsModerationRoute = location.pathname === '/rentals-moderation'
+    || location.pathname.startsWith('/rentals-moderation/');
+  // NOTE: management-dashboard '/' is INTENTIONALLY not in this list.
+  // The global MobileHeader carries the hamburger — the only entry into
+  // the side menu from '/'. Duplicated title on the УК dashboard is a
+  // lesser evil than a lost menu entry point.
   const hideMobileHeaderForRoute = isMarketplaceRoute
-    || location.pathname === '/apartment-rentals'
+    || isApartmentRentalsRoute
+    || isRentalsModerationRoute
     || location.pathname === '/chat';
   const showMobileHeader = !isSuperAdmin
     && modalCount === 0
@@ -642,7 +668,7 @@ export function Layout() {
 
   return (
     <div
-      className={`layout-root${isStaffShell ? ' staff-shell' : ''}${isMarketplaceRoute ? ' marketplace-bg' : ''}`}
+      className={`layout-root${isStaffShell ? ' staff-shell' : ''}${isMarketplaceRoute ? ' marketplace-bg' : ''}${isApartmentRentalsRoute ? ' apartment-rentals-bg' : ''}${isRentalsModerationRoute ? ' rentals-moderation-bg' : ''}`}
       data-shell={isStaffShell ? 'staff' : undefined}
       style={impersonation ? { '--impersonation-h': '42px' } as React.CSSProperties : undefined}
     >
@@ -990,6 +1016,11 @@ export function Layout() {
                 </ProtectedRoute>
               } />
               <Route path="/apartment-rentals/create" element={
+                <ProtectedRoute requiredFeature="rental_listings">
+                  <RentalCreatePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/apartment-rentals/edit/:id" element={
                 <ProtectedRoute requiredFeature="rental_listings">
                   <RentalCreatePage />
                 </ProtectedRoute>

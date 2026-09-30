@@ -151,14 +151,18 @@ export const authApi = {
     }),
 
   getDemoRoles: async (): Promise<DemoRole[]> => {
-    const data = await apiRequest<DemoRolesResponse>('/api/auth/demo-roles', {
+    // В native-сборке (Origin=capacitor://localhost) backend не резолвит
+    // demo-tenant по hostname. Явно передаём подсказку через query.
+    const q = import.meta.env.VITE_DEMO_TENANT === '1' ? '?tenant=demo' : '';
+    const data = await apiRequest<DemoRolesResponse>(`/api/auth/demo-roles${q}`, {
       cache: 'no-store',
     });
     return data.roles;
   },
 
   demoLogin: async (roleKey: string): Promise<DemoLoginResult> => {
-    const data = await apiRequest<DemoLoginResponse>('/api/auth/demo-login', {
+    const q = import.meta.env.VITE_DEMO_TENANT === '1' ? '?tenant=demo' : '';
+    const data = await apiRequest<DemoLoginResponse>(`/api/auth/demo-login${q}`, {
       method: 'POST',
       body: JSON.stringify({ roleKey }),
     });

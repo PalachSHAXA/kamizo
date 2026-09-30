@@ -32,10 +32,24 @@ function readFavs(): string[] {
 function fmtSum(n: number): string { return new Intl.NumberFormat('ru-RU').format(n); }
 function t(language: string, ru: string, uz: string) { return language === 'ru' ? ru : uz; }
 
-function daysSince(iso: string): number {
-  const now = Date.now();
-  const then = new Date(iso.replace(' ', 'T') + 'Z').getTime();
-  return Math.floor((now - then) / (86400 * 1000));
+// Returns whole days between `iso` and now, or null when the input is
+// unparsable. Two upstream writers put two DIFFERENT string formats into
+// `rental_listings.last_confirmed_at`:
+//   • listings.ts:346 (real POST) → 'YYYY-MM-DD HH:MM:SS' (SQLite space
+//     separator, no timezone marker — assume UTC).
+//   • lib/demo/commerce.ts:15-17 (demo seeder via iso()) →
+//     'YYYY-MM-DDTHH:MM:SS.mmmZ' (full JS toISOString()).
+// The old parser did `iso.replace(' ', 'T') + 'Z'` which handles the
+// SQLite shape but appends a second 'Z' to the already-ISO shape →
+// '…ZZ' → new Date() → NaN → 'Подтверждено NaN дн. назад' in the UI.
+// Detect the shape by presence of 'T'; also short-circuit empty inputs
+// and any Invalid Date so the caller can render a text fallback.
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const normalized = iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z';
+  const then = new Date(normalized).getTime();
+  if (Number.isNaN(then)) return null;
+  return Math.floor((Date.now() - then) / (86400 * 1000));
 }
 
 export function RentalMyListingsPage() {
@@ -79,7 +93,11 @@ export function RentalMyListingsPage() {
   >(null);
 
   // Renewal nudge — first listing that's ≥14 days since last confirm
-  const dueListing = mine.find(l => l.state === 'active' && daysSince(l.last_confirmed_at) >= 14);
+  const dueListing = mine.find(l => {
+    if (l.state !== 'active') return false;
+    const d = daysSince(l.last_confirmed_at);
+    return d !== null && d >= 14;
+  });
 
   const applyConfirm = async () => {
     if (!confirmAction) return;
@@ -219,6 +237,7 @@ export function RentalMyListingsPage() {
                   language={language}
                   onOpen={() => navigate(`/apartment-rentals/${l.id}`)}
                   onAction={(kind) => setConfirmAction({ kind, listingId: l.id })}
+                  onEdit={(id) => navigate(`/apartment-rentals/edit/${id}`)}
                   className="mt-2"
                 />
               ))}
@@ -244,6 +263,7 @@ export function RentalMyListingsPage() {
                   language={language}
                   onOpen={() => navigate(`/apartment-rentals/${l.id}`)}
                   onAction={(kind) => setConfirmAction({ kind, listingId: l.id })}
+                  onEdit={(id) => navigate(`/apartment-rentals/edit/${id}`)}
                   className="mx-5 mb-3"
                 />
               ))}
@@ -269,6 +289,7 @@ export function RentalMyListingsPage() {
                   language={language}
                   onOpen={() => navigate(`/apartment-rentals/${l.id}`)}
                   onAction={(kind) => setConfirmAction({ kind, listingId: l.id })}
+                  onEdit={(id) => navigate(`/apartment-rentals/edit/${id}`)}
                   muted
                   className="mx-5 mb-3"
                 />
@@ -295,6 +316,7 @@ export function RentalMyListingsPage() {
                   language={language}
                   onOpen={() => navigate(`/apartment-rentals/${l.id}`)}
                   onAction={(kind) => setConfirmAction({ kind, listingId: l.id })}
+                  onEdit={(id) => navigate(`/apartment-rentals/edit/${id}`)}
                   muted
                   className="mx-5 mb-3"
                 />
@@ -386,10 +408,11 @@ function MineCard(props: {
   language: string;
   onOpen: () => void;
   onAction: (kind: 'rented' | 'archived' | 'delete' | 'reactivate') => void;
+  onEdit: (id: string) => void;
   muted?: boolean;
   className?: string;
 }) {
-  const { listing: l, photos, language, onOpen, onAction, muted, className } = props;
+  const { listing: l, photos, language, onOpen, onAction, onEdit, muted, className } = props;
   const cover = photos[0]?.data_url;
   const roomsText =
     l.rooms === 0 ? t(language, 'Студия', 'Studiya')
@@ -414,7 +437,11 @@ function MineCard(props: {
           </div>
           <div className="mt-1 text-[11.5px] text-gray-500">
             {l.state === 'active'
-              ? t(language, `Подтверждено ${daysSince(l.last_confirmed_at)} дн. назад`, `${daysSince(l.last_confirmed_at)} kun oldin tasdiqlangan`)
+              ? (() => {
+                  const d = daysSince(l.last_confirmed_at);
+                  if (d === null) return t(language, 'Подтверждено при публикации', "E'lon berilganda tasdiqlangan");
+                  return t(language, `Подтверждено ${d} дн. назад`, `${d} kun oldin tasdiqlangan`);
+                })()
               : l.state === 'rented'
                 ? t(language, 'Сдано', 'Ijaraga berilgan')
                 : l.state === 'hidden'
@@ -436,7 +463,11 @@ function MineCard(props: {
       <div className="pt-2.5 mt-2.5 border-t border-gray-100 flex gap-1">
         {l.state === 'active' && (
           <>
-            <ActionButton icon={<Edit3 className="w-3 h-3" strokeWidth={2.2} />} label={t(language, 'Редактировать', 'Tahrirlash')} />
+            <ActionButton
+              icon={<Edit3 className="w-3 h-3" strokeWidth={2.2} />}
+              label={t(language, 'Редактировать', 'Tahrirlash')}
+              onClick={() => onEdit(l.id)}
+            />
             <ActionButton
               icon={<Check className="w-3 h-3" strokeWidth={2.2} />}
               label={t(language, 'Сдано', 'Ijaraga berildi')}

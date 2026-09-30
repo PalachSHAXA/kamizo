@@ -10,8 +10,8 @@
 // The whole page has many inputs — useAndroidKbSpacer scoped to the
 // page mount so keyboard adjusts on Android.
 
-import { useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, X, Plus, Star, RefreshCw, Check, Clock, Sofa, Snowflake, Wifi, Car,
 } from 'lucide-react';
@@ -51,6 +51,17 @@ function fmtSum(n: number): string {
   return new Intl.NumberFormat('ru-RU').format(n);
 }
 
+function compressedDataUrlToFile(dataUrl: string, originalName: string): File {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) throw new Error('Invalid compressed image data');
+
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const baseName = originalName.replace(/\.[^.]+$/, '') || 'photo';
+  return new File([bytes], `${baseName}.jpg`, { type: match[1] });
+}
+
 // PhotoState reflects the read/validate step (client-only — the real
 // backend takes photos inline with create, not as separate uploads).
 //   'reading'  → FileReader in flight or file being validated
@@ -62,10 +73,20 @@ interface DraftPhoto {
   state: PhotoState;
   data_url: string;
   error?: string;         // human-readable when state='failed'
+  // Edit-mode additions. `existing` marks photos already on the server —
+  // removing one queues its server id until Save. `file` on new photos is
+  // the compressed JPEG used for preview, sent via multipart after the meta
+  // PATCH (create path still sends photos inline as data URLs).
+  existing?: boolean;
+  serverId?: string;
+  file?: File;
 }
 
 export function RentalCreatePage() {
   const navigate = useNavigate();
+  const params = useParams<{ id?: string }>();
+  const editId = params.id ?? null;
+  const isEdit = !!editId;
   const { language } = useLanguageStore();
   const { user } = useAuthStore();
   const addToast = useToastStore(s => s.addToast);
@@ -95,6 +116,7 @@ export function RentalCreatePage() {
   // FileReader → base64 data_url held in memory → submitted inline with
   // the atomic create POST.
   const [photos, setPhotos] = useState<DraftPhoto[]>([]);
+  const [pendingPhotoDeletes, setPendingPhotoDeletes] = useState<string[]>([]);
 
   // Step 2 — Fields
   const [rooms, setRooms] = useState<0 | 1 | 2 | 3 | 4>(2);
@@ -111,6 +133,57 @@ export function RentalCreatePage() {
   const [description, setDescription] = useState('');
   const [phoneVisible, setPhoneVisible] = useState(true);
 
+  // Edit-mode prefill. Fires once when the page mounts with :id in the URL.
+  // Populates every field state so the user opens the wizard on top of a
+  // populated form instead of the create defaults, and marks the loaded
+  // photos as `existing` so save-time doesn't try to re-upload them.
+  const [editLoading, setEditLoading] = useState(isEdit);
+  const [editError, setEditError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isEdit || !editId) return;
+    let cancelled = false;
+    setEditLoading(true);
+    setEditError(null);
+    rentalsApi.getListing(editId).then(result => {
+      if (cancelled) return;
+      if (!result) {
+        setEditError(t(language, 'Объявление не найдено', "E'lon topilmadi"));
+        return;
+      }
+      const { listing: l, photos: existing } = result;
+      setRooms((l.rooms >= 0 && l.rooms <= 4 ? l.rooms : 2) as 0 | 1 | 2 | 3 | 4);
+      setPriceStr(new Intl.NumberFormat('ru-RU').format(l.price_monthly));
+      setArea(String(l.area_m2));
+      setFloor(String(l.floor));
+      setFloorTotal(String(l.floor_total));
+      setFurnished(!!l.furnished);
+      setAc(!!l.air_conditioning);
+      setInternet(!!l.internet);
+      setParking(!!l.parking);
+      setAnimalsOk(!!l.animals_allowed);
+      setDuration(l.duration_type);
+      setDescription(l.description || '');
+      setPhoneVisible(!!l.phone_visible);
+      setPhotos(existing
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((p): DraftPhoto => ({
+          id: `existing-${p.id}`,
+          state: 'uploaded',
+          data_url: p.data_url,
+          existing: true,
+          serverId: p.id,
+        })));
+    }).catch((e: any) => {
+      if (cancelled) return;
+      setEditError(e?.message || t(language, 'Не удалось загрузить объявление', "E'lonni yuklab bo'lmadi"));
+    }).finally(() => {
+      if (cancelled) return;
+      setEditLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isEdit, editId, language]);
+
   const priceNum = useMemo(() => Number(priceStr.replace(/\s/g, '')) || 0, [priceStr]);
   // Nudge only — market range for 2-комн in this ЖК. Not blocking.
   const priceLooksHigh = rooms === 2 && priceNum > 4_200_000;
@@ -122,13 +195,51 @@ export function RentalCreatePage() {
 
   const doPublish = async () => {
     if (publishing) return;
-    const dataUrls = photos.filter(p => p.state === 'uploaded').map(p => p.data_url);
-    if (dataUrls.length < PHOTO_MIN) {
+    const uploaded = photos.filter(p => p.state === 'uploaded');
+    if (uploaded.length < PHOTO_MIN) {
       addToast('warning', t(language, `Нужно минимум ${PHOTO_MIN} фото`, `Kamida ${PHOTO_MIN} surat kerak`));
       return;
     }
     setPublishing(true);
     try {
+      if (isEdit && editId) {
+        // Keep server state intact until the metadata update succeeds. New
+        // photos go up before queued deletes so a three-photo listing can
+        // replace a photo without tripping the backend minimum.
+        await rentalsApi.patchListing(editId, {
+          rooms,
+          area_m2: Number(area),
+          floor: Number(floor),
+          floor_total: Number(floorTotal),
+          price_monthly: priceNum,
+          deposit_months: 1,
+          furnished: furnished ? 1 : 0,
+          air_conditioning: ac ? 1 : 0,
+          internet: internet ? 1 : 0,
+          parking: parking ? 1 : 0,
+          animals_allowed: animalsOk ? 1 : 0,
+          duration_type: duration,
+          description,
+          phone_visible: phoneVisible ? 1 : 0,
+        });
+        const newOnes = uploaded.filter(p => !p.existing && p.file);
+        for (const p of newOnes) {
+          if (!p.file) continue;
+          const added = await rentalsApi.addPhoto(editId, p.file);
+          // A retry after a later failure must not upload this photo twice.
+          setPhotos(prev => prev.map(photo => photo.id === p.id
+            ? { ...photo, existing: true, serverId: added.id, file: undefined }
+            : photo));
+        }
+        for (const photoId of pendingPhotoDeletes) {
+          await rentalsApi.removePhoto(editId, photoId);
+        }
+        setPendingPhotoDeletes([]);
+        addToast('success', t(language, 'Изменения сохранены', 'Oʻzgarishlar saqlandi'));
+        navigate('/apartment-rentals/mine');
+        return;
+      }
+      const dataUrls = uploaded.map(p => p.data_url);
       await rentalsApi.createListing({
         rooms,
         area_m2: Number(area),
@@ -151,13 +262,25 @@ export function RentalCreatePage() {
       });
       setStep(4);
     } catch (e: any) {
-      addToast('error', e?.message || t(language, 'Не удалось опубликовать', 'Nashr qilib bo\'lmadi'));
+      addToast('error', e?.message || (isEdit
+        ? t(language, 'Не удалось сохранить', 'Saqlab boʻlmadi')
+        : t(language, 'Не удалось опубликовать', 'Nashr qilib boʻlmadi')));
     } finally {
       setPublishing(false);
     }
   };
 
-  const removePhoto = (id: string) => setPhotos(prev => prev.filter(p => p.id !== id));
+  const removePhoto = (id: string) => {
+    // Existing photos disappear from the draft immediately but remain on the
+    // server until Save. Leaving the edit page therefore cannot delete data.
+    const target = photos.find(p => p.id === id);
+    if (target?.existing && target.serverId && editId) {
+      setPhotos(prev => prev.filter(p => p.id !== id));
+      setPendingPhotoDeletes(prev => prev.includes(target.serverId!) ? prev : [...prev, target.serverId!]);
+      return;
+    }
+    setPhotos(prev => prev.filter(p => p.id !== id));
+  };
   const retryPhoto = (id: string) => {
     // Retry = pop the failed tile and re-open the picker; the user re-selects.
     removePhoto(id);
@@ -207,9 +330,13 @@ export function RentalCreatePage() {
         }
         // Compress before base64 — resize to 1280px longest edge, JPEG q0.8,
         // step down until under target. Returns a data:image/jpeg;base64,… URL.
+        // Edit-mode converts this same compressed data URL into a JPEG File
+        // for multipart POST /photos, keeping it below the server's 1 MiB
+        // decoded-file limit. Create-mode only needs the data URL.
         const dataUrl = await compressImage(file, { maxBytes: COMPRESS_TARGET_BYTES });
+        const compressedFile = compressedDataUrlToFile(dataUrl, file.name);
         setPhotos(prev => prev.map(p => p.id === draftId
-          ? { ...p, state: 'uploaded', data_url: dataUrl }
+          ? { ...p, state: 'uploaded', data_url: dataUrl, file: compressedFile }
           : p));
       } catch {
         setPhotos(prev => prev.map(p => p.id === draftId
@@ -230,6 +357,35 @@ export function RentalCreatePage() {
     duration === 'long' ? t(language, 'Длительно', 'Uzoq muddat')
     : duration === 'short' ? t(language, 'Короткий срок', 'Qisqa muddat')
     : t(language, 'Гибко', 'Moslashuvchan');
+
+  // Edit-mode prefill in flight — hide the whole form and defaults so
+  // the user doesn't glimpse "3 500 000 / 48 м² / 2-комн" and think it's
+  // theirs. Simple centered spinner + Cancel; no marketplace-page bg so
+  // the sheet inherits the surrounding light grey.
+  if (isEdit && editLoading) {
+    return (
+      <div className="marketplace-page -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA] flex items-center justify-center">
+        <div className="text-[13px] text-gray-500">
+          {t(language, 'Загрузка объявления…', "E'lon yuklanmoqda…")}
+        </div>
+      </div>
+    );
+  }
+  if (isEdit && editError) {
+    return (
+      <div className="marketplace-page -mx-4 -mt-4 md:mx-0 md:mt-0 min-h-screen bg-[#F8F8FA] flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-[14.5px] font-semibold text-gray-900 mb-2">
+          {editError}
+        </div>
+        <button
+          onClick={() => navigate('/apartment-rentals/mine')}
+          className="mt-3 px-4 py-2.5 rounded-[12px] bg-primary-500 text-white font-semibold text-[13.5px]"
+        >
+          {t(language, 'К моим объявлениям', "Mening e'lonlarimga")}
+        </button>
+      </div>
+    );
+  }
 
   // ── Step 4: Done — now delegates to shared <SuccessScreen>. The
   // inline copy that used to live here was the reference for the
@@ -287,9 +443,13 @@ export function RentalCreatePage() {
             <ArrowLeft className="w-[18px] h-[18px] text-gray-700" strokeWidth={2.2} />
           </button>
           <h1 className="flex-1 text-[16px] font-bold text-gray-900 text-center">
-            {step === 1 && t(language, 'Новое объявление', "Yangi e'lon")}
-            {step === 2 && t(language, 'Детали', 'Tafsilotlar')}
-            {step === 3 && t(language, 'Проверьте', 'Tekshiring')}
+            {isEdit
+              ? t(language, 'Редактирование', 'Tahrirlash')
+              : step === 1
+                ? t(language, 'Новое объявление', "Yangi e'lon")
+                : step === 2
+                  ? t(language, 'Детали', 'Tafsilotlar')
+                  : t(language, 'Проверьте', 'Tekshiring')}
           </h1>
           <div className="text-[11.5px] font-extrabold text-gray-400 tracking-[0.12em] min-w-[38px] text-right" style={{ fontVariantNumeric: 'tabular-nums' }}>
             <span className="text-primary-500">{step}</span>/3
@@ -672,8 +832,8 @@ export function RentalCreatePage() {
               style={{ background: 'linear-gradient(150deg, #FB923C, #EA580C)', boxShadow: '0 10px 24px -10px rgba(249,115,22,0.7)' }}
             >
               {publishing
-                ? t(language, 'Публикуем…', 'Nashr qilinmoqda…')
-                : t(language, 'Опубликовать', 'Joylashtirish')}
+                ? (isEdit ? t(language, 'Сохраняем…', 'Saqlanmoqda…') : t(language, 'Публикуем…', 'Nashr qilinmoqda…'))
+                : (isEdit ? t(language, 'Сохранить', 'Saqlash') : t(language, 'Опубликовать', 'Joylashtirish'))}
             </button>
           </>
         )}

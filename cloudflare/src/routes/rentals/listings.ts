@@ -173,8 +173,26 @@ route('GET', '/api/rentals/listings', async (request, env) => {
   const floorMin = url.searchParams.get('floor_min');
   const floorMax = url.searchParams.get('floor_max');
 
-  const filters: string[] = [`l.state = 'active'`];
-  const params: any[] = [];
+  // ?state=<active|rented|hidden|archived> — only management can read
+  // non-active states (moderation tabs: «Скрытые», «Сданные», «Архив»).
+  // Residents hitting the feed either omit the param or send 'active';
+  // both defaults to 'active'. Any other value → 400 (whitelist).
+  // Sprint bug: this whole block used to hardcode `l.state = 'active'`
+  // and ignore the query param entirely, so /rentals-moderation tabs
+  // «Скрытые»/«Сданные»/«Архив» always came back empty.
+  const stateParam = url.searchParams.get('state');
+  const allowedStates = ['active', 'rented', 'hidden', 'archived'] as const;
+  if (stateParam !== null && !(allowedStates as readonly string[]).includes(stateParam)) {
+    return error('state must be one of: active, rented, hidden, archived', 400);
+  }
+  const stateFilter: (typeof allowedStates)[number] = stateParam === null
+    ? 'active'
+    : stateParam as typeof allowedStates[number];
+  if (stateFilter !== 'active' && !isManagement(user)) {
+    return error('Only management can read non-active listings', 403);
+  }
+  const filters: string[] = [`l.state = ?`];
+  const params: any[] = [stateFilter];
   if (tenantId) { filters.push('l.tenant_id = ?'); params.push(tenantId); }
   if (rooms !== null) { filters.push('l.rooms = ?'); params.push(Number(rooms)); }
   if (priceMin !== null) { filters.push('l.price_monthly >= ?'); params.push(Number(priceMin)); }
@@ -218,6 +236,9 @@ route('GET', '/api/rentals/listings/:id', async (request, env, params) => {
   if (!user) return error('Unauthorized', 401);
 
   const tenantId = getTenantId(request);
+  // See /photos above for the same visibility rule; management gets any
+  // state so the moderation surface can open hidden/archived detail pages.
+  const mgmt = isManagement(user);
 
   const row = await env.DB.prepare(`
     SELECT l.id, l.tenant_id, l.publisher_user_id, l.source_type, l.state,
@@ -233,7 +254,7 @@ route('GET', '/api/rentals/listings/:id', async (request, env, params) => {
     LEFT JOIN users u ON u.id = l.publisher_user_id
     WHERE l.id = ?
       ${tenantId ? 'AND l.tenant_id = ?' : ''}
-      AND (l.state IN ('active','rented') OR l.publisher_user_id = ?)
+      AND (l.state IN ('active','rented') OR l.publisher_user_id = ? ${mgmt ? "OR 1=1" : ''})
   `).bind(params.id, ...(tenantId ? [tenantId] : []), user.id).first();
 
   if (!row) return error('Listing not found', 404);
@@ -251,13 +272,18 @@ route('GET', '/api/rentals/listings/:id/photos', async (request, env, params) =>
 
   const tenantId = getTenantId(request);
 
-  // Verify listing exists in tenant AND caller can view it (same rule
-  // as GET :id — active/rented for public; any state for owner). The
-  // JOIN also acts as the tenant scope for the child rows.
+  // Verify listing exists in tenant AND caller can view it. Rule:
+  //   • active/rented → visible to any tenant member (public feed).
+  //   • hidden/archived → visible to the OWNER (own drafts) and to
+  //     MANAGEMENT (moderation surface: «Скрытые», «Сданные», «Архив»).
+  // Without the management branch the moderation card had no cover
+  // photo for hidden/archived listings — the /photos fetch 404'd for
+  // the manager and the card fell back to the empty-gradient stub.
+  const mgmt = isManagement(user);
   const parent = await env.DB.prepare(`
     SELECT id FROM rental_listings
     WHERE id = ? ${tenantId ? 'AND tenant_id = ?' : ''}
-      AND (state IN ('active','rented') OR publisher_user_id = ?)
+      AND (state IN ('active','rented') OR publisher_user_id = ? ${mgmt ? "OR 1=1" : ''})
   `).bind(params.id, ...(tenantId ? [tenantId] : []), user.id).first();
 
   if (!parent) return error('Listing not found', 404);

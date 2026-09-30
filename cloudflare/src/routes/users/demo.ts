@@ -102,16 +102,36 @@ async function resolveDemoTenant(request: Request, env: Env): Promise<DemoTenant
   }
 
   const source = request.headers.get('Origin') || request.headers.get('Referer') || '';
-  if (!source) return null;
-  try {
-    if (getTenantSlug(new URL(source).hostname.toLowerCase()) !== 'demo') return null;
-  } catch {
-    return null;
+  if (source) {
+    try {
+      const originHost = new URL(source).hostname.toLowerCase();
+      if (getTenantSlug(originHost) === 'demo') {
+        return env.DB.prepare(`
+          SELECT id, slug, features, is_demo FROM tenants
+          WHERE slug = ? AND is_active = 1
+        `).bind('demo').first<DemoTenant>();
+      }
+    } catch {
+      // fall through to native fallback
+    }
   }
-  return env.DB.prepare(`
-    SELECT id, slug, features, is_demo FROM tenants
-    WHERE slug = ? AND is_active = 1
-  `).bind('demo').first<DemoTenant>();
+
+  // Native Capacitor build (Origin=capacitor://localhost) — hostname doesn't
+  // encode the tenant, so the client must pass ?tenant=demo explicitly. We
+  // only honor this hint for demo endpoints and only when it literally says
+  // "demo" (no other slug can smuggle a tenant switch through here).
+  try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('tenant') === 'demo') {
+      return env.DB.prepare(`
+        SELECT id, slug, features, is_demo FROM tenants
+        WHERE slug = ? AND is_active = 1
+      `).bind('demo').first<DemoTenant>();
+    }
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 async function loadDemoTenant(env: Env): Promise<DemoTenant | null> {

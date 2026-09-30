@@ -159,6 +159,12 @@ export function LoginPage() {
     import.meta.env.VITE_DEMO_TENANT === '1',
     null,
   );
+  // Единый флаг "мы в демо-контексте". На native (Origin=capacitor://localhost)
+  // tenant.slug пустой до успешного логина, поэтому role-picker и всё, что
+  // рисуется ПОСЛЕ прохождения DemoGate, должно смотреть на этот флаг,
+  // а не только на tenant?.slug === 'demo'. Иначе после закрытия гейта
+  // юзер сваливается в обычную форму «Логин/Пароль».
+  const isDemoContext = demoBootMarked || tenant?.slug === 'demo';
 
   // Tenant identity is logo + name only — UI chrome is uniform Kamizo
   // orange across all tenants. tenant.color / color_secondary are still
@@ -201,6 +207,177 @@ export function LoginPage() {
   // Track which workspace row is in-flight, so we can show a spinner on
   // that exact row while the second login round-trip runs.
   const [pickingSlug, setPickingSlug] = useState<string | null>(null);
+
+  // v12 — новый визуал login-экрана из Claude Design (Kamizo Login.dc.html):
+  // небо-градиент + солнце-круг + 3 ряда домов с «загорающимися» окнами +
+  // slide-to-login вместо обычной кнопки. Логика login/password/handleSubmit
+  // общие для обоих визуалов; здесь только состояние slide и computed
+  // deriveds для окон и солнца.
+  const slideTrackRef = useRef<HTMLDivElement | null>(null);
+  const [slideX, setSlideX] = useState(0);
+  const [slideDragging, setSlideDragging] = useState(false);
+  const [slideDone, setSlideDone] = useState(false);
+  const [loginSucceeded, setLoginSucceeded] = useState(false);
+  const SLIDE_TRACK_W_REF = 327; // ширина трека из макета, для scale-корректировки
+  const SLIDE_KNOB = 52;
+  const SLIDE_MAX = SLIDE_TRACK_W_REF - SLIDE_KNOB - 10;
+  // Слои зданий из макета. Держим в useRef, чтобы окна не пересоздавались
+  // на каждом рендере (иначе «случайный» порядок огней прыгал бы).
+  const buildingsRef = useRef<{ w: number; h: number; cols: number; antenna?: boolean; windows: { i: number; rank: number }[] }[] | null>(null);
+  if (buildingsRef.current === null) {
+    const source = [
+      { w: 56, h: 150, cols: 3 }, { w: 40, h: 96, cols: 2, antenna: true },
+      { w: 70, h: 200, cols: 4, antenna: true }, { w: 44, h: 124, cols: 2 },
+      { w: 62, h: 170, cols: 3, antenna: true }, { w: 42, h: 108, cols: 2 },
+    ];
+    let seed = 7, idx = 0;
+    // LCG (ТЗ п.2.4) — детерминированный, воспроизводимый при каждой
+    // загрузке страницы (не Math.random).
+    const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    // 1) Создаём исходные объекты окон с {i, r} на местах в layout.
+    type WinObj = { i: number; r: number; rank: number };
+    const layout: { w: number; h: number; cols: number; antenna?: boolean; windows: WinObj[] }[] = source.map((b) => {
+      const rows = Math.floor((b.h - 16) / 17);
+      return {
+        ...b,
+        windows: Array.from({ length: rows * b.cols }, () => ({ i: idx++, r: rnd(), rank: 0 })),
+      };
+    });
+    // 2) Сортируем ССЫЛКИ (без spread!), присваиваем rank прямо в layout —
+    //    иначе rank установится на копиях, а оригиналы, которые рендерятся,
+    //    останутся с rank=0/undefined и все окна навсегда «off».
+    const all = layout.flatMap((b) => b.windows).sort((a, b) => a.r - b.r);
+    all.forEach((w, k) => { w.rank = k; });
+    buildingsRef.current = layout.map((b) => ({
+      w: b.w, h: b.h, cols: b.cols, antenna: b.antenna,
+      windows: b.windows.map((w) => ({ i: w.i, rank: w.rank })),
+    }));
+  }
+  // Константа TOTAL_WINDOWS по ТЗ п.1.4 — сумма таблицы (21+8+40+12+27+10=118)
+  // считается из BUILDINGS-layout, а не хардкодится, чтобы правка домов
+  // автоматически меняла и знаменатель badge, и порог зажигания.
+  const totalWindows = buildingsRef.current.reduce((s, b) => s + b.windows.length, 0);
+  const typedLen = loginValue.length + password.length;
+  // errorActive — форсирует сцену в «пустое» состояние (litN=0, sunLift=0,
+  // slider disabled) при появлении красного блока с ошибкой, но поля НЕ
+  // стирает и текст ошибки не гасит.
+  const [errorActive, setErrorActive] = useState(false);
+  // errorSnapshotLen — длина текста на момент edit'а ПОСЛЕ ошибки. Нужно,
+  // чтобы после сброса errorActive сцена не «вспыхивала» с 0 до max при
+  // стирании (пользователь стёр 1 символ из 20 → typedLen=19 → без
+  // snapshot litN мгновенно скакал бы в 94). Формула:
+  //   effective = errorActive
+  //             ? 0
+  //             : (snapshot > 0 ? max(0, typedLen - snapshot) : typedLen)
+  // Snapshot сам сбрасывается в 0, когда typedLen становится 0 (см.
+  // useEffect ниже) — пользователь полностью очистил поле, и с этого
+  // момента сцена снова считает нормально.
+  const [errorSnapshotLen, setErrorSnapshotLen] = useState(0);
+  const effectiveTypedLen = errorActive
+    ? 0
+    : errorSnapshotLen > 0
+      ? Math.max(0, typedLen - errorSnapshotLen)
+      : typedLen;
+  useEffect(() => {
+    if (errorSnapshotLen > 0 && typedLen === 0) setErrorSnapshotLen(0);
+  }, [typedLen, errorSnapshotLen]);
+  // Каноничные пропорции из макета Kamizo Login.dc.html (п.2.4-2.5):
+  //   litN     = round(TOTAL * 0.8 * min(1, typedLen / 16))
+  //   sunLift  =            min(1, typedLen / 16) * 0.75
+  // При slideDone (успешный вход) — все 118 окон горят, sunLift = 1.
+  const litN = slideDone ? totalWindows : Math.round(totalWindows * 0.8 * Math.min(1, effectiveTypedLen / 16));
+  const sunLift = slideDone ? 1 : Math.min(1, effectiveTypedLen / 16) * 0.75;
+  const sunTopPx = 330 - sunLift * 230;
+  const skyGradient = slideDone
+    ? 'linear-gradient(180deg,#FFEDD5 0%,#FED7AA 48%,#FFFFFF 100%)'
+    : 'linear-gradient(180deg,#FFF7ED 0%,#FFEDD5 48%,#FFFFFF 100%)';
+  const canSubmit = !errorActive && !!loginValue && !!password && !authLoading;
+
+  // Slide-to-login: pointer drag на knob → при отпускании > 80% ширины →
+  // вызвать handleSubmit (эквивалент кнопки Войти). Тот же паттерн, что
+  // в макете (native pointer events, без сторонних библиотек).
+  useEffect(() => {
+    // Любая ошибка входа (сервер / валидация / внутренняя) → сцена
+    // возвращается в «пустое» визуально: окна гаснут, солнце опускается,
+    // slider возвращается на 0. Поля НЕ стираются, красный блок ошибки
+    // остаётся видимым — errorActive сбрасывается только на первом
+    // изменении логина/пароля (см. handleFieldEdit ниже).
+    const hasError = !!(error || authError);
+    if (hasError) {
+      setErrorActive(true);
+      if (slideDone) setSlideDone(false);
+      setSlideX(0);
+    }
+  }, [error, authError, slideDone]);
+  // Общий helper — сбрасывает errorActive и старую ошибку при
+  // редактировании любого поля. Красный блок с текстом ошибки исчезает
+  // именно тут (как «уже сейчас реализовано» — при новом наборе).
+  const handleFieldEdit = () => {
+    if (errorActive) {
+      // Snapshot текущей длины: любые последующие уменьшения typedLen
+      // будут «съедать» этот баланс, а не открывать окна разом.
+      setErrorSnapshotLen(loginValue.length + password.length);
+      setErrorActive(false);
+    }
+    if (error) setError('');
+    // authError чистит authStore на следующем login attempt — не трогаем.
+  };
+  // Reset only after an actual authenticated login. slideDone is set before
+  // the request to preserve the completion animation, but picker/approval
+  // outcomes still need the entered credentials and must never arm this timer.
+  useEffect(() => {
+    if (!loginSucceeded) return;
+    const t = window.setTimeout(() => {
+      setSlideDone(false);
+      setSlideX(0);
+      setLoginSucceeded(false);
+      setLoginValue('');
+      setPassword('');
+      setShowPassword(false);
+    }, 4200);
+    return () => window.clearTimeout(t);
+  }, [loginSucceeded]);
+  const slideCleanupRef = useRef<(() => void) | null>(null);
+  const startSlideDrag = (e: React.PointerEvent) => {
+    if (!canSubmit || slideDone) return;
+    e.preventDefault();
+    const el = slideTrackRef.current;
+    const scale = el ? el.getBoundingClientRect().width / SLIDE_TRACK_W_REF : 1;
+    const startX = e.clientX;
+    setSlideDragging(true);
+    const move = (ev: PointerEvent) => {
+      const x = Math.max(0, Math.min(SLIDE_MAX, (ev.clientX - startX) / scale));
+      setSlideX(x);
+    };
+    const up = () => {
+      cleanup();
+      setSlideDragging(false);
+      // Читаем актуальный slideX через setState-callback, чтобы не завязываться на closure.
+      setSlideX((current) => {
+        if (current > SLIDE_MAX * 0.8) {
+          setSlideDone(true);
+          // Триггерим login flow как обычная submit-кнопка. Через
+          // setTimeout(0), чтобы React успел зафиксировать done-state
+          // и sky-gradient сменился до сетевого запроса.
+          window.setTimeout(() => {
+            // Fake FormEvent для handleSubmit — ему нужна только preventDefault.
+            handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+          }, 0);
+          return SLIDE_MAX;
+        }
+        return 0;
+      });
+    };
+    const cleanup = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      slideCleanupRef.current = null;
+    };
+    slideCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  useEffect(() => () => { slideCleanupRef.current?.(); }, []);
 
   // Demo entrance gate — only relevant when tenant.slug === 'demo'.
   // Default `true` = show gate; useEffect flips to false immediately if
@@ -246,6 +423,7 @@ export function LoginPage() {
     } else if (result === 'expired') {
       setError(language === 'ru' ? 'Время подтверждения истекло.' : 'Tasdiqlash vaqti tugadi.');
     } else if (result === 'success') {
+      setLoginSucceeded(true);
       navigateAfterLogin();
     }
   };
@@ -309,7 +487,7 @@ export function LoginPage() {
   }, [pendingApproval]);
 
   useEffect(() => {
-    if (tenant?.slug !== 'demo' || demoGateOpen) return;
+    if (!isDemoContext || demoGateOpen) return;
     let cancelled = false;
     setDemoRolesLoading(true);
     setDemoRolesError('');
@@ -324,7 +502,7 @@ export function LoginPage() {
       if (!cancelled) setDemoRolesLoading(false);
     });
     return () => { cancelled = true; };
-  }, [tenant?.slug, demoGateOpen, demoRolesReload, language]);
+  }, [isDemoContext, demoGateOpen, demoRolesReload, language]);
 
   const handleDemoLogin = async (roleKey: string) => {
     if (demoLoggingIn || authLoading) return;
@@ -358,7 +536,11 @@ export function LoginPage() {
       if (outcome === 'approval') {
         await finishTelegramApproval();
       } else if (outcome === 'success') {
+        setLoginSucceeded(true);
         navigateAfterLogin();
+      } else if (outcome === 'picker') {
+        setSlideDone(false);
+        setSlideX(0);
       }
     } catch {
       setError(language === 'ru' ? 'Ошибка при входе' : 'Kirishda xatolik');
@@ -488,10 +670,327 @@ export function LoginPage() {
       <div className="absolute top-20 left-20 w-72 h-72 rounded-full blur-3xl bg-primary-200/20" />
       <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full blur-3xl bg-primary-100/30" />
 
-      {/* Centering wrapper: flex + min-h-full + m-auto on child = card sits
-          centered when content fits the viewport, top-aligned and scrollable
-          when it doesn't. Safe-area-inset padding keeps the logo off the
-          notch and the last demo-login button above the home indicator. */}
+      {/* v12 — Kamizo Login.dc.html: НОВЫЙ визуал только для не-demo и когда
+          нет workspace-picker / approval-flow. Demo-tenant остаётся на
+          старой карточке с ролевым picker'ом (там своя UX-логика).
+          Ветка ниже покрывает основной поток на apex/tenant-домах. */}
+      {!isDemoContext && !(pickerTenants && pickerTenants.length > 0) && !pendingApproval && (
+        <div
+          className="relative min-h-full w-full overflow-hidden"
+          style={{ background: skyGradient, transition: 'background 1s cubic-bezier(.3,.8,.2,1)' }}
+        >
+          {/* Sun */}
+          <div
+            style={{
+              position: 'absolute', left: '50%', width: 200, height: 200, marginLeft: -100,
+              borderRadius: '50%', background: '#FB923C', top: sunTopPx,
+              boxShadow: '0 0 0 22px rgba(251,146,60,.12), 0 0 0 48px rgba(251,146,60,.06), 0 20px 60px rgba(249,115,22,.25)',
+              transition: 'top 1s cubic-bezier(.3,.8,.2,1)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Header row — logo + language toggle */}
+          <div style={{ position: 'relative', paddingTop: 'max(20px, env(safe-area-inset-top))' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <AppLogo size="md" forceDefault />
+                <div style={{ fontSize: 34, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1, color: '#141413' }}>Kamizo</div>
+              </div>
+              <div style={{ display: 'flex', padding: 3, borderRadius: 999, background: 'rgba(20,20,19,.05)', gap: 2 }}>
+                {(['ru', 'uz'] as const).map((lg) => {
+                  const on = language === lg;
+                  return (
+                    <button
+                      key={lg}
+                      type="button"
+                      onClick={() => setLanguage(lg)}
+                      style={{
+                        border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+                        padding: '7px 11px', borderRadius: 999,
+                        background: on ? '#F97316' : 'transparent',
+                        color: on ? '#FFFFFF' : '#141413',
+                        boxShadow: on ? '0 4px 12px rgba(249,115,22,0.30)' : 'none',
+                        transition: 'all .2s',
+                      }}
+                    >
+                      {lg.toUpperCase()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Buildings — three overlaid rows */}
+          {/* Far row (silhouettes) */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 150, height: 260, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 6px', pointerEvents: 'none' }}>
+            <div style={{ width: 34, height: 150, background: '#FDEFDF', borderRadius: '6px 6px 0 0' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ width: 3, height: 26, background: '#FFEDD5' }} />
+              <div style={{ width: 18, height: 20, background: '#FDEFDF', borderRadius: '9px 9px 0 0' }} />
+              <div style={{ width: 30, height: 190, background: '#FFEDD5' }} />
+            </div>
+            <div style={{ width: 52, height: 170, background: '#FDEFDF', borderRadius: '6px 6px 0 0' }} />
+            <div style={{ width: 40, height: 205, background: '#FDEFDF', borderRadius: '20px 20px 0 0' }} />
+            <div style={{ width: 46, height: 160, background: '#FDEFDF', borderRadius: '6px 6px 0 0' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ width: 3, height: 30, background: '#FFEDD5' }} />
+              <div style={{ width: 26, height: 200, background: '#FFEDD5' }} />
+            </div>
+            <div style={{ width: 44, height: 140, background: '#FDEFDF', borderRadius: '6px 6px 0 0' }} />
+          </div>
+
+          {/* Mid row (плоские силуэты для перспективы) */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 170, height: 240, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 10, pointerEvents: 'none' }}>
+            {[
+              { w: 44, h: 168 }, { w: 58, h: 140 }, { w: 36, h: 196 },
+              { w: 62, h: 150 }, { w: 40, h: 186 }, { w: 54, h: 132 },
+            ].map((b, i) => (
+              <div key={i} style={{ width: b.w, height: b.h, background: '#FAE7D3', borderRadius: '8px 8px 0 0' }} />
+            ))}
+          </div>
+
+          {/* Front row — с реальными окнами, которые «загораются» */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 170, height: 240, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 6, pointerEvents: 'none' }}>
+            {buildingsRef.current.map((bd, bi) => (
+              <div
+                key={bi}
+                style={{
+                  position: 'relative', width: bd.w, height: bd.h,
+                  background: '#F1D3B5', borderTop: '3px solid #E5C4A0',
+                  borderRadius: '10px 10px 0 0', padding: '12px 8px 0', boxSizing: 'border-box',
+                  display: 'grid', gridTemplateColumns: `repeat(${bd.cols}, 1fr)`,
+                  alignContent: 'start', gap: '8px 7px',
+                }}
+              >
+                {bd.antenna && (
+                  <div style={{ position: 'absolute', left: '50%', top: -17, width: 2, height: 14, marginLeft: -1, background: '#E5C4A0', borderRadius: 1 }} />
+                )}
+                {bd.windows.map((w) => {
+                  const on = w.rank < litN;
+                  return (
+                    <div
+                      key={w.i}
+                      style={{
+                        height: 8, borderRadius: 2,
+                        // Тёплый жёлто-оранжевый «свет из окна» (близкий
+                        // к брендовому #F97316, но мягче — как лампа
+                        // накаливания). Off — тёмная стена #7B4A2E.
+                        background: on ? '#FFD9A0' : '#7B4A2E',
+                        boxShadow: on ? '0 0 8px 2px rgba(255,200,120,0.75), 0 0 2px 1px rgba(255,180,90,0.9) inset' : 'none',
+                        transition: 'background .35s, box-shadow .35s',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom sheet — login form */}
+          <div
+            style={{
+              position: 'absolute', left: 0, right: 0, top: 392, bottom: 0,
+              background: '#FFFFFF', borderRadius: '32px 32px 0 0',
+              boxShadow: '0 -18px 40px -12px rgba(217,119,87,.18)',
+              padding: '26px 24px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+              overflow: 'auto',
+            }}
+          >
+            <form onSubmit={handleSubmit}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', color: '#141413' }}>
+                  {slideDone
+                    ? (language === 'ru' ? 'Добро пожаловать!' : 'Xush kelibsiz!')
+                    : (language === 'ru' ? 'Вход в кабинет' : 'Kabinetga kirish')}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12, fontWeight: 700, padding: '5px 10px', borderRadius: 999,
+                    background: slideDone ? 'rgba(90,155,94,.14)' : '#FFEDD5',
+                    color: slideDone ? '#5A9B5E' : '#EA580C',
+                    transition: 'all .3s',
+                  }}
+                >
+                  {litN}/{totalWindows}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label
+                  style={{
+                    display: 'block', height: 62, boxSizing: 'border-box',
+                    borderRadius: 18, padding: '10px 16px 0', background: '#FFFFFF',
+                    border: '1.5px solid #F0EFEB',
+                    cursor: 'text',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#8a8985', marginBottom: 3 }}>
+                    {language === 'ru' ? 'Логин' : 'Login'}
+                  </div>
+                  <input
+                    value={loginValue}
+                    onChange={(e) => { setLoginValue(normalizeAuthField(e.target.value)); handleFieldEdit(); }}
+                    placeholder={language === 'ru' ? 'например, a.karimov' : 'masalan, a.karimov'}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    style={{
+                      width: '100%', fontFamily: 'inherit', fontSize: 17, fontWeight: 600,
+                      color: '#141413', background: 'transparent', border: 0, padding: 0,
+                      caretColor: '#F97316', outline: 'none',
+                    }}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: 'flex', alignItems: 'center', height: 62, boxSizing: 'border-box',
+                    borderRadius: 18, padding: '0 8px 0 16px', background: '#FFFFFF',
+                    border: '1.5px solid #F0EFEB',
+                    cursor: 'text',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#8a8985', marginBottom: 3 }}>
+                      {language === 'ru' ? 'Пароль' : 'Parol'}
+                    </div>
+                    <input
+                      value={password}
+                      onChange={(e) => { setPassword(normalizeAuthField(e.target.value)); handleFieldEdit(); }}
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      style={{
+                        width: '100%', fontFamily: 'inherit', fontSize: 17, fontWeight: 600,
+                        color: '#141413', background: 'transparent', border: 0, padding: 0,
+                        caretColor: '#F97316', outline: 'none',
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+                    aria-label={showPassword ? (language === 'ru' ? 'Скрыть пароль' : "Yashirish") : (language === 'ru' ? 'Показать пароль' : "Ko'rsatish")}
+                    style={{
+                      flex: 'none', width: 44, height: 44, border: 0, borderRadius: 22,
+                      cursor: 'pointer', background: 'transparent', color: '#8a8985',
+                      display: 'grid', placeItems: 'center',
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </label>
+              </div>
+
+              {displayError && (
+                <div style={{
+                  marginTop: 12, padding: '10px 12px', borderRadius: 14,
+                  background: '#FEECEB', border: '1px solid #FCD9D6', color: '#B42318',
+                  fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'flex-start', gap: 8,
+                }}>
+                  <AlertCircle size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <span>{displayError}</span>
+                </div>
+              )}
+
+              {/* Slide-to-login track */}
+              <div
+                ref={slideTrackRef}
+                style={{
+                  position: 'relative', marginTop: 18, height: 62, borderRadius: 31,
+                  background: canSubmit ? '#FFEDD5' : '#F0EFEB',
+                  transition: 'background .4s', overflow: 'hidden', userSelect: 'none',
+                  touchAction: 'none',
+                }}
+              >
+                {/* Fill */}
+                <div
+                  style={{
+                    position: 'absolute', left: 0, top: 0, bottom: 0,
+                    width: slideDone ? '100%' : (canSubmit ? slideX + SLIDE_KNOB + 10 : 0) + 'px',
+                    background: slideDone ? 'linear-gradient(90deg,#7FB981,#5A9B5E)' : '#F97316',
+                    borderRadius: 31,
+                    transition: slideDragging ? 'none' : 'width .4s cubic-bezier(.3,.8,.2,1)',
+                  }}
+                />
+                {/* Label — при errorActive показываем красный
+                    «Неверный логин или пароль» прямо на слайдере (кроме
+                    отдельного блока ошибки под полями). Держим до
+                    первого edit'а — тот же handleFieldEdit сбрасывает. */}
+                <div
+                  style={{
+                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', paddingLeft: 40, paddingRight: 12,
+                    fontSize: errorActive ? 14 : 15, fontWeight: 700,
+                    color: errorActive
+                      ? '#B42318'
+                      : slideDone ? '#FFFFFF' : canSubmit ? '#EA580C' : '#8a8985',
+                    opacity: slideDone ? 1 : errorActive ? 1 : 1 - (slideX / SLIDE_MAX) * 1.2,
+                    transition: 'color .3s', pointerEvents: 'none',
+                    textAlign: 'center', letterSpacing: '-0.005em',
+                  }}
+                >
+                  {errorActive
+                    ? (language === 'ru' ? 'Неверный логин или пароль' : "Login yoki parol noto'g'ri")
+                    : slideDone
+                      ? (language === 'ru' ? 'Готово ✓' : 'Tayyor ✓')
+                      : canSubmit
+                        ? (language === 'ru' ? 'Проведите, чтобы войти  ›››' : 'Kirish uchun suring  ›››')
+                        : (language === 'ru' ? 'Заполните поля' : "Maydonlarni to'ldiring")}
+                </div>
+                {/* Knob */}
+                <div
+                  onPointerDown={startSlideDrag}
+                  role="button"
+                  aria-label={language === 'ru' ? 'Войти' : 'Kirish'}
+                  style={{
+                    position: 'absolute', top: 5, left: 5, width: 52, height: 52, borderRadius: 26,
+                    background: slideDone ? '#FFFFFF' : canSubmit ? '#F97316' : '#F4F0E8',
+                    color: slideDone ? '#5A9B5E' : canSubmit ? '#FFFFFF' : '#8a8985',
+                    display: 'grid', placeItems: 'center',
+                    cursor: canSubmit && !slideDone ? 'grab' : 'default',
+                    touchAction: 'none',
+                    transform: `translateX(${slideX}px)`,
+                    transition: slideDragging ? 'none' : 'transform .4s cubic-bezier(.3,.8,.2,1.2)',
+                    boxShadow: slideDone ? '0 6px 14px -6px rgba(90,155,94,.45)'
+                      : canSubmit ? '0 4px 12px rgba(249,115,22,0.30)' : 'none',
+                  }}
+                >
+                  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+                    <path d={slideDone ? 'M5 12l5 5 9-10' : 'M5 12h14M13 6l6 6-6 6'} />
+                  </svg>
+                </div>
+              </div>
+
+              {tenant?.slug && (
+                <button
+                  type="button"
+                  onClick={() => setRecoveryOpen(true)}
+                  style={{
+                    marginTop: 10, width: '100%', background: 'transparent', border: 0,
+                    padding: '8px 0', fontSize: 13, fontWeight: 500, color: '#8a8985', cursor: 'pointer',
+                  }}
+                >
+                  {language === 'ru' ? 'Войти по резервному коду' : 'Zaxira kodi bilan kirish'}
+                </button>
+              )}
+
+              <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, fontWeight: 500, color: '#8a8985' }}>
+                Kamizo CRM · {language === 'ru' ? 'Управляющая компания' : 'Boshqaruv kompaniyasi'}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy карточка: demo-tenant + workspace picker + любой fallback.
+          Оставлена как есть — там DemoGate/role-picker/tenants-выбор. */}
+      {(isDemoContext || (pickerTenants && pickerTenants.length > 0) || pendingApproval) && (
       <div
         className="flex min-h-full px-4 sm:p-4"
         style={{
@@ -552,7 +1051,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        {tenant?.slug === 'demo' && !demoGateOpen && (
+        {isDemoContext && !demoGateOpen && (
           <section aria-labelledby="demo-roles-title" className="mb-5">
             <div className="mb-3">
               <h2 id="demo-roles-title" className="text-[22px] font-extrabold leading-tight text-gray-900">
@@ -623,14 +1122,14 @@ export function LoginPage() {
           </section>
         )}
 
-        <details open={tenant?.slug !== 'demo' || undefined}>
-          {tenant?.slug === 'demo' && (
+        <details open={!isDemoContext || undefined}>
+          {isDemoContext && (
             <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between rounded-xl border-t border-gray-200 px-1 pt-4 text-sm font-semibold text-gray-600 touch-manipulation">
               <span>{language === 'ru' ? 'Войти вручную' : 'Qo\'lda kirish'}</span>
               <ChevronDown className="h-4 w-4" />
             </summary>
           )}
-          <div className={tenant?.slug === 'demo' ? 'pt-4' : undefined}>
+          <div className={isDemoContext ? 'pt-4' : undefined}>
         {/* Welcome text */}
         <div className="mb-5">
           <h2 className="text-[22px] font-extrabold text-gray-900 leading-tight">
@@ -796,8 +1295,7 @@ export function LoginPage() {
 
       </div>
       </div>
-
-
+      )}
 
       {pendingActivation && <TelegramActivationFlow />}
       {recoveryOpen && tenant?.slug && <RecoveryCodeFlow tenantSlug={tenant.slug} onClose={() => setRecoveryOpen(false)} />}

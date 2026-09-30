@@ -295,6 +295,26 @@ html {
     #FFFFFF 100%);
 }
 
+/* Резидентские rental-маршруты (/apartment-rentals*): страница красит
+   контент под свой светло-серый (#F8F8FA). Дефолтный layout-root
+   (var(--app-bg) = warm-beige #F4F0E8) проглядывал под home-indicator zone
+   как бежевая полоса. Первым фиксом ставили #FFFFFF, но тогда возникала
+   тонкая полоса между #FFFFFF layout-root и #F8F8FA mp-page (диф в 7
+   единиц серого — видна на любом OLED). Точный ответ — **совпасть с
+   mp-page**: единый #F8F8FA, ни одной границы. */
+.layout-root.apartment-rentals-bg {
+  background: #F8F8FA;
+}
+
+/* Тот же паттерн для менеджерского /rentals-moderation: контейнер
+   страницы (marketplace-page ... bg-[#F8F8FA]) сам светло-серый, но
+   home-indicator zone под BottomBar показывала warm-beige --app-bg —
+   бежевая полоса под таб-баром на всех 4 вкладках. Один цвет с
+   контентом = ни одной границы. */
+.layout-root.rentals-moderation-bg {
+  background: #F8F8FA;
+}
+
 /* ─────────────────────────────────────────────────────────
    ── DARK MODE ────────────────────────────────────────────
    ─────────────────────────────────────────────────────────
