@@ -12,6 +12,12 @@ import { demoRoleManifest } from '../../lib/demo/manifest';
 import { validateBody } from '../../validation/validate';
 import { loginSchema } from '../../validation/schemas';
 import { createLoginApproval, createEmailLoginApproval } from '../telegram/login-approval';
+import { createFirstLoginActivation } from '../telegram/activation';
+
+// Семейство жительских ролей — только их триггер первой активации
+// (migration 091 ставит флаг всем +998-номерам, но клиент активации
+// рисуется только резидентам/арендаторам/коммерч.собственникам).
+const RESIDENT_ROLE_FAMILY = new Set(['resident', 'tenant', 'commercial_owner']);
 
 const NATIVE_APP_ORIGINS = new Set([
   'https://localhost',
@@ -71,7 +77,7 @@ route('POST', '/api/auth/login', async (request, env) => {
   // no apartment (directors, managers, super-admins, advertisers).
   // Tenant isolation is enforced by `tenant_id = users.tenant_id` —
   // super-admin or empty-tenant users get NULL.
-  const userFields = `id, login, phone, email, email_2fa_enabled, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
+  const userFields = `id, login, phone, email, email_2fa_enabled, name, role, specialization, address, apartment, building_id, branch, building, entrance, floor, total_area, password_hash, password_changed_at, contract_signed_at, account_type, personal_account, tenant_id, auth_revoked_at, telegram_activation_required, telegram_activated_at, skip_telegram_activation, (SELECT id FROM apartments WHERE primary_owner_id = users.id AND tenant_id = users.tenant_id ORDER BY created_at ASC LIMIT 1) AS apartment_id`;
 
   // Sprint 66 P1/F9 timing-attack guard. The previous "search all tenants
   // then verify against each candidate" code leaked timing because the
@@ -484,6 +490,87 @@ route('POST', '/api/auth/login', async (request, env) => {
     'X-RateLimit-Remaining': rateLimit.remaining.toString(),
     'X-RateLimit-Reset': rateLimit.resetAt.toString()
   };
+
+  // ────────────────────────────────────────────────────────────────
+  // Первая Telegram-активация (migration 092).
+  //
+  // Пять условий, ВСЕ обязательны. Если хоть одно нарушено — вход
+  // идёт как раньше (fall-through в блок 2FA или в выдачу JWT). По
+  // умолчанию tenants.require_telegram_activation = 0 ⇒ ветка никогда
+  // не стреляет, и поведение входа для всех остаётся прежним.
+  // Fail-open: любая ошибка (бот не ответил, функция упала) логируется
+  // и мы продолжаем обычный вход — на этапе запуска важнее не
+  // блокировать жителя, чем принудительно поднять активацию.
+  // ────────────────────────────────────────────────────────────────
+  const needsActivationGate =
+       Number(user.telegram_activation_required) === 1
+    && !user.telegram_activated_at
+    && Number(user.skip_telegram_activation || 0) === 0
+    && RESIDENT_ROLE_FAMILY.has(String(user.role));
+
+  if (needsActivationGate && user.tenant_id) {
+    try {
+      const tenantRow = await env.DB.prepare(
+        'SELECT require_telegram_activation, is_demo FROM tenants WHERE id = ?'
+      ).bind(user.tenant_id).first() as { require_telegram_activation?: number; is_demo?: number } | null;
+
+      const switchOn = Number(tenantRow?.require_telegram_activation || 0) === 1;
+      const isDemo   = Number(tenantRow?.is_demo || 0) === 1;
+
+      if (switchOn && !isDemo) {
+        // Legacy-bind catch (C1): если у жителя УЖЕ есть живая строка в
+        // telegram_users (прошёл старый путь /api/telegram/link-token →
+        // /start <token>, migration 070 flow), а telegram_activated_at
+        // остался пустым — считаем такого жителя активированным и
+        // проставляем метку. Без этого включение выключателя заставит
+        // пройти challenge-активацию ВСЕХ с legacy-привязкой, что для
+        // них неожиданно и бессмысленно: бот уже привязан.
+        //
+        // Админский reset-activation ниже вместе с обнулением
+        // telegram_activation_required ОТЗЫВАЕТ все живые привязки, так
+        // что перезапуск активации через кнопку в карточке продолжает
+        // работать корректно.
+        const liveLink = await env.DB.prepare(
+          `SELECT 1 FROM telegram_users
+            WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL LIMIT 1`
+        ).bind(user.id, user.tenant_id).first();
+
+        if (liveLink) {
+          await env.DB.prepare(
+            `UPDATE users
+                SET telegram_activated_at = COALESCE(telegram_activated_at, datetime('now')),
+                    updated_at = datetime('now')
+              WHERE id = ? AND tenant_id = ?`
+          ).bind(user.id, user.tenant_id).run();
+          // Fall-through — не возвращаем requiresTelegramActivation.
+        } else {
+          const activation = await createFirstLoginActivation(env, {
+            id: user.id,
+            tenant_id: user.tenant_id,
+            phone: user.phone,
+            auth_revoked_at: user.auth_revoked_at,
+          });
+          if (activation) {
+            return new Response(JSON.stringify({
+              requiresTelegramActivation: true,
+              requestId: activation.requestId,
+              tenantId: activation.tenantId,
+              browserSecret: activation.browserSecret,
+              telegramUrl: activation.telegramUrl,
+              expiresAt: activation.expiresAt,
+              challenge: activation.challenge,
+              account: { name: user.name, phone: user.phone ?? null },
+            }), { status: 200, headers });
+          }
+        }
+      }
+    } catch (err) {
+      // Fail-open: не блокируем вход, если активация упала.
+      createRequestLogger(request).warn('telegram_activation_gate_failed', {
+        userId: user.id, tenantId: user.tenant_id, err: String(err),
+      });
+    }
+  }
 
   // Optional second factor. Both channels are per-user opt-in and fail open if
   // their delivery service is unavailable, so login never hard-depends on a

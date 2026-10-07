@@ -16,11 +16,34 @@
 import type { Env } from '../../types';
 import { route } from '../../router';
 import { getUser } from '../../middleware/auth';
-import { json, bilingualError, error } from '../../utils/helpers';
+import { getTenantId } from '../../middleware/tenant';
+import { json, bilingualError, error, generateId, isAdminLevel } from '../../utils/helpers';
 import { isSuperAdmin } from '../../index';
 import { TENANT_FEATURES, normalizeFeatures } from '../../lib/features';
 import { clearFeatureCache } from '../../middleware/tenant';
 import { sendTelegramMessage, callTelegram, escapeHtml } from '../../utils/telegram';
+
+// Общий писатель в audit_log (migration 042). Берёт actor из getUser(),
+// падает мягко — аудит не должен ронять операцию.
+async function writeAudit(env: Env, actor: any, action: string, tenantId: string | null, targetType: string, targetId: string | null, details: any, request: Request) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO audit_log (id, tenant_id, actor_id, actor_name, actor_role, action, target_type, target_id, details, ip_address)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      generateId(),
+      tenantId,
+      actor?.id || null,
+      actor?.name || null,
+      actor?.role || null,
+      action,
+      targetType,
+      targetId,
+      JSON.stringify(details || {}),
+      request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || null,
+    ).run();
+  } catch { /* audit never blocks */ }
+}
 
 export function registerTelegramSuperAdminRoutes() {
 
@@ -242,6 +265,231 @@ route('POST', '/api/super-admin/telegram/tenants/:id/feature', async (request, e
   clearFeatureCache(params.id);
 
   return json({ ok: true, features: clean });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Выключатель require_telegram_activation на тенанте.
+// Двухшаговое включение чтобы было видно, кого заденет.
+//
+//   POST /api/super-admin/telegram/tenants/:id/activation-required
+//     body: { dry_run: true }                 → список затронутых + current state
+//     body: { confirm: true, enabled: true }  → применить
+//     body: { confirm: true, enabled: false } → применить (выключить)
+//
+// Затронутые = users WHERE tenant_id=:id AND role IN (…резиденты…)
+//                    AND telegram_activation_required = 1
+//                    AND skip_telegram_activation = 0
+//                    AND telegram_activated_at IS NULL
+// На выключение активации гейт больше не стреляет — список для confirm
+// при enabled=false не важен, его отдаём пустым.
+// ──────────────────────────────────────────────────────────────────
+route('POST', '/api/super-admin/telegram/tenants/:id/activation-required', async (request, env, params) => {
+  const user = await getUser(request, env);
+  if (!isSuperAdmin(user)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+
+  const e = env as Env;
+  const body = await request.json().catch(() => ({})) as { dry_run?: boolean; confirm?: boolean; enabled?: boolean };
+
+  const tenant = await e.DB.prepare(
+    'SELECT id, slug, name, require_telegram_activation, is_demo FROM tenants WHERE id = ?'
+  ).bind(params.id).first() as any;
+  if (!tenant) return error('Tenant not found', 404);
+
+  // dry_run (включение): список тех, кого завтра на входе встретит
+  // активация. Для выключения — список тех, у кого сейчас стоит
+  // активация (чтобы было видно, кого «отпускаем»).
+  const { results: affected } = await e.DB.prepare(
+    `SELECT id, login, name, role, phone
+       FROM users
+      WHERE tenant_id = ?
+        AND role IN ('resident','tenant','commercial_owner')
+        AND telegram_activation_required = 1
+        AND skip_telegram_activation = 0
+        AND telegram_activated_at IS NULL
+        AND is_active = 1
+      ORDER BY role, name`
+  ).bind(params.id).all();
+
+  const payload = {
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+      currentlyEnabled: Number(tenant.require_telegram_activation || 0) === 1,
+      isDemo: Number(tenant.is_demo || 0) === 1,
+    },
+    affectedCount: affected?.length || 0,
+    affected: (affected || []).map((u: any) => ({ id: u.id, login: u.login, name: u.name, role: u.role, phone: u.phone })),
+  };
+
+  // dry_run — только показ списка
+  if (body.dry_run || !body.confirm) {
+    return json({ ok: true, dryRun: true, ...payload });
+  }
+
+  // Запрет на включение в demo — чтобы в проде не включили случайно
+  if (body.enabled && payload.tenant.isDemo) {
+    return bilingualError(
+      'Нельзя включить обязательную Telegram-активацию для demo-тенанта.',
+      'Demo-tenant uchun majburiy Telegram-aktivatsiyani yoqib bo\'lmaydi.',
+      409
+    );
+  }
+
+  const nextEnabled = body.enabled ? 1 : 0;
+  await e.DB.prepare(
+    "UPDATE tenants SET require_telegram_activation = ?, updated_at = datetime('now') WHERE id = ?"
+  ).bind(nextEnabled, params.id).run();
+
+  await writeAudit(e, user, 'telegram.activation_required.set', params.id, 'tenant', params.id, {
+    enabled: !!body.enabled, affectedCount: payload.affectedCount,
+  }, request);
+
+  return json({ ok: true, applied: true, enabled: !!body.enabled, ...payload });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Отвязать Telegram у жителя (super-admin, любой тенант).
+// Админ УК ходит через /api/admin/telegram/users/:id/unlink ниже.
+// ──────────────────────────────────────────────────────────────────
+route('POST', '/api/super-admin/telegram/users/:id/unlink', async (request, env, params) => {
+  const actor = await getUser(request, env);
+  if (!isSuperAdmin(actor)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  const e = env as Env;
+
+  const target = await e.DB.prepare('SELECT id, tenant_id, name, login FROM users WHERE id = ?').bind(params.id).first() as any;
+  if (!target) return error('User not found', 404);
+
+  const res = await e.DB.prepare(
+    `UPDATE telegram_users SET revoked_at = datetime('now')
+      WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+  ).bind(target.id, target.tenant_id).run();
+
+  await writeAudit(e, actor, 'telegram.user.unlink', target.tenant_id, 'user', target.id, {
+    affected: res.meta?.changes ?? 0, login: target.login,
+  }, request);
+  return json({ ok: true, revoked: res.meta?.changes ?? 0 });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Сбросить telegram_activation_required=1 у жителя (super-admin).
+// Одновременно отзываем ВСЕ живые привязки в telegram_users — иначе
+// gate (с C1 live-bind catch) при следующем входе снова проставит
+// telegram_activated_at по старой привязке и сброс был бы бессмысленным.
+// ──────────────────────────────────────────────────────────────────
+route('POST', '/api/super-admin/telegram/users/:id/reset-activation', async (request, env, params) => {
+  const actor = await getUser(request, env);
+  if (!isSuperAdmin(actor)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  const e = env as Env;
+
+  const target = await e.DB.prepare('SELECT id, tenant_id, name, login, role FROM users WHERE id = ?').bind(params.id).first() as any;
+  if (!target) return error('User not found', 404);
+
+  const revoked = await e.DB.prepare(
+    `UPDATE telegram_users SET revoked_at = datetime('now')
+      WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+  ).bind(target.id, target.tenant_id).run();
+
+  await e.DB.prepare(
+    `UPDATE users SET telegram_activation_required = 1, telegram_activated_at = NULL, updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?`
+  ).bind(target.id, target.tenant_id).run();
+
+  await writeAudit(e, actor, 'telegram.user.reset_activation', target.tenant_id, 'user', target.id, {
+    login: target.login, role: target.role, revokedLinks: revoked.meta?.changes ?? 0,
+  }, request);
+  return json({ ok: true, revokedLinks: revoked.meta?.changes ?? 0 });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Поставить/снять skip_telegram_activation для сервисного аккаунта.
+// Единственный способ без ручного SQL — ровно под Apple-ревью, тест-
+// УК-логины и подобные.
+// ──────────────────────────────────────────────────────────────────
+route('POST', '/api/super-admin/telegram/users/:id/skip-activation', async (request, env, params) => {
+  const actor = await getUser(request, env);
+  if (!isSuperAdmin(actor)) return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  const e = env as Env;
+
+  const body = await request.json().catch(() => ({})) as { skip?: boolean };
+  if (typeof body.skip !== 'boolean') return error('Body: { skip: true | false }', 400);
+
+  const target = await e.DB.prepare('SELECT id, tenant_id, name, login, role FROM users WHERE id = ?').bind(params.id).first() as any;
+  if (!target) return error('User not found', 404);
+
+  await e.DB.prepare(
+    `UPDATE users SET skip_telegram_activation = ?, updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?`
+  ).bind(body.skip ? 1 : 0, target.id, target.tenant_id).run();
+
+  await writeAudit(e, actor, 'telegram.user.skip_activation.set', target.tenant_id, 'user', target.id, {
+    skip: !!body.skip, login: target.login, role: target.role,
+  }, request);
+  return json({ ok: true, skip: !!body.skip });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Админ УК: отвязать/сбросить для жителя СВОЕГО тенанта.
+// Super-admin тоже проходит, но у него есть глобальные endpoints выше.
+// ──────────────────────────────────────────────────────────────────
+route('POST', '/api/admin/telegram/users/:id/unlink', async (request, env, params) => {
+  const actor = await getUser(request, env);
+  if (!actor || (!isAdminLevel(actor) && !isSuperAdmin(actor))) {
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  }
+  const e = env as Env;
+
+  const target = await e.DB.prepare('SELECT id, tenant_id, name, login FROM users WHERE id = ?').bind(params.id).first() as any;
+  if (!target) return error('User not found', 404);
+
+  // Админ УК может трогать только свой тенант.
+  const callerTenantId = actor.tenant_id || getTenantId(request);
+  if (!isSuperAdmin(actor) && target.tenant_id !== callerTenantId) {
+    return bilingualError('Пользователь из другого тенанта', 'Foydalanuvchi boshqa tenantdan', 403);
+  }
+
+  const res = await e.DB.prepare(
+    `UPDATE telegram_users SET revoked_at = datetime('now')
+      WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+  ).bind(target.id, target.tenant_id).run();
+
+  await writeAudit(e, actor, 'telegram.user.unlink', target.tenant_id, 'user', target.id, {
+    affected: res.meta?.changes ?? 0, login: target.login, byAdmin: true,
+  }, request);
+  return json({ ok: true, revoked: res.meta?.changes ?? 0 });
+});
+
+route('POST', '/api/admin/telegram/users/:id/reset-activation', async (request, env, params) => {
+  const actor = await getUser(request, env);
+  if (!actor || (!isAdminLevel(actor) && !isSuperAdmin(actor))) {
+    return bilingualError('Доступ запрещён', 'Kirish taqiqlangan', 403);
+  }
+  const e = env as Env;
+
+  const target = await e.DB.prepare('SELECT id, tenant_id, name, login, role FROM users WHERE id = ?').bind(params.id).first() as any;
+  if (!target) return error('User not found', 404);
+
+  const callerTenantId = actor.tenant_id || getTenantId(request);
+  if (!isSuperAdmin(actor) && target.tenant_id !== callerTenantId) {
+    return bilingualError('Пользователь из другого тенанта', 'Foydalanuvchi boshqa tenantdan', 403);
+  }
+
+  // Отзываем живые привязки + сбрасываем флаг — одна транзакция смысла,
+  // две SQL-строки (D1/SQLite не нужен explicit TXN; обе идут по target.id+tenant_id).
+  const revoked = await e.DB.prepare(
+    `UPDATE telegram_users SET revoked_at = datetime('now')
+      WHERE user_id = ? AND tenant_id = ? AND revoked_at IS NULL`
+  ).bind(target.id, target.tenant_id).run();
+
+  await e.DB.prepare(
+    `UPDATE users SET telegram_activation_required = 1, telegram_activated_at = NULL, updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?`
+  ).bind(target.id, target.tenant_id).run();
+
+  await writeAudit(e, actor, 'telegram.user.reset_activation', target.tenant_id, 'user', target.id, {
+    login: target.login, role: target.role, byAdmin: true, revokedLinks: revoked.meta?.changes ?? 0,
+  }, request);
+  return json({ ok: true, revokedLinks: revoked.meta?.changes ?? 0 });
 });
 
 } // end registerTelegramSuperAdminRoutes
