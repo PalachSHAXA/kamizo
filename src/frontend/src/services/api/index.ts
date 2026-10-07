@@ -80,3 +80,7 @@ export { settingsApi, notificationsApi, tenantApi } from './settings';
 export { telegramApi } from './telegram';
 export type { TelegramGroup, TelegramDelivery, DictionaryEntry } from './telegram';
 export type { AppSettings, Notification } from './settings';
+
+// Resident-facing УК reports and staff publishing
+export { residentUkReportsApi, adminUkReportsApi } from './ukReports';
+export type { ResidentUkEstimate, UkReport, UkReportType, WorksPreviewPayload } from './ukReports';

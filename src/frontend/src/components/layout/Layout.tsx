@@ -50,7 +50,7 @@ const NotFoundPage = () => {
   // /* catch-all. Detect that case to show "no access" instead of "not
   // found", since the page exists, just not for this user.
   const restrictedPaths = [
-    '/finance', '/executors', '/residents', '/team', '/reports',
+    '/finance', '/executors', '/residents', '/team', '/reports', '/uk-reports',
     '/buildings', '/rentals', '/work-orders', '/vehicle-search',
     '/settings', '/my-stats', '/schedule',
   ];
@@ -168,6 +168,8 @@ const RentalsPage = lazyWithRetry(() => import('../../pages/manager/RentalsPage'
 const RentalsModerationPage = lazyWithRetry(() => import('../../pages/manager/RentalsModerationPage').then(m => ({ default: m.RentalsModerationPage })));
 const TeamPage = lazyWithRetry(() => import('../../pages/admin/TeamPage').then(m => ({ default: m.TeamPage })));
 const ReportsPage = lazyWithRetry(() => import('../../pages/admin/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const ResidentUkReportsPage = lazyWithRetry(() => import('../../pages/resident/ResidentUkReportsPage').then(m => ({ default: m.ResidentUkReportsPage })));
+const UkReportsPublishingPage = lazyWithRetry(() => import('../../pages/admin/UkReportsPublishingPage').then(m => ({ default: m.UkReportsPublishingPage })));
 const SettingsPage = lazyWithRetry(() => import('../../pages/admin/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const MonitoringPage = lazyWithRetry(() => import('../../pages/admin/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
 const MarketplacePage = lazyWithRetry(() => import('../../pages/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
@@ -472,6 +474,13 @@ export function Layout() {
       return <ResidentGuestAccessPage />;
     }
     return <ManagerGuestAccessPage />;
+  };
+
+  const getUkReportsPage = () => {
+    if (['resident', 'tenant', 'commercial_owner'].includes(user?.role || '')) {
+      return <ResidentUkReportsPage />;
+    }
+    return <UkReportsPublishingPage />;
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
@@ -916,6 +925,11 @@ export function Layout() {
               <Route path="/reports" element={
                 <ProtectedRoute allowedRoles={['admin', 'director', 'manager']}>
                   <ReportsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/uk-reports" element={
+                <ProtectedRoute allowedRoles={['resident', 'tenant', 'commercial_owner', 'admin', 'director', 'manager']}>
+                  {getUkReportsPage()}
                 </ProtectedRoute>
               } />
               <Route path="/settings" element={

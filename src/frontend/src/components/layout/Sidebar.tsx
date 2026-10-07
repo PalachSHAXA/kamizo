@@ -369,6 +369,7 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
         // drawer too because the contract is a primary document, residents
         // open it routinely (download QR for sign-up, share with relatives).
         { path: '/contract', icon: ScrollText, label: language === 'ru' ? 'Договор с УК' : 'UK bilan shartnoma' },
+        { path: '/uk-reports', icon: BarChart3, label: language === 'ru' ? 'Отчёт УК' : 'UK hisoboti' },
         // ℹ️ Информация
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar', section: language === 'ru' ? 'Информация' : 'Ma\'lumot' },
         { path: '/marketplace', icon: Headphones, label: language === 'ru' ? 'Маркет УК' : 'BK marketi' },
@@ -394,6 +395,7 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
         { path: '/announcements', icon: Megaphone, label: t('announcements.title') },
         { path: '/guest-access', icon: QrCode, label: language === 'ru' ? 'Гостевые пропуска' : 'Mehmon ruxsatnomalari' },
         { path: '/useful-contacts', icon: Phone, label: language === 'ru' ? 'Полезные контакты' : 'Foydali kontaktlar' },
+        { path: '/uk-reports', icon: BarChart3, label: language === 'ru' ? 'Отчёт УК' : 'UK hisoboti' },
         { path: '/marketplace', icon: ShoppingBag, label: language === 'ru' ? 'Маркет УК' : 'BK marketi' },
       ];
     }
@@ -413,7 +415,7 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
   // Always-allowed paths that are never locked
   const alwaysAllowed = [
     '/', '/settings', '/profile', '/buildings', '/residents',
-    '/contract', '/rate-employees', '/team', '/reports'
+    '/contract', '/rate-employees', '/team', '/reports', '/uk-reports'
   ];
 
   // Check if a path is locked (feature disabled for tenant).
@@ -786,6 +788,12 @@ export function Sidebar({ onLogout, isOpen, onClose, returnFocusRef }: SidebarPr
                 label={language === 'ru' ? 'Объявления' : "E'lonlar"}
                 badge={unreadAnnouncementCount > 0 ? unreadAnnouncementCount : undefined}
                 onClick={() => go('/announcements')}
+                isLast={false}
+              />
+              <NavRow
+                Icon={BarChart3}
+                label={language === 'ru' ? 'Отчёт УК' : 'UK hisoboti'}
+                onClick={() => go('/uk-reports')}
                 isLast={false}
               />
               <NavRow
