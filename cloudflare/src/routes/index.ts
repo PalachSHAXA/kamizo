@@ -17,6 +17,7 @@ import { registerFinanceRevenueSourcesRoutes } from './finance-revenue-sources';
 import { registerTenantContractRoutes } from './tenants/contracts';
 import { registerDeviceRoutes } from './devices';
 import { registerTelegramRoutes } from './telegram';
+import { registerReportRoutes } from './reports';
 
 export function registerAllRoutes() {
   registerUserRoutes();
@@ -51,4 +52,5 @@ export function registerAllRoutes() {
   // пути /api/telegram/* ни с чем не пересекаются, в отличие от пары
   // super-admin / tenant-contracts выше.
   registerTelegramRoutes();
+  registerReportRoutes();
 }

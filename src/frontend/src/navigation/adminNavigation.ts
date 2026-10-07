@@ -93,6 +93,13 @@ const communicationRoutes: NavigationDefinition[] = [
   { id: 'protocols', path: '/protocols', icon: ScrollText, label: text('Протоколы', 'Protokollar') },
 ];
 
+const residentReportsRoute: NavigationDefinition = {
+  id: 'uk-reports',
+  path: '/uk-reports',
+  icon: FileSpreadsheet,
+  label: text('Отчёты жителям', 'Aholi uchun hisobotlar'),
+};
+
 const financeRoutes: NavigationDefinition[] = [
   { id: 'estimates', path: '/finance/estimates', icon: FileSpreadsheet, label: text('Смета', 'Smeta'), section: finance },
   { id: 'charges', path: '/finance/charges', icon: ClipboardList, label: text('Начисления', 'Hisob-kitob') },
@@ -116,6 +123,7 @@ const navigationByRole: Record<AdminNavigationRole, NavigationDefinition[]> = {
     { id: 'residents', path: '/residents', icon: Users, label: text('Жильцы', 'Aholi') },
     ...objectRoutes,
     ...communicationRoutes,
+    residentReportsRoute,
     { id: 'trainings', path: '/trainings', icon: GraduationCap, label: text('Обучение', "O'qitish") },
     ...financeRoutes,
     { id: 'reports', path: '/reports', icon: BarChart3, label: text('Отчёты', 'Hisobotlar'), section: management },
@@ -132,6 +140,7 @@ const navigationByRole: Record<AdminNavigationRole, NavigationDefinition[]> = {
     { id: 'residents', path: '/residents', icon: Users, label: text('Жильцы', 'Aholi') },
     ...objectRoutes,
     ...communicationRoutes,
+    residentReportsRoute,
     ...financeRoutes,
     { id: 'notepad', path: '/notepad', icon: StickyNote, label: text('Блокнот', 'Bloknot'), section: text('Прочее', 'Boshqa') },
     { id: 'settings', path: '/settings', icon: Settings, label: text('Настройки', 'Sozlamalar') },
@@ -144,6 +153,7 @@ const navigationByRole: Record<AdminNavigationRole, NavigationDefinition[]> = {
     { id: 'colleagues', path: '/colleagues', icon: Users, label: text('Мои коллеги', 'Hamkasblar') },
     ...objectRoutes,
     ...communicationRoutes,
+    residentReportsRoute,
     { id: 'trainings', path: '/trainings', icon: GraduationCap, label: text('Обучение', "O'qitish") },
     { id: 'marketplace-orders', path: '/marketplace-orders', icon: ShoppingBag, label: text('Заказы магазина', "Do'kon buyurtmalari"), section: text('Маркетплейс', 'Marketplace') },
     { id: 'marketplace-products', path: '/marketplace-products', icon: Package, label: text('Товары и склад', 'Mahsulotlar va ombor') },
