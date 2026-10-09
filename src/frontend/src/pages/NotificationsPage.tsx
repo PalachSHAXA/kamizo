@@ -12,7 +12,8 @@ import { ArrowLeft } from 'lucide-react';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useAnnouncementStore } from '../stores/dataStore';
 import { useAuthStore } from '../stores/authStore';
-import { buildFeed, filterFeed, bucketByTime, formatFeedTime, type FeedKind } from '../utils/notificationFeed';
+import { buildFeed, filterFeed, bucketByTime, formatFeedTime, type FeedKind, type FeedItem } from '../utils/notificationFeed';
+import { getNotificationRoute } from '../utils/notificationRoute';
 
 type ChipId = 'all' | FeedKind;
 
@@ -90,13 +91,43 @@ export function NotificationsPage() {
     }
   };
 
-  const onRowClick = (id: string, source: 'notification' | 'announcement') => {
-    if (source === 'notification') {
-      const real = id.startsWith('ann-') ? null : id;
-      if (real) markNotificationAsRead(real);
+  // v118.74 — row tap now does two things:
+  //   1. marks the item as read (unread counter decrements, dot clears)
+  //   2. opens the section the notification is about
+  // Explicit CTA pills still handle their own navigation (stopPropagation
+  // on the button); this handler fires only when the row body is tapped.
+  const onRowClick = (item: FeedItem) => {
+    if (item.source === 'notification') {
+      if (!item.id.startsWith('ann-')) markNotificationAsRead(item.id);
     } else {
-      const annId = id.replace(/^ann-/, '');
+      const annId = item.id.replace(/^ann-/, '');
       if (userId) markAnnouncementAsViewed(annId, userId);
+    }
+
+    const notificationRoute = item.source === 'notification'
+      ? getNotificationRoute(item.raw)
+      : null;
+    if (notificationRoute) {
+      navigate(notificationRoute);
+      return;
+    }
+
+    // Prefer the CTA action when the item has one — it points at a more
+    // specific destination than the generic kind-based fallback.
+    if (item.cta?.action) {
+      const a = item.cta.action;
+      if (a.kind === 'open-meetings') { navigate('/meetings'); return; }
+      if (a.kind === 'rate-request') { navigate('/requests'); return; }
+      if (a.kind === 'navigate') { navigate(a.path); return; }
+    }
+
+    switch (item.kind) {
+      case 'request':      navigate('/requests'); break;
+      case 'vote':         navigate('/meetings'); break;
+      case 'announcement': navigate('/announcements'); break;
+      case 'finance':      navigate('/finance/my'); break;
+      case 'guest':        navigate('/guest-access'); break;
+      // 'other' — no known destination, stay on page (still marked read).
     }
   };
 
@@ -208,6 +239,7 @@ export function NotificationsPage() {
       {/* Scrollable body — its own scroll context, immune to ancestor
           overflow:hidden. WebkitOverflowScrolling for iOS momentum. */}
       <div
+        className="kz-screen-body"
         style={{
           flex: '1 1 auto',
           minHeight: 0,
@@ -249,7 +281,7 @@ export function NotificationsPage() {
                 return (
                   <div
                     key={n.id}
-                    onClick={() => onRowClick(n.id, n.source)}
+                    onClick={() => onRowClick(n)}
                     style={{
                       position: 'relative',
                       background: 'var(--surface)', borderRadius: 'var(--radius-lg, 20px)',

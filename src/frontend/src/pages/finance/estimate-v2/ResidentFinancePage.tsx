@@ -11,9 +11,9 @@
  * apartment_id по authenticated user (primary_owner_id).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Building2, Car, ChevronDown, Droplet, Flame, Thermometer, Trash2, Wifi } from 'lucide-react';
 import { residentFinanceApi, type MyChargeRow, type MyBalance, type MyApartmentRow, type PenaltyRow } from '../../../services/api';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLanguageStore } from '../../../stores/languageStore';
@@ -38,8 +38,13 @@ function parseBreakdown(raw: string | null): Array<{ name: string; share: number
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed?.items)) return parsed.items;
-    return [];
+    const items = Array.isArray(parsed?.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
+    return items
+      .filter((item): item is { name: unknown; share?: unknown; amount?: unknown } => !!item && typeof item.name === 'string')
+      .map(item => ({
+        name: item.name,
+        share: Number(item.share ?? item.amount) || 0,
+      }));
   } catch {
     return [];
   }
@@ -143,6 +148,74 @@ function escapeHtml(s: string): string {
   )[c] || c);
 }
 
+function ResidentFinanceHeader({ subtitle, isRu, onBack }: { subtitle?: string; isRu: boolean; onBack: () => void }) {
+  return (
+    <div
+      style={{
+        flex: '0 0 auto',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px',
+        background: 'var(--themed-strip-bg, rgba(244,240,232,0.92))',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderBottom: '1px solid var(--border-c)',
+        zIndex: 5,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label={isRu ? 'Назад' : 'Orqaga'}
+          style={{
+            width: 40, height: 40, borderRadius: 12, flex: '0 0 auto',
+            background: 'var(--surface)', border: '1px solid var(--border-c)',
+            color: 'var(--text-primary)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0,
+          }}
+        >
+          <ArrowLeft size={19} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            {isRu ? 'Мои начисления' : 'Mening hisoblarim'}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 1 }}>{subtitle}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResidentFinanceShell({ subtitle, isRu, onBack, children }: { subtitle?: string; isRu: boolean; onBack: () => void; children: ReactNode }) {
+  return (
+    <div
+      className="kz-screen"
+      style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        display: 'flex', flexDirection: 'column',
+        background: 'var(--app-bg)',
+        color: 'var(--text-primary)',
+        letterSpacing: '-0.01em',
+      }}
+    >
+      <ResidentFinanceHeader subtitle={subtitle} isRu={isRu} onBack={onBack} />
+      <div
+        className="kz-screen-body"
+        style={{
+          flex: 1, minHeight: 0, overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          padding: '16px 16px calc(env(safe-area-inset-bottom, 0px) + 90px)',
+        }}
+      >
+        <div className="max-w-3xl mx-auto space-y-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────
 
 export function ResidentFinancePage() {
@@ -161,6 +234,7 @@ export function ResidentFinancePage() {
     total_charged: 0, total_paid: 0, total_penalties: 0, debt: 0, overpaid: 0, net: 0,
   });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedService, setExpandedService] = useState<'home' | 'gas' | 'water' | 'internet' | 'heating' | 'waste' | 'parking' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,50 +264,30 @@ export function ResidentFinancePage() {
     return m;
   }, [apartments]);
 
-  // Единый back-block для всех return-веток (loading, error, empty, main).
-  const backBtn = (
-    <button
-      type="button"
-      onClick={() => navigate('/')}
-      aria-label={isRu ? 'Назад' : 'Orqaga'}
-      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-      style={{
-        background: 'var(--surface, #FFFFFF)',
-        border: '1px solid var(--border-c, #E6DFD2)',
-        color: 'var(--text-primary, #1C1917)',
-      }}
-    >
-      <ArrowLeft size={19} />
-    </button>
-  );
-
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-4">
-        <div className="mb-4">{backBtn}</div>
+      <ResidentFinanceShell isRu={isRu} onBack={() => navigate('/')}>
         <PageSkeleton variant="list" />
-      </div>
+      </ResidentFinanceShell>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-4">
-        <div className="mb-4">{backBtn}</div>
+      <ResidentFinanceShell isRu={isRu} onBack={() => navigate('/')}>
         <div className="text-center py-8">
           <div className="text-red-500 font-semibold mb-2">{error}</div>
           <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">
             {isRu ? 'Обновить' : 'Yangilash'}
           </button>
         </div>
-      </div>
+      </ResidentFinanceShell>
     );
   }
 
   if (apartments.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-4">
-        <div className="mb-4">{backBtn}</div>
+      <ResidentFinanceShell isRu={isRu} onBack={() => navigate('/')}>
         <div className="text-center py-8 text-gray-500">
           <div className="text-5xl mb-4">🏠</div>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">
@@ -245,38 +299,19 @@ export function ResidentFinancePage() {
               : 'Akkauntingiz xonadonga bog\'lanmagan.'}
           </p>
         </div>
-      </div>
+      </ResidentFinanceShell>
     );
   }
 
+  const headerSubtitle = apartments.length === 1
+    ? (isRu ? `Квартира №${apartments[0].number}` : `Xonadon №${apartments[0].number}`)
+    : (isRu ? `Квартир: ${apartments.length}` : `Xonadonlar: ${apartments.length}`);
+  const currentCharge = charges[0];
+  const currentItems = currentCharge ? parseBreakdown(currentCharge.amount_breakdown) : [];
+  const currentDebt = currentCharge ? Math.max(0, currentCharge.amount - currentCharge.paid_amount) : 0;
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-4 space-y-4 pb-24">
-      {/* Header — единый паттерн: ArrowLeft слева + заголовок */}
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          aria-label={isRu ? 'Назад' : 'Orqaga'}
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{
-            background: 'var(--surface, #FFFFFF)',
-            border: '1px solid var(--border-c, #E6DFD2)',
-            color: 'var(--text-primary, #1C1917)',
-          }}
-        >
-          <ArrowLeft size={19} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900">
-            {isRu ? 'Мои начисления' : 'Mening hisoblarim'}
-          </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {apartments.length === 1
-              ? (isRu ? `Квартира №${apartments[0].number}` : `Xonadon №${apartments[0].number}`)
-              : (isRu ? `Квартир: ${apartments.length}` : `Xonadonlar: ${apartments.length}`)}
-          </p>
-        </div>
-      </div>
+    <ResidentFinanceShell subtitle={headerSubtitle} isRu={isRu} onBack={() => navigate('/')}>
 
       {/* Balance card */}
       <div className={`rounded-2xl p-4 text-white ${balance.debt > 0 ? 'bg-gradient-to-br from-red-500 to-orange-500' : 'bg-gradient-to-br from-emerald-500 to-teal-500'}`}>
@@ -307,6 +342,218 @@ export function ResidentFinancePage() {
           )}
         </div>
       </div>
+
+      {/* Makes the purpose of the monthly management charge explicit. */}
+      {currentCharge && (
+        <section className="space-y-2">
+          <div className="flex items-end justify-between px-1">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                {isRu ? 'За что вы платите' : 'Nima uchun to‘laysiz'}
+              </h2>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {formatPeriod(currentCharge.period, isRu)}
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-gray-500">
+              {isRu ? `К оплате ${fmt(currentDebt)} сум` : `To‘lash ${fmt(currentDebt)} so‘m`}
+            </span>
+          </div>
+
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_14px_32px_-20px_rgba(5,150,105,0.55)]">
+            <Building2
+              aria-hidden
+              strokeWidth={1.4}
+              className="pointer-events-none absolute -bottom-4 -right-3 h-32 w-32 text-white/15"
+            />
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'home' ? null : 'home')}
+              className="relative flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'home'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/25 text-white backdrop-blur-sm">
+                <Building2 className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-sm font-bold text-white">{isRu ? 'Содержание дома' : 'Uyga xizmat ko‘rsatish'}</span>
+                  <span className="inline-flex items-center rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur-sm">{isRu ? 'УК' : 'BK'}</span>
+                </span>
+                <span className="mt-0.5 block text-xs text-white/80">{isRu ? 'Начисление вашей управляющей компании · уборка, лифт, обслуживание' : 'Boshqaruv kompaniyangiz hisobi · tozalash, lift, xizmat'}</span>
+              </span>
+              <span className="text-right">
+                <span className="block text-sm font-extrabold tabular-nums text-white">{fmt(currentCharge.amount)} <small className="font-semibold text-white/80">сум</small></span>
+                <ChevronDown className={`ml-auto mt-1 h-4 w-4 text-white/80 transition-transform ${expandedService === 'home' ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'home' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`relative border-t border-white/25 bg-white/10 px-4 py-3 transition-all duration-200 ease-out ${expandedService === 'home' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {currentItems.length > 0 ? currentItems.map((item) => (
+                    <div key={item.name} className="flex justify-between gap-3 py-1 text-xs">
+                      <span className="text-white/85">{item.name}</span>
+                      <span className="shrink-0 font-semibold tabular-nums text-white">{fmt(item.share)} сум</span>
+                    </div>
+                  )) : (
+                    <p className="text-xs leading-5 text-white/85">{isRu ? 'Подробный состав начисления появится после утверждения сметы.' : 'Hisobning batafsil tarkibi smeta tasdiqlangandan so‘ng ko‘rinadi.'}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-rose-100 bg-rose-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'gas' ? null : 'gas')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'gas'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500 text-white">
+                <Flame className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-rose-900">{isRu ? 'Газ в квартире' : 'Xonadondagi gaz'}</span>
+                <span className="mt-0.5 block text-xs text-rose-700/80">{isRu ? 'Оплата поставщику по вашему лицевому счёту' : 'Shaxsiy hisobingiz bo‘yicha yetkazib beruvchiga to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-rose-400 transition-transform ${expandedService === 'gas' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'gas' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-rose-100 bg-rose-100/40 px-4 py-3 text-xs leading-5 text-rose-800 transition-all duration-200 ease-out ${expandedService === 'gas' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Газ не входит в начисление УК. Его сумма зависит от ваших показаний и оплачивается напрямую поставщику газа.' : 'Gaz UK hisobiga kirmaydi. Uning summasi ko‘rsatkichlaringizga bog‘liq va gaz yetkazib beruvchisiga to‘g‘ridan-to‘g‘ri to‘lanadi.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-sky-100 bg-sky-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'water' ? null : 'water')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'water'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-500 text-white">
+                <Droplet className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-sky-900">{isRu ? 'Вода и канализация' : 'Suv va kanalizatsiya'}</span>
+                <span className="mt-0.5 block text-xs text-sky-700/80">{isRu ? 'Оплата поставщику по вашим показаниям счётчика' : 'Hisoblagich ko‘rsatkichlari bo‘yicha yetkazib beruvchiga to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-sky-400 transition-transform ${expandedService === 'water' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'water' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-sky-100 bg-sky-100/40 px-4 py-3 text-xs leading-5 text-sky-800 transition-all duration-200 ease-out ${expandedService === 'water' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Холодная и горячая вода не входят в начисление УК. Передавайте показания счётчика и оплачивайте напрямую поставщику водоснабжения.' : 'Sovuq va issiq suv UK hisobiga kirmaydi. Hisoblagich ko‘rsatkichlarini topshiring va to‘g‘ridan-to‘g‘ri suv ta’minotchisiga to‘lang.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'internet' ? null : 'internet')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'internet'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-500 text-white">
+                <Wifi className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-indigo-900">{isRu ? 'Интернет и ТВ' : 'Internet va TV'}</span>
+                <span className="mt-0.5 block text-xs text-indigo-700/80">{isRu ? 'Оплата провайдеру по вашему договору' : 'Shartnoma bo‘yicha provayderga to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-indigo-400 transition-transform ${expandedService === 'internet' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'internet' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-indigo-100 bg-indigo-100/40 px-4 py-3 text-xs leading-5 text-indigo-800 transition-all duration-200 ease-out ${expandedService === 'internet' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Интернет и телевидение не входят в начисление УК. Оплачивается напрямую провайдеру по вашему личному договору.' : 'Internet va televidenie UK hisobiga kirmaydi. Shaxsiy shartnomangiz bo‘yicha provayderga to‘g‘ridan-to‘g‘ri to‘lanadi.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-orange-100 bg-orange-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'heating' ? null : 'heating')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'heating'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-500 text-white">
+                <Thermometer className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-orange-900">{isRu ? 'Отопление' : 'Isitish'}</span>
+                <span className="mt-0.5 block text-xs text-orange-700/80">{isRu ? 'Централизованное тепло · оплата поставщику' : 'Markaziy isitish · ta’minotchiga to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-orange-400 transition-transform ${expandedService === 'heating' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'heating' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-orange-100 bg-orange-100/40 px-4 py-3 text-xs leading-5 text-orange-800 transition-all duration-200 ease-out ${expandedService === 'heating' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Отопление не входит в начисление УК. Оплачивается отдельно теплоснабжающей организации.' : 'Isitish UK hisobiga kirmaydi. Issiqlik ta’minoti tashkilotiga alohida to‘lanadi.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-lime-100 bg-lime-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'waste' ? null : 'waste')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'waste'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lime-600 text-white">
+                <Trash2 className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-lime-900">{isRu ? 'Вывоз мусора' : 'Chiqindilarni olib chiqish'}</span>
+                <span className="mt-0.5 block text-xs text-lime-800/80">{isRu ? 'Вывоз ТКО · оплата оператору' : 'Maishiy chiqindilar · operatorga to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-lime-500 transition-transform ${expandedService === 'waste' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'waste' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-lime-100 bg-lime-100/40 px-4 py-3 text-xs leading-5 text-lime-900 transition-all duration-200 ease-out ${expandedService === 'waste' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Вывоз мусора не входит в начисление УК. Оплачивается отдельно региональному оператору по вывозу отходов.' : 'Chiqindilarni olib chiqish UK hisobiga kirmaydi. Hududiy chiqindi operatoriga alohida to‘lanadi.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => setExpandedService(expandedService === 'parking' ? null : 'parking')}
+              className="flex w-full items-center gap-3 p-4 text-left active:scale-[0.99]"
+              aria-expanded={expandedService === 'parking'}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-600 text-white">
+                <Car className="h-5 w-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-slate-900">{isRu ? 'Паркинг' : 'Avtoturargoh'}</span>
+                <span className="mt-0.5 block text-xs text-slate-600">{isRu ? 'Машино-место · отдельная оплата' : 'Avtomobil joyi · alohida to‘lov'}</span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expandedService === 'parking' ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expandedService === 'parking' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="min-h-0 overflow-hidden">
+                <div className={`border-t border-slate-200 bg-slate-100/60 px-4 py-3 text-xs leading-5 text-slate-700 transition-all duration-200 ease-out ${expandedService === 'parking' ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}>
+                  {isRu ? 'Паркинг оплачивается отдельно оператору паркинга или УК по договору на машино-место.' : 'Avtoturargoh avtomobil joyi shartnomasi bo‘yicha avtoturargoh operatoriga yoki boshqaruv kompaniyasiga alohida to‘lanadi.'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Penalty details (только если есть) */}
       {penalties.length > 0 && (
@@ -343,7 +590,7 @@ export function ResidentFinancePage() {
       {/* Charges list */}
       <div className="space-y-2">
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide px-1">
-          {isRu ? 'История начислений' : 'Hisoblar tarixi'}
+          {isRu ? 'Архив начислений' : 'Hisoblar arxivi'}
         </h2>
 
         {charges.length === 0 ? (
@@ -363,7 +610,7 @@ export function ResidentFinancePage() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900">
-                    {formatPeriod(c.period, isRu)}
+                    {isRu ? `Содержание дома · ${formatPeriod(c.period, isRu)}` : `Uyga xizmat · ${formatPeriod(c.period, isRu)}`}
                   </div>
                   {apartments.length > 1 && apt && (
                     <div className="text-xs text-gray-500 mt-0.5">
@@ -404,7 +651,7 @@ export function ResidentFinancePage() {
                     )}
                     className="w-full mt-2 py-2.5 rounded-lg border-2 border-primary-300 text-primary-700 hover:bg-primary-50 font-medium text-sm flex items-center justify-center gap-2"
                   >
-                    📄 {isRu ? 'Скачать квитанцию (PDF)' : 'Kvitansiya (PDF)'}
+                    {isRu ? 'Скачать квитанцию (PDF)' : 'Kvitansiya (PDF)'}
                   </button>
                 </div>
               )}
@@ -419,6 +666,6 @@ export function ResidentFinancePage() {
           ? 'Онлайн-оплата через Payme/Click — в разработке. Пока квитанцию можно распечатать и оплатить в банке.'
           : 'Payme/Click orqali to\'lov — ishlab chiqilmoqda. Hozircha kvitansiyani chop etib bankda to\'lang.'}
       </div>
-    </div>
+    </ResidentFinanceShell>
   );
 }
