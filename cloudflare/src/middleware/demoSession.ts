@@ -9,6 +9,16 @@ const PRESENTATION_MUTATIONS = new Set([
   'POST /api/requests/:id/approve',
   'POST /api/requests/:id/reject',
   'POST /api/requests/:id/rate',
+  // Экран «Оценка сотрудников» (ResidentRateEmployeesPage) задуман как
+  // презентационный, но без этих двух записей упирался в 403:
+  'POST /api/ratings',
+  'POST /api/uk-ratings',
+  // «Мой гараж» (ResidentVehiclesPage + AddCarPage) — тоже презентационный
+  // flow, но POST/PATCH/DELETE на /api/vehicles не были в whitelist →
+  // «Не удалось сохранить авто» на demo.
+  'POST /api/vehicles',
+  'PATCH /api/vehicles/:id',
+  'DELETE /api/vehicles/:id',
   'POST /api/requests/:id/pause',
   'POST /api/requests/:id/resume',
   'POST /api/meetings/:meetingid/schedule-votes',
@@ -35,6 +45,10 @@ const PRESENTATION_MUTATIONS = new Set([
   'POST /api/notes',
   'PUT /api/notes/:id',
   'DELETE /api/notes/:id',
+  // Demo directors need to demonstrate the complete short-term rental
+  // workflow, including replacing a test apartment.
+  'POST /api/rentals/apartments',
+  'DELETE /api/rentals/apartments/:id',
 ]);
 
 const SENSITIVE_GET_PREFIXES = [
