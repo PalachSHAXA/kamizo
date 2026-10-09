@@ -53,11 +53,15 @@ export class ErrorBoundary extends Component<Props, State> {
       errorCount: prev.errorCount + 1,
     }));
 
-    // Log to console
-    console.error('🔴 ErrorBoundary caught error:', {
-      error: error.message,
-      componentStack: errorInfo.componentStack,
-    });
+    // Log to console — expanded so Safari Web Inspector shows file:line of
+    // the throw, not just a message string. iOS WKWebView serialises object
+    // args unevenly, so we emit the Error instance itself (dev-tools pretty-
+    // prints it with full stack + source map link) PLUS stack + component
+    // stack as separate labelled console.error calls to guarantee visibility.
+    console.error('[ErrorBoundary] uncaught React error:', error);
+    console.error('[ErrorBoundary] message:', error?.message);
+    console.error('[ErrorBoundary] stack:\n' + (error?.stack || '(no stack)'));
+    console.error('[ErrorBoundary] component stack:\n' + (errorInfo.componentStack || '(no component stack)'));
 
     // Send to monitoring service
     this.logError(error, errorInfo);
@@ -148,99 +152,74 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      // Default error UI
+      // Short error code — compact timestamp YYYYMMDD-HHMM — resident can
+      // screenshot and dictate to support instead of trying to read the stack.
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const errorCode = `FP-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+      // Full technical details hidden by default; shown only in DEV or when
+      // ?debug=1 is present in URL. In production residents see a clean
+      // reassuring screen without scary stack traces.
+      const showDebug = import.meta.env.DEV || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
+
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-          <div className="max-w-2xl w-full">
-            <div className="bg-white rounded-lg shadow-lg p-8">
-              {/* Error Icon */}
-              <div className="flex items-center justify-center mb-6">
-                <div className="bg-red-100 rounded-full p-4">
-                  <AlertTriangle className="w-12 h-12 text-red-600" />
-                </div>
-              </div>
-
-              {/* Error Title */}
-              <h1 className="text-2xl font-bold text-gray-900 text-center mb-4">
-                Упс! Что-то пошло не так
-              </h1>
-
-              {/* Error Message */}
-              <p className="text-gray-600 text-center mb-6">
-                Произошла непредвиденная ошибка. Мы уже работаем над её исправлением.
-              </p>
-
-              {/* Error Details (dev mode only) */}
-              {import.meta.env.DEV && this.state.error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                  <p className="font-mono text-sm text-red-900 mb-2">
-                    <strong>Error:</strong> {this.state.error.message}
-                  </p>
-                  {this.state.error.stack && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-sm text-red-800 hover:text-red-900">
-                        Stack Trace
-                      </summary>
-                      <pre className="mt-2 text-xs text-red-800 overflow-x-auto whitespace-pre-wrap">
-                        {this.state.error.stack}
-                      </pre>
-                    </details>
-                  )}
-                  {this.state.errorInfo && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-sm text-red-800 hover:text-red-900">
-                        Component Stack
-                      </summary>
-                      <pre className="mt-2 text-xs text-red-800 overflow-x-auto whitespace-pre-wrap">
-                        {this.state.errorInfo.componentStack}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
-
-              {/* Recovery Actions */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={this.handleReset}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                  Попробовать снова
-                </button>
-
-                <button
-                  onClick={this.handleGoHome}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-                  На главную
-                </button>
-
-                <button
-                  onClick={this.handleReload}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                  Перезагрузить
-                </button>
-              </div>
-
-              {/* Error Count Warning */}
-              {this.state.errorCount > 1 && (
-                <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm text-yellow-800 text-center">
-                    ⚠️ Ошибка повторяется ({this.state.errorCount} раз). Попробуйте перезагрузить
-                    страницу.
-                  </p>
-                </div>
-              )}
-
-              {/* Help Text */}
-              <p className="text-sm text-gray-500 text-center mt-6">
-                Если проблема повторяется, обратитесь в службу поддержки или попробуйте позже.
-              </p>
+        <div className="min-h-screen flex items-center justify-center px-6 py-10" style={{ background: 'var(--app-bg, #F4F0E8)', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 40px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
+          <div className="w-full max-w-sm text-center">
+            {/* Reassuring icon — amber (not red) so it reads as "temporary"
+                not "catastrophic" — residents panic less. */}
+            <div className="mx-auto mb-6 w-20 h-20 rounded-full grid place-items-center" style={{ background: 'var(--brand-tint, rgba(249,115,22,0.1))', color: 'var(--brand-dark, #C2410C)' }}>
+              <AlertTriangle className="w-10 h-10" strokeWidth={1.6} />
             </div>
+
+            <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary, #1C1917)', letterSpacing: '-0.02em' }}>
+              Что-то пошло не так
+            </h1>
+            <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--text-secondary, #78716C)' }}>
+              Приложение столкнулось с неожиданной ошибкой. Обычно это исправляется обновлением страницы.
+            </p>
+
+            {/* Primary action — brand orange matches the hero button in rest of app. */}
+            <button
+              onClick={this.handleReload}
+              className="w-full font-semibold py-3.5 rounded-2xl mb-3 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+              style={{ background: 'var(--brand, #F97316)', color: '#fff', boxShadow: '0 10px 28px -14px rgba(249,115,22,0.55)' }}
+            >
+              <RefreshCw className="w-5 h-5" strokeWidth={2.2} />
+              Обновить страницу
+            </button>
+
+            <button
+              onClick={this.handleGoHome}
+              className="w-full font-semibold py-3 rounded-2xl mb-6 flex items-center justify-center gap-2 border active:scale-[0.98] transition-transform"
+              style={{ background: 'var(--surface, #fff)', color: 'var(--text-primary, #1C1917)', borderColor: 'var(--border-c, #E6DFD2)' }}
+            >
+              <Home className="w-4 h-4" strokeWidth={2} />
+              На главную
+            </button>
+
+            {this.state.errorCount > 1 && (
+              <div className="mb-4 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(234,179,8,0.1)', color: 'var(--text-secondary, #78716C)' }}>
+                Ошибка повторяется ({this.state.errorCount}×). Попробуйте полностью закрыть и открыть приложение.
+              </div>
+            )}
+
+            <p className="text-[11px]" style={{ color: 'var(--text-muted, #A8A29E)' }}>
+              Код ошибки: <span className="font-mono select-all">{errorCode}</span>
+            </p>
+
+            {showDebug && this.state.error && (
+              <div className="mt-6 text-left bg-red-50 border border-red-200 rounded-xl p-3 text-xs">
+                <p className="font-mono text-red-900 break-words mb-2">
+                  <strong>{this.state.error.name || 'Error'}:</strong> {this.state.error.message || '(no message)'}
+                </p>
+                {this.state.error.stack && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-red-800">Stack</summary>
+                    <pre className="mt-1 text-[10px] text-red-800 overflow-x-auto whitespace-pre-wrap break-words max-h-40">{this.state.error.stack}</pre>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
         </div>
       );

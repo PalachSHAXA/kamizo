@@ -19,6 +19,7 @@ import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { SWUpdateBanner } from './components/SWUpdateBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Toast from './components/Toast';
+import { OfflineBanner } from './components/OfflineBanner';
 import { ThemeProvider } from './components/common/ThemeProvider';
 import { NativeSplashOverlay } from './components/NativeSplashOverlay';
 import { NavigationDirectionTracker } from './components/NavigationDirectionTracker';
@@ -375,6 +376,7 @@ function App() {
         </BrowserRouter>
       </ErrorBoundary>
       <Toast />
+      <OfflineBanner />
       {/* v118.166 — NativeSplashOverlay moved to BEFORE the routing
           tree (see above) so its portal commits before
           BottomBar's — same DOM target (document.body), but earlier
