@@ -4,6 +4,7 @@ import {
   AlertTriangle, Calendar, Phone, MapPin, Eye, History, UserPlus, Loader2
 } from 'lucide-react';
 import { EmptyState, ConfirmDialog } from '../components/common';
+import { Sheet } from '../components/common/Sheet';
 import { useAuthStore } from '../stores/authStore';
 import { useGuestAccessStore } from '../stores/dataStore';
 import { useLanguageStore } from '../stores/languageStore';
@@ -165,7 +166,7 @@ export function ManagerGuestAccessPage() {
                 typeFilter === type ? 'ring-2 ring-primary-500' : ''
               }`}
             >
-              <div className="text-2xl mb-1">{label.icon}</div>
+              <div className="mb-1 flex items-center justify-center text-gray-700">{getVisitorIcon(type)}</div>
               <div className="font-bold">{count}</div>
               <div className="text-xs text-gray-500 truncate">
                 {language === 'ru' ? label.label : label.labelUz}
@@ -343,12 +344,12 @@ export function ManagerGuestAccessPage() {
 
                       <div className="text-sm text-gray-600 flex items-center gap-1">
                         <MapPin className="w-3.5 h-3.5" />
-                        {code.residentAddress}, {language === 'ru' ? 'кв.' : 'xona'} {code.residentApartment}
+                        {[code.residentAddress, code.residentApartment && `${language === 'ru' ? 'кв.' : 'xona'} ${code.residentApartment}`].filter(Boolean).join(', ') || '—'}
                       </div>
 
                       <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <span className="text-base">{visitorLabel.icon}</span>
+                        <span className="flex items-center gap-1 text-gray-600">
+                          {getVisitorIcon(code.visitorType as VisitorType)}
                           {code.visitorName || (language === 'ru' ? visitorLabel.label : visitorLabel.labelUz)}
                         </span>
                         {code.visitorVehiclePlate && (
@@ -456,19 +457,33 @@ export function ManagerGuestAccessPage() {
         </div>
       )}
 
-      {/* Detail modal */}
-      {selectedCode && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="text-lg font-bold">
-                {language === 'ru' ? 'Детали пропуска' : 'Ruxsatnoma tafsilotlari'}
-              </h2>
-              <button onClick={() => setSelectedCode(null)} className="p-2 hover:bg-gray-100 rounded-xl">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      {/* Detail sheet — migrated to shared <Sheet> primitive. Same reasoning
+          as QRCodeDisplay: inline fixed+modal-content didn't portal to body,
+          so page transforms left the global header (hamburger/bell) visible
+          on top of the backdrop; also missing grabber, swipe-dismiss, body
+          scroll lock. Sheet handles all four. Status/resident/visitor/
+          access/dates render inside children; "Отменить пропуск" moves to
+          `footer` so it sticks regardless of scroll position. */}
+      <Sheet
+        isOpen={!!selectedCode}
+        onClose={() => setSelectedCode(null)}
+        title={language === 'ru' ? 'Детали пропуска' : 'Ruxsatnoma tafsilotlari'}
+        size="md"
+        footer={selectedCode?.status === 'active' ? (
+          <button
+            onClick={() => {
+              const c = selectedCode;
+              setSelectedCode(null);
+              setShowRevokeModal(c);
+            }}
+            className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+          >
+            <Ban className="w-5 h-5" />
+            {language === 'ru' ? 'Отменить пропуск' : 'Ruxsatnomani bekor qilish'}
+          </button>
+        ) : undefined}
+      >
+        {selectedCode && (
             <div className="p-4 space-y-4">
               {/* Status */}
               <div className={`p-4 rounded-xl ${
@@ -598,23 +613,9 @@ export function ManagerGuestAccessPage() {
                 </div>
               )}
 
-              {/* Actions */}
-              {selectedCode.status === 'active' && (
-                <button
-                  onClick={() => {
-                    setSelectedCode(null);
-                    setShowRevokeModal(selectedCode);
-                  }}
-                  className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-                >
-                  <Ban className="w-5 h-5" />
-                  {language === 'ru' ? 'Отменить пропуск' : 'Ruxsatnomani bekor qilish'}
-                </button>
-              )}
             </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Sheet>
 
       <ConfirmDialog
         isOpen={!!showRevokeModal}

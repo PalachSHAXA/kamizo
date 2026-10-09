@@ -3,12 +3,25 @@ import {
   ShoppingCart, Search, ChevronRight, X, CheckCircle, Package, Phone, MapPin, UserPlus, User, Star, ShoppingBag
 } from 'lucide-react';
 import { EmptyState } from '../components/common';
+import { Sheet } from '../components/common/Sheet';
 import { formatName } from '../utils/formatName';
 import { useLanguageStore } from '../stores/languageStore';
 import { useExecutorStore } from '../stores/dataStore';
 import { useToastStore } from '../stores/toastStore';
-import { useModalPresence } from '../stores/modalStore';
 import { apiRequest } from '../services/api';
+
+// Russian plural rule: 1 товар · 2 товара · 5 товаров. Previously rendered
+// as literal "N товаров" which was wrong for N=1 and N=2..4.
+function pluralOrderItems(n: number, lang: string): string {
+  if (lang !== 'ru') return `${n} ta mahsulot`;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  const word =
+    mod10 === 1 && mod100 !== 11 ? 'товар'
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20) ? 'товара'
+    : 'товаров';
+  return `${n} ${word}`;
+}
 
 // Types for API responses
 interface MarketplaceOrderAPI {
@@ -116,19 +129,6 @@ export function MarketplaceOrdersPage() {
   const [showUnavailableModal, setShowUnavailableModal] = useState<MarketplaceOrderAPI | null>(null);
   const [unavailableReason, setUnavailableReason] = useState('');
   const [unavailableSubmitting, setUnavailableSubmitting] = useState(false);
-
-  // Hide the resident/staff BottomBar while any of this page's full-
-  // screen bottom-sheet modals is open — order detail, assign-executor,
-  // set-price, mark-unavailable. Same pattern as the marketplace_manager
-  // dashboard (009b9f01) and the resident MarketplacePage checkout —
-  // without this the pill peeks under the sheet's primary action button
-  // ("Взять в работу" / "Отправить клиенту").
-  useModalPresence(
-    !!selectedOrder ||
-    !!showAssignModal ||
-    !!showPriceModal ||
-    !!showUnavailableModal
-  );
 
   // Fetch orders — supports ?order_type=stock|on_demand filter (Stage 3a).
   const fetchOrders = useCallback(async () => {
@@ -279,7 +279,7 @@ export function MarketplaceOrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen lg:min-h-[calc(100vh-7.5rem)] bg-gray-50">
       {/* Header — Sprint 44: brand-orange avatar */}
       <div className="bg-white border-b px-4 py-4">
         <div className="flex items-center gap-3">
@@ -463,7 +463,7 @@ export function MarketplaceOrdersPage() {
                     })}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">{order.items_count || order.items?.length || 0} товаров</span>
+                    <span className="text-sm text-gray-500">{pluralOrderItems(order.items_count || order.items?.length || 0, language)}</span>
                     {/* Hide amount for early on-demand stages — total is 0
                         until manager sets the price. Once price_offered
                         or later, show the offered final. */}
@@ -551,21 +551,13 @@ export function MarketplaceOrdersPage() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
-              <h2 className="font-bold text-lg">
-                {language === 'ru' ? 'Заказ' : 'Buyurtma'} #{selectedOrder.order_number}
-              </h2>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4">
+        <Sheet
+          isOpen={!!selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          title={`${language === 'ru' ? 'Заказ' : 'Buyurtma'} #${selectedOrder.order_number}`}
+          size="lg"
+        >
+          <div>
               {/* Status Progress */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
@@ -732,28 +724,19 @@ export function MarketplaceOrdersPage() {
                   </button>
                 )}
               </div>
-            </div>
           </div>
-        </div>
+        </Sheet>
       )}
 
       {/* Assign Executor Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80dvh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
-              <h2 className="font-bold text-lg">
-                {language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
-              </h2>
-              <button
-                onClick={() => setShowAssignModal(null)}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4">
+        <Sheet
+          isOpen={!!showAssignModal}
+          onClose={() => setShowAssignModal(null)}
+          title={language === 'ru' ? 'Назначить исполнителя' : 'Ijrochi tayinlash'}
+          size="md"
+        >
+          <div>
               <p className="text-sm text-gray-500 mb-4">
                 {language === 'ru'
                   ? `Выберите исполнителя для заказа #${showAssignModal.order_number}`
@@ -795,9 +778,8 @@ export function MarketplaceOrdersPage() {
                   </div>
                 )}
               </div>
-            </div>
           </div>
-        </div>
+        </Sheet>
       )}
 
       {/* Offer Price Modal (Stage 5b) — manager enters unit_price + delivery_fee
@@ -810,15 +792,25 @@ export function MarketplaceOrdersPage() {
         const itemTotal = unit * qty;
         const final = itemTotal + fee;
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90dvh] overflow-y-auto">
-              <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
-                <h2 className="font-bold text-lg">{language === 'ru' ? 'Назвать цену' : 'Narx aytish'}</h2>
-                <button onClick={() => !priceSubmitting && setShowPriceModal(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4 space-y-3">
+          <Sheet
+            isOpen={!!showPriceModal}
+            onClose={() => { if (!priceSubmitting) setShowPriceModal(null); }}
+            title={language === 'ru' ? 'Назвать цену' : 'Narx aytish'}
+            size="md"
+            forceAction={priceSubmitting}
+            footer={
+              <button
+                onClick={submitPriceOffer}
+                disabled={priceSubmitting}
+                className="w-full py-3 bg-primary-600 text-white rounded-2xl font-semibold hover:bg-primary-700 transition-colors disabled:bg-gray-300"
+              >
+                {priceSubmitting
+                  ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+                  : (language === 'ru' ? 'Отправить клиенту' : 'Mijozga yuborish')}
+              </button>
+            }
+          >
+            <div className="space-y-3">
                 {/* What was requested — reminder for the manager */}
                 <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3">
                   <div className="text-xs text-amber-900 font-semibold mb-1">
@@ -876,55 +868,44 @@ export function MarketplaceOrdersPage() {
                     <span className="text-primary-600">{formatPrice(final)}</span>
                   </div>
                 </div>
-
-                <button
-                  onClick={submitPriceOffer}
-                  disabled={priceSubmitting}
-                  className="w-full py-3 bg-primary-600 text-white rounded-2xl font-semibold hover:bg-primary-700 transition-colors disabled:bg-gray-300"
-                >
-                  {priceSubmitting
-                    ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
-                    : (language === 'ru' ? 'Отправить клиенту' : 'Mijozga yuborish')}
-                </button>
-              </div>
             </div>
-          </div>
+          </Sheet>
         );
       })()}
 
       {/* Mark Unavailable Modal (Stage 5b) */}
       {showUnavailableModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl">
-            <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between z-10">
-              <h2 className="font-bold text-lg">{language === 'ru' ? 'Не смог достать' : "Topib bo'lmadi"}</h2>
-              <button onClick={() => !unavailableSubmitting && setShowUnavailableModal(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="w-5 h-5" />
-              </button>
+        <Sheet
+          isOpen={!!showUnavailableModal}
+          onClose={() => { if (!unavailableSubmitting) setShowUnavailableModal(null); }}
+          title={language === 'ru' ? 'Не смог достать' : "Topib bo'lmadi"}
+          size="md"
+          forceAction={unavailableSubmitting}
+          footer={
+            <button
+              onClick={submitUnavailable}
+              disabled={unavailableSubmitting}
+              className="w-full py-3 bg-gray-600 text-white rounded-2xl font-semibold hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+            >
+              {unavailableSubmitting
+                ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
+                : (language === 'ru' ? 'Подтвердить' : 'Tasdiqlash')}
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600">
+              {language === 'ru' ? 'Причина будет отправлена клиенту.' : 'Sabab mijozga yuboriladi.'}
             </div>
-            <div className="p-4 space-y-3">
-              <div className="text-sm text-gray-600">
-                {language === 'ru' ? 'Причина будет отправлена клиенту.' : 'Sabab mijozga yuboriladi.'}
-              </div>
-              <textarea
-                rows={3}
-                value={unavailableReason}
-                onChange={e => setUnavailableReason(e.target.value)}
-                placeholder={language === 'ru' ? 'Например: нет у поставщиков, снят с производства…' : 'Masalan: yetkazib beruvchilarda yo\'q...'}
-                className="w-full p-3 border border-gray-200 rounded-2xl text-sm resize-none"
-              />
-              <button
-                onClick={submitUnavailable}
-                disabled={unavailableSubmitting}
-                className="w-full py-3 bg-gray-600 text-white rounded-2xl font-semibold hover:bg-gray-700 transition-colors disabled:bg-gray-300"
-              >
-                {unavailableSubmitting
-                  ? (language === 'ru' ? 'Отправка…' : 'Yuborilmoqda…')
-                  : (language === 'ru' ? 'Подтвердить' : 'Tasdiqlash')}
-              </button>
-            </div>
+            <textarea
+              rows={3}
+              value={unavailableReason}
+              onChange={e => setUnavailableReason(e.target.value)}
+              placeholder={language === 'ru' ? 'Например: нет у поставщиков, снят с производства…' : 'Masalan: yetkazib beruvchilarda yo\'q...'}
+              className="w-full p-3 border border-gray-200 rounded-2xl text-sm resize-none"
+            />
           </div>
-        </div>
+        </Sheet>
       )}
     </div>
   );

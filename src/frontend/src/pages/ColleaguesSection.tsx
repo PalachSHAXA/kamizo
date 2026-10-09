@@ -35,12 +35,11 @@ const getDepartmentName = (specialization: ExecutorSpecialization | undefined | 
   return departments[specialization as string] || 'Общий отдел';
 };
 
-// Функция для генерации аватара на основе имени
-const getAvatarUrl = (name: string, id: string): string => {
-  // Используем DiceBear API для генерации аватаров на основе имени
-  const seed = encodeURIComponent(name + id);
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}&backgroundColor=f59e0b,eab308,84cc16,22c55e,14b8a6,06b6d4,0ea5e9,3b82f6,6366f1,8b5cf6,a855f7,d946ef,ec4899,f43f5e&backgroundType=gradientLinear`;
-};
+// Было: получали URL из https://api.dicebear.com — внешний CDN, не всегда
+// доступен (CORS/rate-limit), 13 ошибок в консоли на каждом открытии.
+// Теперь: пустой src → Avatar компонент показывает локальный gradient +
+// initials fallback (без image-запроса, без console-ошибок).
+const getAvatarUrl = (_name: string, _id: string): string => '';
 
 // Avatar + initialsOf moved to ./colleagues/Avatar in sprint 23.
 

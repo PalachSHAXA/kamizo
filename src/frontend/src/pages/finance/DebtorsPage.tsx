@@ -10,6 +10,16 @@ import { PageSkeleton } from '../../components/PageSkeleton';
 import { useAuthStore } from '../../stores/authStore';
 import { FinanceDemoReadOnlyBanner } from './FinanceDemoReadOnlyBanner';
 
+// Backend sends `last_payment_date` as an ISO timestamp (or NULL). The raw
+// value shown directly to residents' admins reads as 2026-08-17T09:57:31.967Z
+// which is unreadable — format to the active-language short date.
+function formatPaymentDate(iso: string | null, lang: 'ru' | 'uz'): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 interface Debtor {
   apartment_id: string;
   apartment_number: string;
@@ -262,7 +272,7 @@ export default function DebtorsPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
-                    {t('Послед. оплата', "Oxirgi to'lov")}: {d.last_payment_date || '—'}
+                    {t('Послед. оплата', "Oxirgi to'lov")}: {formatPaymentDate(d.last_payment_date, language)}
                   </div>
                   {!isDemoSession && <div className="flex items-center gap-1">
                     <button
@@ -327,7 +337,7 @@ export default function DebtorsPage() {
                         {d.months_overdue}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{d.last_payment_date || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500">{formatPaymentDate(d.last_payment_date, language)}</td>
                     {!isDemoSession && <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button

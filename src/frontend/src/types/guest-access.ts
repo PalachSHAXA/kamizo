@@ -120,6 +120,9 @@ export interface GuestAccessLimits {
 }
 
 // Метки для UI
+// `icon` kept for backwards compatibility with places that render it as text;
+// prefer importing the lucide component for the type from
+// VISITOR_TYPE_ICONS below for a sharper, theme-aware tile.
 export const VISITOR_TYPE_LABELS: Record<VisitorType, { label: string; labelUz: string; icon: string }> = {
   courier: { label: 'Курьер', labelUz: 'Kuryer', icon: '📦' },
   guest: { label: 'Гость', labelUz: 'Mehmon', icon: '👥' },
