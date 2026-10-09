@@ -16,7 +16,18 @@ export function OfflineBanner() {
   const online = useOnline();
   const [dismissed, setDismissed] = useState(false);
 
-  if (online || dismissed) return null;
+  // Debug override: force banner via localStorage['debug_offline']='1' OR
+  // ?offline=1 in URL. Lets us demo the UX without unplugging the network.
+  // Safe to leave in prod — residents can't flip them accidentally.
+  const forced = typeof window !== 'undefined' && (() => {
+    try {
+      if (localStorage.getItem('debug_offline') === '1') return true;
+      if (new URLSearchParams(window.location.search).has('offline')) return true;
+    } catch { /* ignore */ }
+    return false;
+  })();
+
+  if ((online && !forced) || dismissed) return null;
 
   return (
     <div
